@@ -1,6 +1,6 @@
 import json, argparse, os, pdb
 
-def saveConfig(path, name, config:dict):
+def save_Config(path, name, config:dict):
     jsonpath = os.path.join(path, name)
     print(f'Save config as {name}')
     with open(jsonpath, 'w') as f:
