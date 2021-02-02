@@ -1,13 +1,22 @@
+'''
+How to use
+
+ex) 
+    path = '/media/data1/datasets/DCASE2020/feat_label/'
+    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
+    dataset = seldnet_data_to_dataloader(x, y)
+'''
 import numpy as np
 import tensorflow as tf
 
 
 
-def data_loader(data, 
+def data_loader(dataset, 
                 sample_transforms=None, 
                 batch_transforms=None,
                 batch_size=32):
-    dataset = tf.data.Dataset.from_tensor_slices(data)
+    if not isinstance(dataset, tf.data.Dataset):
+        dataset = tf.data.Dataset.from_tensor_slices(dataset)
 
     if sample_transforms is not None:
         if not isinstance(sample_transforms, (list, tuple)):
@@ -51,4 +60,49 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
     return features, labels
+
+
+def seldnet_data_to_dataloader(features: [list, tuple], 
+                               labels: [list, tuple], 
+                               train=True, 
+                               label_time_per_sample=60,
+                               **kwargs):
+    features = np.concatenate(features, axis=0)
+    labels = np.concatenate(labels, axis=0)
+
+    # shapes of features and labels 
+    # features: [time_features, freq, chan]
+    # labels:   [time_labels, 4*classes]
+    # for each 5 input time slices, a single label time slices was designated
+    
+    # features' shape [time_f, freq, chan] -> [time_l, resolution, freq, chan]
+    features = np.reshape(features, (labels.shape[0], -1, *features.shape[1:]))
+
+    # windowing
+    n_samples = features.shape[0] // label_time_per_sample
+    dataset = tf.data.Dataset.from_tensor_slices((features, labels))
+    dataset = dataset.batch(label_time_per_sample)
+    dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y))
+    del features, labels
+
+    dataset = data_loader(dataset, **kwargs)
+    dataset = dataset.shuffle(n_samples)
+
+    return dataset
+
+
+if __name__ == '__main__':
+    path = '/media/data1/datasets/DCASE2020/feat_label/'
+    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
+    dataset = seldnet_data_to_dataloader(x, y)
+    import matplotlib.pyplot as plt
+
+    def norm(xs):
+        return (xs - tf.reduce_min(xs)) / (tf.reduce_max(xs) - tf.reduce_min(xs))
+
+    for x, y in dataset:
+        fig, axs = plt.subplots(2)
+        axs[0].imshow(norm(x[0])[..., 0]) # tf.reshape(norm(x), (x.shape[0], -1)))
+        axs[1].imshow(y[0])
+        plt.show()
 
