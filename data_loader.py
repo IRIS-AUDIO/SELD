@@ -1,14 +1,5 @@
-'''
-How to use
-
-ex) 
-    path = '/media/data1/datasets/DCASE2020/feat_label/'
-    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
-    dataset = seldnet_data_to_dataloader(x, y)
-'''
 import numpy as np
 import tensorflow as tf
-
 
 
 def data_loader(dataset, 
@@ -49,7 +40,7 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     }
 
     features = sorted(glob(os.path.join(feat_path, '*.npy')))
-    features = [np.load(f) for f in features 
+    features = [np.load(f).astype('float32') for f in features 
                 if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
     # reshape [..., freq*chan] -> [..., freq, chan]
     features = [np.reshape(f, (*f.shape[:-1], n_freq_bins, -1))
@@ -86,16 +77,32 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     del features, labels
 
     dataset = data_loader(dataset, **kwargs)
-    dataset = dataset.shuffle(n_samples)
+    if train:
+        dataset = dataset.shuffle(n_samples)
 
     return dataset
 
 
 if __name__ == '__main__':
+    ''' An example of how to use '''
+    from transforms import *
+    import matplotlib.pyplot as plt
+
     path = '/media/data1/datasets/DCASE2020/feat_label/'
     x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
-    dataset = seldnet_data_to_dataloader(x, y)
-    import matplotlib.pyplot as plt
+
+    sample_transforms = [
+        lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
+        lambda x, y: (mask(x, axis=-2, max_mask_size=8), y),
+    ]
+    batch_transforms = [
+        split_total_labels_to_sed_doa
+    ]
+    dataset = seldnet_data_to_dataloader(
+        x, y,
+        sample_transforms=sample_transforms,
+        batch_transforms=batch_transforms,
+    )
 
     def norm(xs):
         return (xs - tf.reduce_min(xs)) / (tf.reduce_max(xs) - tf.reduce_min(xs))
@@ -103,6 +110,6 @@ if __name__ == '__main__':
     for x, y in dataset:
         fig, axs = plt.subplots(2)
         axs[0].imshow(norm(x[0])[..., 0]) # tf.reshape(norm(x), (x.shape[0], -1)))
-        axs[1].imshow(y[0])
+        axs[1].imshow(y[1][0])
         plt.show()
 
