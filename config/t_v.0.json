@@ -1,0 +1,9 @@
+{
+    "abspath": "/root",
+    "batch": 128,
+    "decay": 0.7071067811865475,
+    "epoch": 200,
+    "lr": 0.001,
+    "name": "t_v.0",
+    "resume": false
+}
