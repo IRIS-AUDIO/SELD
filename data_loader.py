@@ -39,29 +39,32 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
         'test': [1]
     }
 
+    # load splits according to the mode
     features = sorted(glob(os.path.join(feat_path, '*.npy')))
     features = [np.load(f).astype('float32') for f in features 
                 if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
-    # reshape [..., freq*chan] -> [..., freq, chan]
-    features = [np.reshape(f, (*f.shape[:-1], n_freq_bins, -1))
-                for f in features]
-    
+
     labels = sorted(glob(os.path.join(label_path, '*.npy')))
     labels = [np.load(f) for f in labels
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
+    # reshape [..., freq*chan] -> [..., freq, chan]
+    features = [np.reshape(f, (*f.shape[:-1], n_freq_bins, -1))
+                for f in features]
+    
     return features, labels
 
 
 def seldnet_data_to_dataloader(features: [list, tuple], 
                                labels: [list, tuple], 
                                train=True, 
-                               label_time_per_sample=60,
+                               label_window_size=60,
+                               drop_remainder=True,
                                **kwargs):
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
 
-    # shapes of features and labels 
+    # shapes of seldnet features and labels 
     # features: [time_features, freq, chan]
     # labels:   [time_labels, 4*classes]
     # for each 5 input time slices, a single label time slices was designated
@@ -70,9 +73,9 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     features = np.reshape(features, (labels.shape[0], -1, *features.shape[1:]))
 
     # windowing
-    n_samples = features.shape[0] // label_time_per_sample
+    n_samples = features.shape[0] // label_window_size
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
-    dataset = dataset.batch(label_time_per_sample)
+    dataset = dataset.batch(label_window_size, drop_remainder=drop_remainder)
     dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y))
     del features, labels
 
@@ -104,10 +107,14 @@ if __name__ == '__main__':
         batch_transforms=batch_transforms,
     )
 
+    # visualize
     def norm(xs):
         return (xs - tf.reduce_min(xs)) / (tf.reduce_max(xs) - tf.reduce_min(xs))
 
     for x, y in dataset:
+        print(x.shape)
+        for y_ in y:
+            print(y_.shape)
         fig, axs = plt.subplots(2)
         axs[0].imshow(norm(x[0])[..., 0]) # tf.reshape(norm(x), (x.shape[0], -1)))
         axs[1].imshow(y[1][0])
