@@ -1,12 +1,12 @@
 import json, argparse, os, pdb
 
-def save_Config(path, name, config:dict):
+def save_config(path, name, config:dict):
     jsonpath = os.path.join(path, name)
     print(f'Save config as {name}')
     with open(jsonpath, 'w') as f:
         json.dump(config, f, sort_keys=True, indent=4)
 
-def loadConfig(path, name):
+def load_config(path, name):
     if not (os.path.splitext(name)[-1] == '.json'):
         name += '.json'
     jsonpath = os.path.join(path, name)
@@ -18,7 +18,7 @@ def loadConfig(path, name):
         print(f"{jsonpath} config don't exists")
         raise ValueError()
 
-def manageVersion(path, name):
+def manage_version(path, name):
     from glob import glob
     configs = sorted(glob(os.path.splitext(os.path.join(path, name))[0] + '*'))
     latest = os.path.splitext(os.path.basename(configs[-1]))[0]
@@ -27,21 +27,21 @@ def manageVersion(path, name):
     name = name.replace(f'_v.{oldversion}', f'_v.{newversion}')
     return name
 
-def findDuplicateConfig(jsonpath, newconfig, mode):
+def find_duplicate_config(jsonpath, newconfig, mode):
     from glob import glob
-    name = getName(jsonpath)
+    name = get_name(jsonpath)
     for i in glob(os.path.dirname(os.path.abspath(jsonpath)) + f'/{name}*.json'):
-        _config = loadConfig(os.path.dirname(i), os.path.basename(i))
-        _config = manageMode(_config, mode)
-        _config = manageGPU(_config)
+        _config = load_config(os.path.dirname(i), os.path.basename(i))
+        _config = manage_mode(_config, mode)
+        _config = manage_gpu(_config)
         if _config == newconfig:
             return os.path.splitext(os.path.basename(i))[0]
     return False
 
-def getName(name):
+def get_name(name):
     return os.path.basename(os.path.splitext(name)[0].split('_v.')[0])
 
-def manageGPU(config):
+def manage_gpu(config):
     try:
         os.environ['CUDA_VISIBLE_DEVICES'] = config['gpus']
         del config['gpus']
@@ -49,20 +49,20 @@ def manageGPU(config):
         pass
     return config
 
-def overWriteConfig(loaded_config, config):
+def over_write_config(loaded_config, config):
     ''' overwrite config to loaded_config '''
     for key in config.keys():
         loaded_config[key] = config[key]
     return loaded_config
 
-def manageMode(config, mode):
+def manage_mode(config, mode):
     for key in config.keys():
         if config[key] == mode:
             del config[key]
             break
     return config
 
-def getConfig(name:str, 
+def get_config(name:str, 
               config:argparse.Namespace, 
               path:str='./config', 
               mode:str=''):
@@ -86,8 +86,8 @@ def getConfig(name:str,
         print(f'configuration directory is made at {path}')
 
     config = vars(config) # gpus delete
-    config = manageMode(config, mode)
-    config = manageGPU(config)
+    config = manage_mode(config, mode)
+    config = manage_gpu(config)
     
     name = name + '.json' if not('.json' in name) else name
     while True:
@@ -95,13 +95,13 @@ def getConfig(name:str,
             if not os.path.exists(os.path.join(path, name)):
                 print(f'There is no {os.path.splitext(name)[0]} config')
                 raise ValueError()
-            loaded_config = loadConfig(path, name)
+            loaded_config = load_config(path, name)
 
             if 'o' in mode:
                 print(f'Loaded config name: {name}')
                 print(f'Only use it')
                 
-                final_config = overWriteConfig(loaded_config, {'gpus': config.gpus})
+                final_config = over_write_config(loaded_config, {'gpus': config.gpus})
                 break
         elif 'o' in mode:
             print("You can't use only saved config without loading")
@@ -111,17 +111,17 @@ def getConfig(name:str,
             name = os.path.splitext(name)[0] + '_v.0.json'
             final_config['name'] = os.path.splitext(name)[0]
             if not os.path.exists(os.path.join(path, name)):
-                saveConfig(path, name, final_config)
+                save_config(path, name, final_config)
             break
         
-        dup = findDuplicateConfig(os.path.join(path, name), final_config, mode)
+        dup = find_duplicate_config(os.path.join(path, name), final_config, mode)
         if dup:
             print(dup, 'is the same config with you final config and change name')
             name = os.path.splitext(os.path.basename(dup))[0]
             final_config['name'] = os.path.splitext(name)[0]
             break
-        name = manageVersion(path, name)
-        saveConfig(path, name, final_config)
+        name = manage_version(path, name)
+        save_config(path, name, final_config)
         break
     print('----------------- config manager end -----------------')
     return argparse.Namespace(**final_config)
@@ -133,4 +133,4 @@ if __name__ == "__main__":
     arg = argparse.ArgumentParser()
     arg.add_argument('--hi', type=str, default='bye')
     config = arg.parse_known_args(sys.argv[1:])[0]
-    getConfig('b_v.0)', config, False)
+    get_config('b_v.0)', config, False)
