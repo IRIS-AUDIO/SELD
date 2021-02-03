@@ -14,7 +14,7 @@ def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
         dloss = doa_loss(y[1], y_p[1])
         loss = sloss * loss_weight[0] + dloss * loss_weight[1]
     grad = tape.gradient(loss, model.trainable_variables)
-    optimizer.apply_gradients(zip(gradients, model.trainalbe_variables))
+    optimizer.apply_gradients(zip(grad, model.trainable_variables))
 
     return y_p, sloss, dloss
 
@@ -41,7 +41,8 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric, config, optimizer=None,
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
-    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
+    time_length = 64
+    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val', n_freq_bins=time_length)
 
     sample_transforms = [
         lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
@@ -54,6 +55,7 @@ def get_dataset(config, mode:str='train'):
         x, y,
         sample_transforms=sample_transforms,
         batch_transforms=batch_transforms,
+        label_window_size=time_length
     )
     return dataset
 
