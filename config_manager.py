@@ -84,7 +84,7 @@ def get_config(name:str,
     if not os.path.exists(path): # directory manage
         os.makedirs(path)
         print(f'configuration directory is made at {path}')
-
+    initial_config = config
     config = vars(config) # gpus delete
     config = manage_mode(config, mode)
     config = manage_gpu(config)
@@ -96,12 +96,13 @@ def get_config(name:str,
                 print(f'There is no {os.path.splitext(name)[0]} config')
                 raise ValueError()
             loaded_config = load_config(path, name)
+            final_config = over_write_config(loaded_config, config)
 
             if 'o' in mode:
                 print(f'Loaded config name: {name}')
                 print(f'Only use it')
                 
-                final_config = over_write_config(loaded_config, {'gpus': config.gpus})
+                final_config = loaded_config
                 break
         elif 'o' in mode:
             print("You can't use only saved config without loading")
@@ -116,7 +117,7 @@ def get_config(name:str,
         
         dup = find_duplicate_config(os.path.join(path, name), final_config, mode)
         if dup:
-            print(dup, 'is the same config with you final config and change name')
+            print(dup, 'is the same config with your final config and change name')
             name = os.path.splitext(os.path.basename(dup))[0]
             final_config['name'] = os.path.splitext(name)[0]
             break
