@@ -6,7 +6,7 @@
     "lad_doa_thresh": 20,
     "loss_weight": "1,1000",
     "lr": 0.001,
-    "name": "test_v.0",
+    "name": "initial_mask_v_0",
     "patience": 10,
     "resume": false
 }

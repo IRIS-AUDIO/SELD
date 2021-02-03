@@ -13,7 +13,7 @@ def get_param(known=[]):
     
 
     # training
-    args.add_argument('--lr', type=float, default=0.001)
+    args.add_argument('--lr', type=float, default=0.01)
     args.add_argument('--decay', type=float, default=1/np.sqrt(2))
     args.add_argument('--batch', type=int, default=256)
     args.add_argument('--epoch', type=int, default=50)
