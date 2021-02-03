@@ -10,12 +10,14 @@ class FeatureExtractorTest(tf.test.TestCase):
             [ 0, -1,  0],
             [ 1,  0,  0],
             [-2,  2,  0],
+            [ 0,  0,  0],
         ]
         self.polars = [ # azimuth, elevation, r
             [   0,  90,   1],
             [ -90,   0,   1],
             [   0,   0,   1],
             [ 135,   0, np.sqrt(8)],
+            [   0,   0,   0],
         ]
 
     def test_load_audio(self):
