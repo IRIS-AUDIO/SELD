@@ -13,13 +13,14 @@ import numpy as np
 from IPython import  embed
 eps = np.finfo(np.float).eps
 from scipy.optimize import linear_sum_assignment
-
+from metrics.evaluation_metrics import reshape_3Dto2D
 
 class SELDMetrics(object):
     def __init__(self, doa_threshold=20, nb_classes=11):
         '''
             This class implements both the class-sensitive localization and location-sensitive detection metrics.
             Additionally, based on the user input, the corresponding averaging is performed within the segment.
+
         :param nb_classes: Number of sound classes. In the paper, nb_classes = 11
         :param doa_thresh: DOA threshold for location sensitive detection.
         '''
@@ -40,11 +41,12 @@ class SELDMetrics(object):
         self._DE_TP = 0
 
         self._spatial_T = doa_threshold
-        self._nb_classes = nb_classes
+        self.class_num = nb_classes
 
     def compute_seld_scores(self):
         '''
         Collect the final SELD scores
+
         :return: returns both location-sensitive detection scores and class-sensitive localization scores
         '''
 
@@ -71,13 +73,14 @@ class SELDMetrics(object):
     def update_seld_scores_xyz(self, pred, gt):
         '''
         Implements the spatial error averaging according to equation [5] in the paper, using Cartesian distance
+
         :param pred: dictionary containing class-wise prediction results for each N-seconds segment block
         :param gt: dictionary containing class-wise groundtruth for each N-seconds segment block
         '''
         for block_cnt in range(len(gt.keys())):
             # print('\nblock_cnt', block_cnt, end='')
             loc_FN, loc_FP = 0, 0
-            for class_cnt in range(self._nb_classes):
+            for class_cnt in range(self.class_num):
                 # print('\tclass:', class_cnt, end='')
                 # Counting the number of ref and sys outputs should include the number of tracks for each class in the segment
                 if class_cnt in gt[block_cnt]:
@@ -144,13 +147,14 @@ class SELDMetrics(object):
         '''
         Implements the spatial error averaging according to equation [5] in the paper, using Polar distance
         Expects the angles in degrees
+
         :param pred_deg: dictionary containing class-wise prediction results for each N-seconds segment block
         :param gt_deg: dictionary containing class-wise groundtruth for each N-seconds segment block
         '''
         for block_cnt in range(len(gt_deg.keys())):
             # print('\nblock_cnt', block_cnt, end='')
             loc_FN, loc_FP = 0, 0
-            for class_cnt in range(self._nb_classes):
+            for class_cnt in range(self.class_num):
                 # print('\tclass:', class_cnt, end='')
                 # Counting the number of ref and sys outputs should include the number of tracks for each class in the segment
                 if class_cnt in gt_deg[block_cnt]:
@@ -216,6 +220,7 @@ def distance_between_spherical_coordinates_rad(az1, ele1, az2, ele2):
     """
     Angular distance between two spherical coordinates
     MORE: https://en.wikipedia.org/wiki/Great-circle_distance
+
     :return: angular distance in degrees
     """
     dist = np.sin(ele1) * np.sin(ele2) + np.cos(ele1) * np.cos(ele2) * np.cos(np.abs(az1 - az2))
@@ -230,6 +235,7 @@ def distance_between_cartesian_coordinates(x1, y1, z1, x2, y2, z2):
     Angular distance between two cartesian coordinates
     MORE: https://en.wikipedia.org/wiki/Great-circle_distance
     Check 'From chord length' section
+
     :return: angular distance in degrees
     """
     # Normalize the Cartesian vectors
@@ -246,18 +252,18 @@ def distance_between_cartesian_coordinates(x1, y1, z1, x2, y2, z2):
 
 def least_distance_between_gt_pred(gt_list, pred_list):
     """
-        Shortest distance between two sets of DOA coordinates. Given a set of groundtruth coordinates,
-        and its respective predicted coordinates, we calculate the distance between each of the 
-        coordinate pairs resulting in a matrix of distances, where one axis represents the number of groundtruth
-        coordinates and the other the predicted coordinates. The number of estimated peaks need not be the same as in
-        groundtruth, thus the distance matrix is not always a square matrix. We use the hungarian algorithm to find the
-        least cost in this distance matrix.
-        :param gt_list_xyz: list of ground-truth Cartesian or Polar coordinates in Radians
-        :param pred_list_xyz: list of predicted Carteisan or Polar coordinates in Radians
-        :return: cost -  distance
-        :return: less - number of DOA's missed
-        :return: extra - number of DOA's over-estimated
-    """
+        Shortest distance between two sets of DOA coordinates. Given a set of groundtruth coordinates,
+        and its respective predicted coordinates, we calculate the distance between each of the 
+        coordinate pairs resulting in a matrix of distances, where one axis represents the number of groundtruth
+        coordinates and the other the predicted coordinates. The number of estimated peaks need not be the same as in
+        groundtruth, thus the distance matrix is not always a square matrix. We use the hungarian algorithm to find the
+        least cost in this distance matrix.
+        :param gt_list_xyz: list of ground-truth Cartesian or Polar coordinates in Radians
+        :param pred_list_xyz: list of predicted Carteisan or Polar coordinates in Radians
+        :return: cost -  distance
+        :return: less - number of DOA's missed
+        :return: extra - number of DOA's over-estimated
+    """
     gt_len, pred_len = gt_list.shape[0], pred_list.shape[0]
     ind_pairs = np.array([[x, y] for y in range(pred_len) for x in range(gt_len)])
     cost_mat = np.zeros((gt_len, pred_len))
@@ -274,10 +280,86 @@ def least_distance_between_gt_pred(gt_list, pred_list):
     cost = cost_mat[row_ind, col_ind].sum()
     return cost
 
+def segment_labels(_pred_dict, _max_frames):
+    '''
+        Collects class-wise sound event location information in segments of length 1s from reference dataset
+    :param _pred_dict: Dictionary containing frame-wise sound event time and location information. Output of SELD method
+    :param _max_frames: Total number of frames in the recording
+    :return: Dictionary containing class-wise sound event location information in each segment of audio
+            dictionary_name[segment-index][class-index] = list(frame-cnt-within-segment, azimuth, elevation)
+    '''
+    nb_blocks = int(np.ceil(_max_frames/float(self._nb_label_frames_1s)))
+    output_dict = {x: {} for x in range(nb_blocks)}
+    for frame_cnt in range(0, _max_frames, self._nb_label_frames_1s):
+
+        # Collect class-wise information for each block
+        # [class][frame] = <list of doa values>
+        # Data structure supports multi-instance occurence of same class
+        block_cnt = frame_cnt // self._nb_label_frames_1s
+        loc_dict = {}
+        for audio_frame in range(frame_cnt, frame_cnt+self._nb_label_frames_1s):
+            if audio_frame not in _pred_dict:
+                continue
+            for value in _pred_dict[audio_frame]:
+                if value[0] not in loc_dict:
+                    loc_dict[value[0]] = {}
+
+                block_frame = audio_frame - frame_cnt
+                if block_frame not in loc_dict[value[0]]:
+                    loc_dict[value[0]][block_frame] = []
+                loc_dict[value[0]][block_frame].append(value[1:])
+
+        # Update the block wise details collected above in a global structure
+        for class_cnt in loc_dict:
+            if class_cnt not in output_dict[block_cnt]:
+                output_dict[block_cnt][class_cnt] = []
+
+            keys = [k for k in loc_dict[class_cnt]]
+            values = [loc_dict[class_cnt][k] for k in loc_dict[class_cnt]]
+
+            output_dict[block_cnt][class_cnt].append([keys, values])
+
+    return output_dict
+
+def regression_label_format_to_output_format(preds, class_num):
+    """
+    Converts the sed (classification) and doa labels predicted in regression format to dcase output format.
+    :param preds: (sed, doa) prediction [nb_frames, nb_classes], [nb_frames, 3*nb_classes]
+    :return: _output_dict: returns a dict containing dcase output format
+    """
+    _sed_labels = reshape_3Dto2D(preds[0]) > 0.5
+    _doa_labels = reshape_3Dto2D(preds[1])
+
+    test_pred_blocks_dict = feat_cls.segment_labels(test_pred_dict, test_sed_pred.shape[0])
+    test_gt_blocks_dict = feat_cls.segment_labels(test_gt_dict, test_sed_gt.shape[0])
+
+    _is_polar = _doa_labels.shape[-1] == 2*class_num
+    _azi_labels, _ele_labels = None, None
+    _x, _y, _z = None, None, None
+    if _is_polar:
+        _azi_labels = _doa_labels[:, :class_num]
+        _ele_labels = _doa_labels[:, class_num:]
+    else:
+        _x = _doa_labels[:, :class_num]
+        _y = _doa_labels[:, class_num:2*class_num]
+        _z = _doa_labels[:, 2*class_num:]
+
+    _output_dict = {}
+    for _frame_ind in range(_sed_labels.shape[0]):
+        _tmp_ind = np.where(_sed_labels[_frame_ind, :])
+        if len(_tmp_ind[0]):
+            _output_dict[_frame_ind] = []
+            for _tmp_class in _tmp_ind[0]:
+                if _is_polar:
+                    _output_dict[_frame_ind].append([_tmp_class, _azi_labels[_frame_ind, _tmp_class], _ele_labels[_frame_ind, _tmp_class]])
+                else:
+                    _output_dict[_frame_ind].append([_tmp_class, _x[_frame_ind, _tmp_class], _y[_frame_ind, _tmp_class], _z[_frame_ind, _tmp_class]])
+    return _output_dic
 
 def early_stopping_metric(sed_error, doa_error):
     """
     Compute early stopping metric from sed and doa errors.
+
     :param sed_error: [error rate (0 to 1 range), f score (0 to 1 range)]
     :param doa_error: [doa error (in degrees), frame recall (0 to 1 range)]
     :return: early stopping metric result
