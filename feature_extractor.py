@@ -29,9 +29,39 @@ def extract_features(path: str,
         foa = melscale(foa)
 
         outputs = torch.cat([mel_spec, foa], axis=0)
+    elif mode == 'gcc':
+        raise NotImplementedError()
+    else:
+        raise ValueError('invalid mode')
 
     # [chan, freq, time] -> [time, freq, chan]
     outputs = torch.transpose(outputs, 0, 2).numpy()
+    return outputs
+
+
+def extract_labels(path: str, n_classes=14, max_frames=None):
+    labels = []
+    with open(path, 'r') as o:
+        for line in o.readlines():
+            frame, cls, _, azi, ele = list(map(int, line.split(',')))
+            labels.append([frame, cls, azi, ele])
+    labels = np.stack(labels, axis=0)
+
+    # polar to cartesian
+    labels = np.concatenate(
+        [labels[..., :2], polar_to_cartesian(labels[..., 2:])], axis=-1)
+
+    # create an empty output
+    output_len = labels[..., 0].max().astype('int32') + 1
+    if max_frames is not None:
+        output_len = max(max_frames, output_len)
+    outputs = np.zeros((output_len, 4, n_classes), dtype='float32')
+
+    # fill in the output
+    for label in labels:
+        outputs[int(label[0]), :, int(label[1])] = [1., *label[2:]] 
+    outputs = outputs.reshape([-1, 4*n_classes])
+
     return outputs
 
 
@@ -115,16 +145,16 @@ def polar_to_cartesian(coordinates):
 
 
 if __name__ == '__main__':
-    path = '/datasets/datasets/DCASE2020/foa_dev/'
     import os
-    os.chdir(path)
-    f = os.listdir()[0]
-    w, r = torchaudio.load(f)
-    spec = complex_spec(w)
+    f = 'label.csv'
+    labels = extract_labels(f, max_frames=600)
+    y_target = np.load(f.replace('.csv', '.npy'))
 
-    foa = foa_intensity_vectors(spec)
-    print(foa.dtype, foa.shape)
-
-    out = extract_features(f, mode='foa')
-    print(out.shape, out.dtype)
+    hop_length = int(24000 * 0.02)
+    win_length = hop_length * 2
+    n_fft = 2 ** (win_length-1).bit_length()
+    x = extract_features(
+        'x.wav', mode='foa', 
+        hop_length=hop_length, win_length=win_length, n_fft=n_fft)
+    x_target = np.load('x.npy').reshape(-1, 7, 64)
 
