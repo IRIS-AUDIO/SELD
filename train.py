@@ -17,7 +17,6 @@ def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
         loss = sloss * loss_weight[0] + dloss * loss_weight[1]
     grad = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grad, model.trainable_variables))
-
     return y_p, sloss, dloss
 
 @tf.function
@@ -31,7 +30,6 @@ def metric(metric_class, preds, gts, class_num):
     if type(preds[0]) != np.ndarray:
         preds = [i.numpy() for i in preds]
         gts = [i.numpy() for i in gts]
-    pdb.set_trace()
     test_sed_pred = SELD_evaluation_metrics.reshape_3Dto2D(preds[0]) > 0.5
     test_doa_pred = SELD_evaluation_metrics.reshape_3Dto2D(preds[1])
     test_sed_gt = SELD_evaluation_metrics.reshape_3Dto2D(gts[0])
@@ -55,15 +53,19 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
     DER = tf.keras.metrics.Mean()
     DERF = tf.keras.metrics.Mean()
     SeldScore = tf.keras.metrics.Mean()
+    ssloss = tf.keras.metrics.Mean()
+    ddloss = tf.keras.metrics.Mean()
 
     with tqdm(dataset) as pbar:
         for x, y in pbar:
+            loss_weight = [int(i) for i in config.loss_weight.split(',')]
             if mode == 'train':
-                preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, [int(i) for i in config.loss_weight.split(',')], optimizer)
+                preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer)
             else:
                 preds, sloss, dloss = teststep(model, x, y, sed_loss, doa_loss)
             test_metric, test_seld_metric = metric(metric_class, preds, y, class_num)
-
+            ssloss(sloss)
+            ddloss(dloss)
             pbar.set_postfix(epoch=epoch, 
                                 ErrorRate=test_metric[0], 
                                 F=test_metric[1]*100, 
@@ -75,7 +77,8 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
             DER(test_metric[2])
             DERF(test_metric[3]*100)
             SeldScore(test_seld_metric)
-    
+    print(f'{mode}_sloss: {ssloss.result().numpy()}')
+    print(f'{mode}_dloss: {ddloss.result().numpy()}')
     writer.add_scalar(f'{mode}/{mode}_ErrorRate', ER.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_F', F.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_DoaErrorRate', DER.result().numpy(), epoch)
@@ -132,11 +135,11 @@ def main(config):
     # model load
     model = build_seldnet(input_shape, n_classes=class_num)
 
-    optimizer = tf.keras.optimizers.Adam()
+    optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
     doa_loss = tf.keras.losses.MeanSquaredError(name='doa_loss')
     
-    best_score = 0
+    best_score = 99999
     patience = 0
     for epoch in range(config.epoch):
         # train loop
@@ -151,7 +154,7 @@ def main(config):
         metric_class = SELD_evaluation_metrics.SELDMetrics(nb_classes=class_num, doa_threshold=config.lad_doa_thresh)
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='test')
 
-        if best_score < score:
+        if best_score > score:
             best_score = score
             patience = 0
         else:
