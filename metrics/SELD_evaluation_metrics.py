@@ -288,16 +288,20 @@ def segment_labels(_pred_dict, _max_frames):
     :return: Dictionary containing class-wise sound event location information in each segment of audio
             dictionary_name[segment-index][class-index] = list(frame-cnt-within-segment, azimuth, elevation)
     '''
-    nb_blocks = int(np.ceil(_max_frames/float(self._nb_label_frames_1s)))
+    fs = 24000
+    label_len_s = 0.1
+    _nb_label_frames_1s = int(fs / float(int(fs * label_len_s)))
+
+    nb_blocks = int(np.ceil(_max_frames/float(_nb_label_frames_1s)))
     output_dict = {x: {} for x in range(nb_blocks)}
-    for frame_cnt in range(0, _max_frames, self._nb_label_frames_1s):
+    for frame_cnt in range(0, _max_frames, _nb_label_frames_1s):
 
         # Collect class-wise information for each block
         # [class][frame] = <list of doa values>
         # Data structure supports multi-instance occurence of same class
-        block_cnt = frame_cnt // self._nb_label_frames_1s
+        block_cnt = frame_cnt // _nb_label_frames_1s
         loc_dict = {}
-        for audio_frame in range(frame_cnt, frame_cnt+self._nb_label_frames_1s):
+        for audio_frame in range(frame_cnt, frame_cnt+_nb_label_frames_1s):
             if audio_frame not in _pred_dict:
                 continue
             for value in _pred_dict[audio_frame]:
@@ -327,11 +331,8 @@ def regression_label_format_to_output_format(preds, class_num):
     :param preds: (sed, doa) prediction [nb_frames, nb_classes], [nb_frames, 3*nb_classes]
     :return: _output_dict: returns a dict containing dcase output format
     """
-    _sed_labels = reshape_3Dto2D(preds[0]) > 0.5
-    _doa_labels = reshape_3Dto2D(preds[1])
-
-    test_pred_blocks_dict = feat_cls.segment_labels(test_pred_dict, test_sed_pred.shape[0])
-    test_gt_blocks_dict = feat_cls.segment_labels(test_gt_dict, test_sed_gt.shape[0])
+    _sed_labels = preds[0]
+    _doa_labels = preds[1]
 
     _is_polar = _doa_labels.shape[-1] == 2*class_num
     _azi_labels, _ele_labels = None, None
@@ -354,7 +355,7 @@ def regression_label_format_to_output_format(preds, class_num):
                     _output_dict[_frame_ind].append([_tmp_class, _azi_labels[_frame_ind, _tmp_class], _ele_labels[_frame_ind, _tmp_class]])
                 else:
                     _output_dict[_frame_ind].append([_tmp_class, _x[_frame_ind, _tmp_class], _y[_frame_ind, _tmp_class], _z[_frame_ind, _tmp_class]])
-    return _output_dic
+    return _output_dict
 
 def early_stopping_metric(sed_error, doa_error):
     """

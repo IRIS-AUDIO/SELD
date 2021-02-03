@@ -15,9 +15,10 @@ def get_param(known=[]):
     # training
     args.add_argument('--lr', type=float, default=0.001)
     args.add_argument('--decay', type=float, default=1/np.sqrt(2))
-    args.add_argument('--batch', type=int, default=128)
-    args.add_argument('--epoch', type=int, default=200)
-    args.add_argument('--loss_weight', type=str, default='1,50')
+    args.add_argument('--batch', type=int, default=256)
+    args.add_argument('--epoch', type=int, default=50)
+    args.add_argument('--loss_weight', type=str, default='1,1000')
+    args.add_argument('--patience', type=int, default=10)
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
