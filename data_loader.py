@@ -25,7 +25,7 @@ def data_loader(dataset,
         for p in batch_transforms:
             dataset = dataset.map(p)
 
-    return dataset
+    return dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 
 def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
