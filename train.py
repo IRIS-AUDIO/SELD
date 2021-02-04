@@ -94,8 +94,8 @@ def get_dataset(config, mode:str='train'):
     x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode=mode, n_freq_bins=time_length)
 
     sample_transforms = [
-        lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
-        lambda x, y: (mask(x, axis=-2, max_mask_size=8), y),
+        # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+        # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
     ]
     batch_transforms = [
         split_total_labels_to_sed_doa
@@ -115,6 +115,11 @@ def main(config):
         print(f'tensorboard log directory: {tensorboard_path}')
         os.makedirs(tensorboard_path)
     writer = SummaryWriter(logdir=tensorboard_path)
+
+    model_path = os.path.join('./saved_model', config.name)
+    if not os.path.exists(model_path):
+        print(f'saved model directory: {model_path}')
+        os.makedirs(model_path)
 
     # data load
     trainset = get_dataset(config, 'train')
@@ -137,7 +142,15 @@ def main(config):
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
-    doa_loss = tf.keras.losses.MeanSquaredError(name='doa_loss')
+    doa_loss = getattr(tf.keras.losses, config.loss)(name='doa_loss')
+
+    if config.resume:
+        from glob import glob
+        _model_path = sorted(glob(model_path + '/*.hdf5'))
+        if len(_model_path) == 0:
+            raise ValueError('the model is not existing, resume fail')
+        tf.keras.models.load_model(_model_path[0])
+
     
     best_score = 99999
     patience = 0

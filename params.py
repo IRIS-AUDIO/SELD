@@ -10,6 +10,7 @@ def get_param(known=[]):
     args.add_argument('--resume', action='store_true')    
     args.add_argument('--abspath', type=str, default='/root/datasets')
     args.add_argument('--config_mode', type=str, default='')
+    args.add_argument('--doa_loss', type=str, default='MSE', choices=['MAE', 'MSE', 'MSLE'])
     
 
     # training
@@ -19,6 +20,8 @@ def get_param(known=[]):
     args.add_argument('--epoch', type=int, default=50)
     args.add_argument('--loss_weight', type=str, default='1,1000')
     args.add_argument('--patience', type=int, default=10)
+    args.add_argument('--freq_mask_size', type=int, default=8)
+    args.add_argument('--time_mask_size', type=int, default=24)
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
