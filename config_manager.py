@@ -30,11 +30,24 @@ def manage_version(path, name):
 def find_duplicate_config(jsonpath, newconfig, mode):
     from glob import glob
     name = get_name(jsonpath)
-    for i in glob(os.path.dirname(os.path.abspath(jsonpath)) + f'/{name}*.json'):
+    configs = glob(os.path.dirname(os.path.abspath(jsonpath)) + f'/{name}*.json')
+
+    find = True
+    for i in configs:
         _config = load_config(os.path.dirname(i), os.path.basename(i))
         _config = manage_mode(_config, mode)
         _config = manage_gpu(_config)
-        if _config == newconfig:
+
+        if len(newconfig.keys()) != len(_config.keys()):
+            continue
+        
+        for key in newconfig.keys():
+            if key == 'name':
+                continue
+            if newconfig[key] != _config[key]:
+                find = False
+                break
+        if find:
             return os.path.splitext(os.path.basename(i))[0]
     return False
 
