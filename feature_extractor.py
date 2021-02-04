@@ -11,32 +11,37 @@ def extract_features(path: str,
                      n_mels=64,
                      **kwargs) -> np.ndarray:
     wav, r = torchaudio.load(path)
+    melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
+                                              sample_rate=r)
+
     spec = complex_spec(wav, **kwargs)
 
-    if mode == 'foa':
-        melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
-                                                  sample_rate=r)
-        mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
-        mel_spec = melscale(mel_spec)
-        mel_spec = torchaudio.functional.amplitude_to_DB(
-            mel_spec,
-            multiplier=10.,
-            amin=1e-10,
-            db_multiplier=np.log10(max(1., 1e-10)), # log10(max(ref, amin))
-        )
+    mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
+    mel_spec = melscale(mel_spec)
+    mel_spec = torchaudio.functional.amplitude_to_DB(
+        mel_spec,
+        multiplier=10.,
+        amin=1e-10,
+        db_multiplier=np.log10(max(1., 1e-10)), # log10(max(ref, amin))
+        top_db=80.,
+    )
 
+    features = [mel_spec]
+    if mode == 'foa':
         foa = foa_intensity_vectors(spec)
         foa = melscale(foa)
-
-        outputs = torch.cat([mel_spec, foa], axis=0)
-    elif mode == 'gcc':
-        raise NotImplementedError()
+        features.append(foa)
+    elif mode == 'mic':
+        gcc = gcc_features(spec, n_mels=n_mels)
+        features.append(gcc)
     else:
         raise ValueError('invalid mode')
 
+    features = torch.cat(features, axis=0)
+
     # [chan, freq, time] -> [time, freq, chan]
-    outputs = torch.transpose(outputs, 0, 2).numpy()
-    return outputs
+    features = torch.transpose(features, 0, 2).numpy()
+    return features
 
 
 def extract_labels(path: str, n_classes=14, max_frames=None):
@@ -63,6 +68,41 @@ def extract_labels(path: str, n_classes=14, max_frames=None):
     outputs = outputs.reshape([-1, 4*n_classes])
 
     return outputs
+
+
+def preprocess_features_labels(features: np.ndarray, 
+                               labels: np.ndarray, 
+                               max_label_length=600, 
+                               multiplier=5):
+    '''
+    INPUT
+    features: [time_f, freq, chan] shaped sample
+    labels:   [time_l, 4*n_classes] shaped sample
+    max_label_length: length of labels (time) will be set to given value
+    multiplier: how many feature frames are related to a single label frame
+
+    OUTPUT
+    features: [max_label_length*multiplier, freq, chan]
+    labels: [max_label_length, 4*n_classes]
+    '''
+    cur_len = labels.shape[0]
+    max_len = max_label_length
+
+    if cur_len < max_len: 
+        labels = np.pad(labels, ((0, max_len-cur_len), (0,0)), 'constant')
+    else:
+        labels = labels[:max_len]
+
+    cur_len = features.shape[0]
+    max_len = max_label_length * multiplier
+    if cur_len < max_len: 
+        features = np.pad(features, 
+                          ((0, max_len-cur_len), (0,0), (0,0)),
+                          'constant')
+    else:
+        features = features[:max_len]
+
+    return features, labels
 
 
 ''' Feature Extraction '''
@@ -93,7 +133,6 @@ def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
         complex_specs = torch.view_as_complex(complex_specs)
 
     # complex_specs: [chan, freq, time]
-    print(complex_specs.shape, complex_specs.dtype)
     IVx = torch.real(torch.conj(complex_specs[0]) * complex_specs[3])
     IVy = torch.real(torch.conj(complex_specs[0]) * complex_specs[1])
     IVz = torch.real(torch.conj(complex_specs[0]) * complex_specs[2])
@@ -105,6 +144,27 @@ def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
 
     # apply mel matrix without db ...
     return torch.stack([IVx, IVy, IVz], axis=0)
+
+
+def gcc_features(complex_specs: torch.Tensor,
+                 n_mels: int) -> torch.Tensor:
+    if not torch.is_complex(complex_specs):
+        complex_specs = torch.view_as_complex(complex_specs)
+
+    # based on the codes from DCASE2020 SELDnet cls_feature_class.py
+    # complex_specs: [chan, freq, time]
+    n_chan = complex_specs.size(0)
+    gcc_chan = n_chan * (n_chan - 1) // 2
+
+    gcc_feat = []
+    for m in range(n_chan):
+        for n in range(m+1, n_chan):
+            R = torch.conj(complex_specs[m]) * complex_specs[n]
+            cc = torch.fft.irfft(torch.exp(1.j*torch.angle(R)), dim=0)
+            cc = torch.cat([cc[-n_mels//2:], cc[:(n_mels+1)//2]], axis=0)
+            gcc_feat.append(cc)
+
+    return torch.stack(gcc_feat, axis=0)
 
 
 ''' Unit Conversion '''
@@ -145,16 +205,19 @@ def polar_to_cartesian(coordinates):
 
 
 if __name__ == '__main__':
+    # How to use
     import os
-    f = 'label.csv'
-    labels = extract_labels(f, max_frames=600)
-    y_target = np.load(f.replace('.csv', '.npy'))
 
     hop_length = int(24000 * 0.02)
     win_length = hop_length * 2
     n_fft = 2 ** (win_length-1).bit_length()
-    x = extract_features(
-        'x.wav', mode='foa', 
-        hop_length=hop_length, win_length=win_length, n_fft=n_fft)
-    x_target = np.load('x.npy').reshape(-1, 7, 64)
 
+    x = extract_features(
+        'x.wav', mode='mic', 
+        hop_length=hop_length, win_length=win_length, n_fft=n_fft)
+    y = extract_labels('label.csv', max_frames=600)
+
+    x, y = preprocess_features_labels(x, y)
+    print(x.shape, x.dtype)
+    print(y.shape, y.dtype)
+    
