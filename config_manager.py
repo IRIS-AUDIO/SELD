@@ -20,21 +20,34 @@ def load_config(path, name):
 
 def manage_version(path, name):
     from glob import glob
-    configs = sorted(glob(os.path.splitext(os.path.join(path, name))[0] + '*'))
+    configs = sorted(glob('_'.join(os.path.splitext(os.path.join(path, name))[0].split('_')[:-1]) + '*'))
     latest = os.path.splitext(os.path.basename(configs[-1]))[0]
     oldversion = int(latest.split('v_')[-1])
     newversion = str(oldversion + 1)
-    name = name.replace(f'_v_{oldversion}', f'_v_{newversion}')
+    name = name.replace(f"_{'_'.join(os.path.splitext(os.path.join(path, name))[0].split('_')[-2:])}", f'_v_{newversion}')
     return name
 
 def find_duplicate_config(jsonpath, newconfig, mode):
     from glob import glob
     name = get_name(jsonpath)
-    for i in glob(os.path.dirname(os.path.abspath(jsonpath)) + f'/{name}*.json'):
+    configs = glob(os.path.dirname(os.path.abspath(jsonpath)) + f'/{name}*.json')
+
+    find = True
+    for i in configs:
         _config = load_config(os.path.dirname(i), os.path.basename(i))
         _config = manage_mode(_config, mode)
         _config = manage_gpu(_config)
-        if _config == newconfig:
+
+        if len(newconfig.keys()) != len(_config.keys()):
+            continue
+        
+        for key in newconfig.keys():
+            if key == 'name':
+                continue
+            if newconfig[key] != _config[key]:
+                find = False
+                break
+        if find:
             return os.path.splitext(os.path.basename(i))[0]
     return False
 
@@ -122,6 +135,7 @@ def get_config(name:str,
             final_config['name'] = os.path.splitext(name)[0]
             break
         name = manage_version(path, name)
+        final_config['name'] = os.path.splitext(name)[0]
         save_config(path, name, final_config)
         break
     print('----------------- config manager end -----------------')

@@ -1,0 +1,14 @@
+{
+    "abspath": "/root/datasets",
+    "batch": 256,
+    "decay": 0.7071067811865475,
+    "epoch": 50,
+    "freq_mask_size": 8,
+    "lad_doa_thresh": 20,
+    "loss_weight": "1,1000",
+    "lr": 0.001,
+    "name": "initial_mask_v_1",
+    "patience": 10,
+    "resume": false,
+    "time_mask_size": 12
+}
