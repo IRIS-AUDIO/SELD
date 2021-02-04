@@ -149,7 +149,7 @@ def main(config):
         _model_path = sorted(glob(model_path + '/*.hdf5'))
         if len(_model_path) == 0:
             raise ValueError('the model is not existing, resume fail')
-        tf.keras.models.load_model(_model_path[0])
+        model = tf.keras.models.load_model(_model_path[0])
 
     
     best_score = 99999
@@ -168,8 +168,10 @@ def main(config):
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='test')
 
         if best_score > score:
+            os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')
             best_score = score
             patience = 0
+            tf.keras.models.save_model(model, os.path.join(model_path, f'bestscore_{best_score}.hdf5'))
         else:
             if patience == config.patience:
                 print(f'Early Stopping at {epoch}, score is {score}')
