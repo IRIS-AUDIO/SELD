@@ -48,11 +48,15 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     labels = [np.load(f) for f in labels
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
-    # reshape [..., chan*freq] -> [..., freq, chan]
-    features = list(
-        map(lambda x: np.reshape(x, (*x.shape[:-1], -1, n_freq_bins)),
-            features))
-    features = list(map(lambda x: x.transpose(0, 2, 1), features))
+    if len(features[0].shape) == 2:
+        # reshape [..., chan*freq] -> [..., freq, chan]
+        features = list(
+            map(lambda x: np.reshape(x, (*x.shape[:-1], -1, n_freq_bins)),
+                features))
+        features = list(map(lambda x: x.transpose(0, 2, 1), features))
+    else:
+        # already in shape of [time, freq, chan]
+        pass
     
     return features, labels
 
@@ -93,7 +97,7 @@ if __name__ == '__main__':
     from transforms import *
     import matplotlib.pyplot as plt
 
-    path = '/media/data1/datasets/DCASE2020/feat_label/'
+    path = '/media/data1/datasets/DCASE2020/feat_label'
     x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
 
     sample_transforms = [
@@ -109,7 +113,6 @@ if __name__ == '__main__':
         batch_transforms=batch_transforms,
     )
 
-
     # visualize
     def norm(xs):
         return (xs - tf.reduce_min(xs)) / (tf.reduce_max(xs) - tf.reduce_min(xs))
@@ -119,7 +122,7 @@ if __name__ == '__main__':
         for y_ in y:
             print(y_.shape)
         fig, axs = plt.subplots(2)
-        axs[0].imshow(norm(x[0])[..., 0].numpy().T) # tf.reshape(norm(x), (x.shape[0], -1)))
+        axs[0].imshow(norm(x[0])[..., 0].numpy().T)
         axs[1].imshow(y[1][0].numpy().T)
         plt.show()
 
