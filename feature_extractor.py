@@ -1,11 +1,52 @@
 import numpy as np
+import os
 import torch
 import torchaudio
-from data_utils import *
+from functools import partial
 from torch.fft import irfft
+from data_utils import *
 
 
 ''' For SELDnet Data '''
+def extract_seldnet_data(feature_path: str,
+                         feature_output_path: str,
+                         label_path: str,
+                         label_output_path: str,
+                         mode='foa',
+                         **kwargs):
+    from glob import glob
+    import tqdm
+
+    if feature_output_path == label_output_path:
+        raise ValueError('output folders for features and labels must differ')
+
+    f_paths = sorted(glob(os.path.join(feature_path, '*.wav')))
+    l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
+
+    if len(f_paths) != len(l_paths):
+        raise ValueError('# of features and labels are not matched')
+
+    create_folder(feature_output_path)
+    create_folder(label_output_path)
+
+    def extract_name(path):
+        return path[path.rfind(os.path.sep)+1:path.rfind('.')]
+
+    for f, l in tqdm.tqdm(zip(f_paths, l_paths)):
+        # name must match
+        name = extract_name(f)
+        if name != extract_name(l):
+            raise ValueError('feature, label must share the same name')
+
+        f = extract_features(f, mode=mode, **kwargs)
+        l = extract_labels(l)
+        f, l = preprocess_features_labels(f, l)
+        
+        new_name = name + '.npy'
+        np.save(os.path.join(feature_output_path, new_name), f)
+        np.save(os.path.join(label_output_path, new_name), l)
+
+
 def extract_features(path: str,
                      mode='foa',
                      n_mels=64,
@@ -206,8 +247,7 @@ def polar_to_cartesian(coordinates):
 
 if __name__ == '__main__':
     # How to use
-    import os
-
+    '''
     hop_length = int(24000 * 0.02)
     win_length = hop_length * 2
     n_fft = 2 ** (win_length-1).bit_length()
@@ -220,4 +260,11 @@ if __name__ == '__main__':
     x, y = preprocess_features_labels(x, y)
     print(x.shape, x.dtype)
     print(y.shape, y.dtype)
+    '''
     
+    extract_seldnet_data('/media/data1/datasets/DCASE2020/foa_dev',
+                         'mic_dev',
+                         '/media/data1/datasets/DCASE2020/metadata_dev',
+                         'mic_label',
+                         mode='mic')
+
