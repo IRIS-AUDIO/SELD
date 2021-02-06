@@ -1,31 +1,38 @@
 import numpy as np
 import tensorflow as tf
 
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+
 
 def data_loader(dataset, 
+                preprocessing=None,
                 sample_transforms=None, 
                 batch_transforms=None,
+                deterministic=False,
                 batch_size=32):
     if not isinstance(dataset, tf.data.Dataset):
         dataset = tf.data.Dataset.from_tensor_slices(dataset)
 
-    if sample_transforms is not None:
-        if not isinstance(sample_transforms, (list, tuple)):
-            sample_transforms = [sample_transforms]
+    def apply_ops(dataset, operations):
+        if operations is None:
+            return dataset
 
-        for p in sample_transforms:
-            dataset = dataset.map(p)
+        if not isinstance(operations, (list, tuple)):
+            operations = [operations]
 
+        for op in operations:
+            dataset = dataset.map(
+                op, num_parallel_calls=AUTOTUNE, deterministic=deterministic)
+
+        return dataset
+
+    dataset = apply_ops(dataset, preprocessing)
+    dataset = dataset.cache()
+    dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)
+    dataset = apply_ops(dataset, batch_transforms)
 
-    if batch_transforms is not None:
-        if not isinstance(batch_transforms, (list, tuple)):
-            batch_transforms = [batch_transforms]
-
-        for p in batch_transforms:
-            dataset = dataset.map(p)
-
-    return dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    return dataset
 
 
 def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
@@ -40,10 +47,14 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     }
 
     # load splits according to the mode
+    if not os.path.exists(feat_path):
+        raise ValueError(f'no such feat_path ({feat_path}) exists')
     features = sorted(glob(os.path.join(feat_path, '*.npy')))
     features = [np.load(f).astype('float32') for f in features 
                 if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
+    if not os.path.exists(label_path):
+        raise ValueError(f'no such label_path ({label_path}) exists')
     labels = sorted(glob(os.path.join(label_path, '*.npy')))
     labels = [np.load(f) for f in labels
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
@@ -82,14 +93,15 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     n_samples = features.shape[0] // label_window_size
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.batch(label_window_size, drop_remainder=drop_remainder)
-    dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y))
+    dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y),
+                          num_parallel_calls=AUTOTUNE)
     del features, labels
 
     dataset = data_loader(dataset, **kwargs)
     if train:
         dataset = dataset.shuffle(n_samples)
 
-    return dataset
+    return dataset.prefetch(AUTOTUNE)
 
 
 if __name__ == '__main__':
@@ -97,7 +109,7 @@ if __name__ == '__main__':
     from transforms import *
     import matplotlib.pyplot as plt
 
-    path = '/media/data1/datasets/DCASE2020/feat_label'
+    path = '/media/data1/datasets/DCASE2020/feat_label/'
     x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
 
     sample_transforms = [
