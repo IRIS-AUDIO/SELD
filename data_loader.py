@@ -1,31 +1,53 @@
 import numpy as np
 import tensorflow as tf
 
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+
 
 def data_loader(dataset, 
+                preprocessing=None,
                 sample_transforms=None, 
                 batch_transforms=None,
-                batch_size=32):
+                deterministic=False,
+                inf_loop=False,
+                batch_size=32) -> tf.data.Dataset:
+    '''
+    INPUT
+        preprocessing: a list of preprocessing ops
+                       output of preprocessing ops will be cached
+        sample_transforms: a list of samplewise augmentations
+        batch_transforms: a list of batchwise augmentations
+        deterministic: set to False for efficiency,
+                       if the order of the data is critical, set to True
+        inf_loop: whether to loop infinitely (will run .repeat() after .cache())
+                  this can also increase efficiency
+        batch_size: batch size
+    '''
     if not isinstance(dataset, tf.data.Dataset):
         dataset = tf.data.Dataset.from_tensor_slices(dataset)
 
-    if sample_transforms is not None:
-        if not isinstance(sample_transforms, (list, tuple)):
-            sample_transforms = [sample_transforms]
+    def apply_ops(dataset, operations):
+        if operations is None:
+            return dataset
 
-        for p in sample_transforms:
-            dataset = dataset.map(p)
+        if not isinstance(operations, (list, tuple)):
+            operations = [operations]
 
+        for op in operations:
+            dataset = dataset.map(
+                op, num_parallel_calls=AUTOTUNE, deterministic=deterministic)
+
+        return dataset
+
+    dataset = apply_ops(dataset, preprocessing)
+    dataset = dataset.cache()
+    if inf_loop:
+        dataset = dataset.repeat()
+    dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)
+    dataset = apply_ops(dataset, batch_transforms)
 
-    if batch_transforms is not None:
-        if not isinstance(batch_transforms, (list, tuple)):
-            batch_transforms = [batch_transforms]
-
-        for p in batch_transforms:
-            dataset = dataset.map(p)
-
-    return dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    return dataset
 
 
 def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
@@ -40,19 +62,27 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     }
 
     # load splits according to the mode
+    if not os.path.exists(feat_path):
+        raise ValueError(f'no such feat_path ({feat_path}) exists')
     features = sorted(glob(os.path.join(feat_path, '*.npy')))
     features = [np.load(f).astype('float32') for f in features 
                 if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
+    if not os.path.exists(label_path):
+        raise ValueError(f'no such label_path ({label_path}) exists')
     labels = sorted(glob(os.path.join(label_path, '*.npy')))
     labels = [np.load(f) for f in labels
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
-    # reshape [..., chan*freq] -> [..., freq, chan]
-    features = list(
-        map(lambda x: np.reshape(x, (*x.shape[:-1], -1, n_freq_bins)),
-            features))
-    features = list(map(lambda x: x.transpose(0, 2, 1), features))
+    if len(features[0].shape) == 2:
+        # reshape [..., chan*freq] -> [..., freq, chan]
+        features = list(
+            map(lambda x: np.reshape(x, (*x.shape[:-1], -1, n_freq_bins)),
+                features))
+        features = list(map(lambda x: x.transpose(0, 2, 1), features))
+    else:
+        # already in shape of [time, freq, chan]
+        pass
     
     return features, labels
 
@@ -62,6 +92,8 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                train=True, 
                                label_window_size=60,
                                drop_remainder=True,
+                               shuffle_size=None,
+                               batch_size=32,
                                **kwargs):
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -78,30 +110,37 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     n_samples = features.shape[0] // label_window_size
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.batch(label_window_size, drop_remainder=drop_remainder)
-    dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y))
+    dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y),
+                          num_parallel_calls=AUTOTUNE)
     del features, labels
 
-    dataset = data_loader(dataset, **kwargs)
+    dataset = data_loader(dataset, batch_size=batch_size, **kwargs)
     if train:
-        dataset = dataset.shuffle(n_samples)
+        if shuffle_size is None:
+            shuffle_size = n_samples // batch_size
+        dataset = dataset.shuffle(shuffle_size)
 
-    return dataset
+    return dataset.prefetch(AUTOTUNE)
 
 
 if __name__ == '__main__':
     ''' An example of how to use '''
-    from transforms import *
     import matplotlib.pyplot as plt
+    import os
+    import time
+    from transforms import *
 
     path = '/media/data1/datasets/DCASE2020/feat_label/'
-    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
+                             os.path.join(path, 'foa_dev_label'),
+                             mode='val')
 
     sample_transforms = [
-        # lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
-        # lambda x, y: (mask(x, axis=-2, max_mask_size=8), y),
+        lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
+        lambda x, y: (mask(x, axis=-2, max_mask_size=8), y),
     ]
     batch_transforms = [
-        split_total_labels_to_sed_doa
+        split_total_labels_to_sed_doa,
     ]
     dataset = seldnet_data_to_dataloader(
         x, y,
@@ -109,17 +148,11 @@ if __name__ == '__main__':
         batch_transforms=batch_transforms,
     )
 
+    start = time.time()
+    for i in range(10):
+        for x, y in dataset:
+            pass
 
-    # visualize
-    def norm(xs):
-        return (xs - tf.reduce_min(xs)) / (tf.reduce_max(xs) - tf.reduce_min(xs))
-
-    for x, y in dataset:
-        print(x.shape)
-        for y_ in y:
-            print(y_.shape)
-        fig, axs = plt.subplots(2)
-        axs[0].imshow(norm(x[0])[..., 0].numpy().T) # tf.reshape(norm(x), (x.shape[0], -1)))
-        axs[1].imshow(y[1][0].numpy().T)
-        plt.show()
+        print(time.time() - start)
+        start = time.time()
 
