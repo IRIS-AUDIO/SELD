@@ -148,7 +148,7 @@ def main(config):
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
-    doa_loss = getattr(tf.keras.losses, config.doa_loss)(name='doa_loss')
+    doa_loss = getattr(tf.keras.losses, config.doa_loss)
 
     if config.resume:
         from glob import glob
