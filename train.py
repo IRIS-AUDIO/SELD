@@ -1,12 +1,14 @@
-import tensorflow as tf
-from params import get_param
-from models import build_seldnet
-from metrics import evaluation_metrics, SELD_evaluation_metrics
-from transforms import *
-from data_loader import *
-from tqdm import tqdm
-from tensorboardX import SummaryWriter
 import os, pdb
+import tensorflow as tf
+from tensorboardX import SummaryWriter
+from tqdm import tqdm
+
+from data_loader import *
+from metrics import evaluation_metrics, SELD_evaluation_metrics
+from models import build_seldnet
+from params import get_param
+from transforms import *
+
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
@@ -19,12 +21,14 @@ def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
     optimizer.apply_gradients(zip(grad, model.trainable_variables))
     return y_p, sloss, dloss
 
+
 @tf.function
 def teststep(model, x, y, sed_loss, doa_loss):
     y_p = model(x, training=False)
     sloss = sed_loss(y[0], y_p[0])
     dloss = doa_loss(y[1], y_p[1])
     return y_p, sloss, dloss
+
 
 def metric(metric_class, preds, gts, class_num):
     if type(preds[0]) != np.ndarray:
@@ -46,6 +50,7 @@ def metric(metric_class, preds, gts, class_num):
     test_new_seld_metric = evaluation_metrics.early_stopping_metric(test_new_metric[:2], test_new_metric[2:])
     return test_new_metric, test_new_seld_metric
 
+
 def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, optimizer=None, mode='train'):
     # metric
     ER = tf.keras.metrics.Mean()
@@ -56,9 +61,9 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
     ssloss = tf.keras.metrics.Mean()
     ddloss = tf.keras.metrics.Mean()
 
+    loss_weight = [int(i) for i in config.loss_weight.split(',')]
     with tqdm(dataset) as pbar:
         for x, y in pbar:
-            loss_weight = [int(i) for i in config.loss_weight.split(',')]
             if mode == 'train':
                 preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer)
             else:
@@ -109,6 +114,7 @@ def get_dataset(config, mode:str='train'):
     )
     return dataset
 
+
 def main(config):
     tensorboard_path = os.path.join('./tensorboard_log', config.name)
     if not os.path.exists(tensorboard_path):
@@ -154,18 +160,21 @@ def main(config):
     
     best_score = 99999
     patience = 0
+    metric_class = SELD_evaluation_metrics.SELDMetrics(
+        nb_classes=class_num, doa_threshold=config.lad_doa_thresh)
+
     for epoch in range(config.epoch):
         # train loop
-        metric_class = SELD_evaluation_metrics.SELDMetrics(nb_classes=class_num, doa_threshold=config.lad_doa_thresh)
+        metric_class.reset()
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, optimizer=optimizer, mode='train') 
 
         # validation loop
-        metric_class = SELD_evaluation_metrics.SELDMetrics(nb_classes=class_num, doa_threshold=config.lad_doa_thresh)
-        score = iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='val')
+        metric_class.reset()
+        score = iterloop(model, valset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='val')
 
         # evaluation loop
-        metric_class = SELD_evaluation_metrics.SELDMetrics(nb_classes=class_num, doa_threshold=config.lad_doa_thresh)
-        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='test')
+        metric_class.reset()
+        iterloop(model, testset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='test')
 
         if best_score > score:
             os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')
@@ -179,7 +188,7 @@ def main(config):
             patience += 1
 
 
-
 if __name__=='__main__':
     import sys
     main(get_param(sys.argv[1:]))
+
