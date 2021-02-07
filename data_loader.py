@@ -9,7 +9,20 @@ def data_loader(dataset,
                 sample_transforms=None, 
                 batch_transforms=None,
                 deterministic=False,
-                batch_size=32):
+                inf_loop=False,
+                batch_size=32) -> tf.data.Dataset:
+    '''
+    INPUT
+        preprocessing: a list of preprocessing ops
+                       output of preprocessing ops will be cached
+        sample_transforms: a list of samplewise augmentations
+        batch_transforms: a list of batchwise augmentations
+        deterministic: set to False for efficiency,
+                       if the order of the data is critical, set to True
+        inf_loop: whether to loop infinitely (will run .repeat() after .cache())
+                  this can also increase efficiency
+        batch_size: batch size
+    '''
     if not isinstance(dataset, tf.data.Dataset):
         dataset = tf.data.Dataset.from_tensor_slices(dataset)
 
@@ -28,6 +41,8 @@ def data_loader(dataset,
 
     dataset = apply_ops(dataset, preprocessing)
     dataset = dataset.cache()
+    if inf_loop:
+        dataset = dataset.repeat()
     dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)
     dataset = apply_ops(dataset, batch_transforms)
@@ -77,6 +92,8 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                train=True, 
                                label_window_size=60,
                                drop_remainder=True,
+                               shuffle_size=None,
+                               batch_size=32,
                                **kwargs):
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -97,27 +114,33 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                           num_parallel_calls=AUTOTUNE)
     del features, labels
 
-    dataset = data_loader(dataset, **kwargs)
+    dataset = data_loader(dataset, batch_size=batch_size, **kwargs)
     if train:
-        dataset = dataset.shuffle(n_samples)
+        if shuffle_size is None:
+            shuffle_size = n_samples // batch_size
+        dataset = dataset.shuffle(shuffle_size)
 
     return dataset.prefetch(AUTOTUNE)
 
 
 if __name__ == '__main__':
     ''' An example of how to use '''
-    from transforms import *
     import matplotlib.pyplot as plt
+    import os
+    import time
+    from transforms import *
 
     path = '/media/data1/datasets/DCASE2020/feat_label/'
-    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode='val')
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
+                             os.path.join(path, 'foa_dev_label'),
+                             mode='val')
 
     sample_transforms = [
-        # lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
-        # lambda x, y: (mask(x, axis=-2, max_mask_size=8), y),
+        lambda x, y: (mask(x, axis=-3, max_mask_size=24, n_mask=6), y),
+        lambda x, y: (mask(x, axis=-2, max_mask_size=8), y),
     ]
     batch_transforms = [
-        split_total_labels_to_sed_doa
+        split_total_labels_to_sed_doa,
     ]
     dataset = seldnet_data_to_dataloader(
         x, y,
@@ -125,16 +148,11 @@ if __name__ == '__main__':
         batch_transforms=batch_transforms,
     )
 
-    # visualize
-    def norm(xs):
-        return (xs - tf.reduce_min(xs)) / (tf.reduce_max(xs) - tf.reduce_min(xs))
+    start = time.time()
+    for i in range(10):
+        for x, y in dataset:
+            pass
 
-    for x, y in dataset:
-        print(x.shape)
-        for y_ in y:
-            print(y_.shape)
-        fig, axs = plt.subplots(2)
-        axs[0].imshow(norm(x[0])[..., 0].numpy().T)
-        axs[1].imshow(y[1][0].numpy().T)
-        plt.show()
+        print(time.time() - start)
+        start = time.time()
 
