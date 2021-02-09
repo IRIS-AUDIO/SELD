@@ -128,7 +128,6 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
 if __name__ == '__main__':
     ''' An example of how to use '''
-    import matplotlib.pyplot as plt
     import os
     import time
     from transforms import *
@@ -152,7 +151,7 @@ if __name__ == '__main__':
     )
 
     start = time.time()
-    for i in range(1):
+    for i in range(10):
         for x, y in dataset:
             pass
 
