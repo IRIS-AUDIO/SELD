@@ -75,11 +75,14 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
     if len(features[0].shape) == 2:
-        # reshape [..., chan*freq] -> [..., freq, chan]
-        features = list(
-            map(lambda x: np.reshape(x, (*x.shape[:-1], -1, n_freq_bins)),
-                features))
-        features = list(map(lambda x: x.transpose(0, 2, 1), features))
+        def extract(x):
+            x_org = x[:, :n_freq_bins*4]
+            x_org = np.reshape(x_org, (x.shape[0], n_freq_bins, 4))
+            x_add = x[:, n_freq_bins*4:]
+            x_add = np.reshape(x_add, (x.shape[0], n_freq_bins, -1))
+            return np.concatenate([x_org, x_add], axis=-1)
+
+        features = list(map(extract, features))
     else:
         # already in shape of [time, freq, chan]
         pass
@@ -125,7 +128,6 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
 if __name__ == '__main__':
     ''' An example of how to use '''
-    import matplotlib.pyplot as plt
     import os
     import time
     from transforms import *
