@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from data_loader import *
 from metrics import evaluation_metrics, SELD_evaluation_metrics
-from models import build_seldnet
+import models
 from params import get_param
 from transforms import *
 
@@ -51,7 +51,7 @@ def metric(metric_class, preds, gts, class_num):
     return test_new_metric, test_new_seld_metric
 
 
-def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, optimizer=None, mode='train'):
+def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, maxstep=0, optimizer=None, mode='train'):
     # metric
     ER = tf.keras.metrics.Mean()
     F = tf.keras.metrics.Mean()
@@ -60,11 +60,15 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
     SeldScore = tf.keras.metrics.Mean()
     ssloss = tf.keras.metrics.Mean()
     ddloss = tf.keras.metrics.Mean()
+    if maxstep == 0:
+        maxstep = len(dataset)
 
     loss_weight = [int(i) for i in config.loss_weight.split(',')]
-    with tqdm(dataset) as pbar:
-        for x, y in pbar:
+    with tqdm(dataset, total=maxstep) as pbar:
+        for step, (x, y) in enumerate(pbar):
             if mode == 'train':
+                if step == maxstep:
+                    break
                 preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer)
             else:
                 preds, sloss, dloss = teststep(model, x, y, sed_loss, doa_loss)
@@ -105,12 +109,13 @@ def get_dataset(config, mode:str='train'):
     batch_transforms = [
         split_total_labels_to_sed_doa
     ]
-    dataset = seldnet_data_to_dataloader( # 나중에 batch 조절 가능하도록 수정
+    dataset = seldnet_data_to_dataloader(
         x, y,
         sample_transforms=sample_transforms,
         batch_transforms=batch_transforms,
         label_window_size=time_length,
-        batch_size=config.batch
+        batch_size=config.batch,
+        inf_loop=True if config.inf and mode == 'train' else False
     )
     return dataset
 
@@ -144,8 +149,8 @@ def main(config):
     del a
 
     # model load
-    model = build_seldnet(input_shape, n_classes=class_num)
-
+    model = getattr(models, config.model)(input_shape, n_classes=class_num)
+    
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
     doa_loss = getattr(tf.keras.losses, config.doa_loss)
@@ -166,7 +171,7 @@ def main(config):
     for epoch in range(config.epoch):
         # train loop
         metric_class.reset()
-        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, optimizer=optimizer, mode='train') 
+        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, config.maxstep, optimizer=optimizer, mode='train') 
 
         # validation loop
         metric_class.reset()
@@ -180,7 +185,7 @@ def main(config):
             os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')
             best_score = score
             patience = 0
-            tf.keras.models.save_model(model, os.path.join(model_path, f'bestscore_{best_score}.hdf5'))
+            tf.keras.models.save_model(model, os.path.join(model_path, f'bestscore_{best_score}.hdf5'), include_optimizer=False)
         else:
             if patience == config.patience:
                 print(f'Early Stopping at {epoch}, score is {score}')
