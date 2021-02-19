@@ -13,3 +13,4 @@ def MMSE(y_true, y_pred):
     return tf.keras.backend.sqrt(
         tf.keras.backend.sum(tf.keras.backend.square(y_true - y_pred) * sed)) \
                 / tf.keras.backend.sum(sed)
+
