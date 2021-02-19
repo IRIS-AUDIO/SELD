@@ -105,7 +105,6 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     # features: [time_features, freq, chan]
     # labels:   [time_labels, 4*classes]
     # for each 5 input time slices, a single label time slices was designated
-    
     # features' shape [time_f, freq, chan] -> [time_l, resolution, freq, chan]
     features = np.reshape(features, (labels.shape[0], -1, *features.shape[1:]))
 
