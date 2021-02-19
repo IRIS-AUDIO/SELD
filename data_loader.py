@@ -71,7 +71,7 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     if not os.path.exists(label_path):
         raise ValueError(f'no such label_path ({label_path}) exists')
     labels = sorted(glob(os.path.join(label_path, '*.npy')))
-    labels = [np.load(f) for f in labels
+    labels = [np.load(f).astype('float32') for f in labels
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
     if len(features[0].shape) == 2:
