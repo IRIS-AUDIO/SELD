@@ -160,7 +160,7 @@ def main(config):
     try:
         doa_loss = getattr(tf.keras.losses, config.doa_loss)
     except:
-        doa_loss = getattr(losses, 'get_' + config.doa_loss)(class_num)
+        doa_loss = getattr(losses, config.doa_loss)
 
     if config.resume:
         from glob import glob
