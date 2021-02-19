@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, decay):
         super(CustomSchedule, self).__init__()
@@ -12,3 +13,9 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __call__(self, epoch):
 
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
+
+def safe_div(x, y, eps=1e-8):
+    # returns safe x / max(y, epsilon)
+    return x / tf.maximum(y, eps)
+

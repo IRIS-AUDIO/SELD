@@ -4,11 +4,12 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 from data_loader import *
-from metrics import evaluation_metrics, SELD_evaluation_metrics
-import models
+from metrics import * 
 from params import get_param
 from transforms import *
 import losses
+import models
+
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
@@ -33,27 +34,6 @@ def teststep(model, x, y, sed_loss, doa_loss):
     return y_p, sloss, dloss
 
 
-def metric(metric_class, preds, gts, class_num):
-    if type(preds[0]) != np.ndarray:
-        preds = [i.numpy() for i in preds]
-        gts = [i.numpy() for i in gts]
-    test_sed_pred = SELD_evaluation_metrics.reshape_3Dto2D(preds[0]) > 0.5
-    test_doa_pred = SELD_evaluation_metrics.reshape_3Dto2D(preds[1])
-    test_sed_gt = SELD_evaluation_metrics.reshape_3Dto2D(gts[0])
-    test_doa_gt = SELD_evaluation_metrics.reshape_3Dto2D(gts[1])
-
-    test_pred_dict = SELD_evaluation_metrics.regression_label_format_to_output_format((test_sed_pred, test_doa_pred), class_num)
-    test_gt_dict = SELD_evaluation_metrics.regression_label_format_to_output_format((test_sed_gt, test_doa_gt), class_num)
-
-    test_pred_blocks_dict = SELD_evaluation_metrics.segment_labels(test_pred_dict, test_sed_pred.shape[0])
-    test_gt_blocks_dict = SELD_evaluation_metrics.segment_labels(test_gt_dict, test_sed_gt.shape[0])
-
-    metric_class.update_seld_scores_xyz(test_pred_blocks_dict, test_gt_blocks_dict)
-    test_new_metric = metric_class.compute_seld_scores()
-    test_new_seld_metric = evaluation_metrics.early_stopping_metric(test_new_metric[:2], test_new_metric[2:])
-    return test_new_metric, test_new_seld_metric
-
-
 def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, maxstep=0, optimizer=None, mode='train'):
     # metric
     ER = tf.keras.metrics.Mean()
@@ -75,20 +55,25 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
                 preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer)
             else:
                 preds, sloss, dloss = teststep(model, x, y, sed_loss, doa_loss)
-            test_metric, test_seld_metric = metric(metric_class, preds, y, class_num)
+
+            metric_class.update_states(y, preds)
+            metric_values = metric_class.result()
+            seld_score = calculate_seld_score(metric_values)
+
             ssloss(sloss)
             ddloss(dloss)
             pbar.set_postfix(epoch=epoch, 
-                                ErrorRate=test_metric[0], 
-                                F=test_metric[1]*100, 
-                                DoaErrorRate=test_metric[2], 
-                                DoaErrorRateF=test_metric[3]*100, 
-                                seldScore=test_seld_metric)
-            ER(test_metric[0])
-            F(test_metric[1]*100)
-            DER(test_metric[2])
-            DERF(test_metric[3]*100)
-            SeldScore(test_seld_metric)
+                             ErrorRate=metric_values[0].numpy(), 
+                             F=metric_values[1].numpy(), 
+                             DoaErrorRate=metric_values[2].numpy(), 
+                             DoaErrorRateF=metric_values[3].numpy(), 
+                             seldScore=seld_score.numpy())
+            ER(metric_values[0])
+            F(metric_values[1]*100)
+            DER(metric_values[2])
+            DERF(metric_values[3]*100)
+            SeldScore(seld_score)
+
     print(f'{mode}_sloss: {ssloss.result().numpy()}')
     print(f'{mode}_dloss: {ddloss.result().numpy()}')
     writer.add_scalar(f'{mode}/{mode}_ErrorRate', ER.result().numpy(), epoch)
@@ -102,23 +87,19 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
-    time_length = 64
-    x, y = load_seldnet_data(path+'foa_dev_norm', path+'foa_dev_label', mode=mode, n_freq_bins=time_length)
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
+                             os.path.join(path, 'foa_dev_label'), 
+                             mode=mode, n_freq_bins=64)
 
-    sample_transforms = [
-        # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
-        # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
-    ]
     batch_transforms = [
         split_total_labels_to_sed_doa
     ]
     dataset = seldnet_data_to_dataloader(
         x, y,
-        sample_transforms=sample_transforms,
         batch_transforms=batch_transforms,
-        label_window_size=time_length,
+        label_window_size=60,
         batch_size=config.batch,
-        inf_loop=True if config.inf and mode == 'train' else False
+        inf_loop=True if mode=='train' else False
     )
     return dataset
 
@@ -172,20 +153,20 @@ def main(config):
     
     best_score = 99999
     patience = 0
-    metric_class = SELD_evaluation_metrics.SELDMetrics(
-        nb_classes=class_num, doa_threshold=config.lad_doa_thresh)
+    metric_class = SELDMetrics(
+        doa_threshold=config.lad_doa_thresh)
 
     for epoch in range(config.epoch):
         # train loop
-        metric_class.reset()
+        metric_class.reset_states()
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, config.maxstep, optimizer=optimizer, mode='train') 
 
         # validation loop
-        metric_class.reset()
+        metric_class.reset_states()
         score = iterloop(model, valset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='val')
 
         # evaluation loop
-        metric_class.reset()
+        metric_class.reset_states()
         iterloop(model, testset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='test')
 
         if best_score > score:
