@@ -1,135 +1,157 @@
-import numpy as np # will remove later
 import tensorflow as tf
 
 from data_utils import radian_to_degree
+from utils import safe_div
 
 
-def early_stopping_metric(sed_error, doa_error):
+class SELDMetrics:
+    def __init__(self, doa_threshold=20, block_size=10):
+        self.doa_threshold = doa_threshold
+        self.block_size = block_size
+        self.reset_states()
+
+    def reset_states(self):
+        self.TP = tf.zeros([], tf.float32)
+        self.FP = tf.zeros([], tf.float32)
+        self.TN = tf.zeros([], tf.float32)
+        self.FN = tf.zeros([], tf.float32)
+
+        self.S = tf.zeros([], tf.float32)
+        self.D = tf.zeros([], tf.float32)
+        self.I = tf.zeros([], tf.float32)
+
+        self.Nref = tf.zeros([], tf.float32)
+        self.Nsys = tf.zeros([], tf.float32)
+
+        self.total_DE = tf.zeros([], tf.float32)
+        self.DE_TP = tf.zeros([], tf.float32)
+
+    def result(self):
+        # Location-senstive detection performance
+        ER = safe_div(self.S + self.D + self.I, self.Nref)
+
+        prec = safe_div(self.TP, self.Nsys)
+        recall = safe_div(self.TP, self.Nref)
+        F = safe_div(2 * prec * recall, prec + recall)
+
+        # Class-sensitive localization performance
+        if self.DE_TP > 0:
+            DE = safe_div(self.total_DE, self.DE_TP)
+        else:
+            # When the total number of prediction is zero
+            DE = tf.ones([], tf.float32) * 180 
+
+        DE_prec = safe_div(self.DE_TP, self.Nsys)
+        DE_recall = safe_div(self.DE_TP, self.Nref)
+        DE_F = safe_div(2 * DE_prec * DE_recall, DE_prec + DE_recall)
+
+        return ER, F, DE, DE_F
+
+    def update_states(self, y_true, y_pred): 
+        y_true_blocks = self.split(y_true)
+        y_pred_blocks = self.split(y_pred)
+
+        for true_block, pred_block in zip(y_true_blocks, y_pred_blocks):
+            self.update_block_states(true_block, pred_block)
+
+    def split(self, labels):
+        sed, doa = labels
+        blocks = []
+        for i in range((sed.shape[1]+self.block_size-1)//self.block_size):
+            blocks.append(
+                [sed[:, i*self.block_size:(i+1)*self.block_size],
+                 doa[:, i*self.block_size:(i+1)*self.block_size]])
+
+        return blocks
+
+    def update_block_states(self, y_true_block, y_pred_block):
+        sed_true, doa_true = y_true_block
+        sed_pred, doa_pred = y_pred_block
+        sed_pred = tf.cast(sed_pred > 0.5, sed_pred.dtype)
+
+        # change doa shape from [..., n_classes*3] to [..., n_classes, 3]
+        doa_true = tf.reshape(doa_true, (*doa_true.shape[:-1], 3, -1))
+        doa_pred = tf.reshape(doa_pred, (*doa_pred.shape[:-1], 3, -1))
+        perm = [*range(doa_true.ndim-2), doa_true.ndim-1, doa_true.ndim-2]
+        doa_true = tf.transpose(doa_true, perm=perm)
+        doa_pred = tf.transpose(doa_pred, perm=perm)
+
+        # whether a particular class exists in a block
+        # true_classes, pred_classes: [..., n_frames, n_classes] shaped Tensor
+        true_classes = tf.math.reduce_max(sed_true, axis=-2, keepdims=True)
+        pred_classes = tf.math.reduce_max(sed_pred, axis=-2, keepdims=True)
+
+        self.Nref += tf.math.reduce_sum(true_classes)
+        self.Nsys += tf.math.reduce_sum(pred_classes)
+        self.TN += tf.math.reduce_sum((1-true_classes)*(1-pred_classes))
+
+        false_negative = tf.math.reduce_sum(true_classes*(1-pred_classes))
+        false_positive = tf.math.reduce_sum((1-true_classes)*pred_classes)
+
+        self.FN += false_negative
+        self.FP += false_positive
+        loc_FN = false_negative
+        loc_FP = false_positive
+
+        ''' when a class exists in both y_true and y_pred '''
+        true_positives = true_classes * pred_classes
+        frames_true = sed_true * true_positives
+        frames_pred = sed_pred * true_positives
+        frames_matched = frames_true * frames_pred
+
+        # [..., 1, n_classes]
+        total_matched_frames = tf.reduce_sum(
+            frames_matched, axis=-2, keepdims=True)
+        matched_frames_exist = tf.cast(total_matched_frames > 0,
+                                       total_matched_frames.dtype)
+        self.DE_TP += tf.math.reduce_sum(matched_frames_exist)
+
+        false_negative = tf.math.reduce_sum(
+            true_positives * (1-matched_frames_exist))
+        self.FN += false_negative
+        loc_FN += false_negative
+
+        # [..., n_frames, n_classes]
+        angular_distances = distance_between_cartesian_coordinates(
+            doa_true * tf.expand_dims(frames_matched, -1),
+            doa_pred * tf.expand_dims(frames_matched, -1))
+        average_distances = safe_div(
+            tf.reduce_sum(angular_distances, -2, keepdims=True),
+            total_matched_frames)
+        self.total_DE += tf.reduce_sum(average_distances)
+
+        close_angles = tf.cast(average_distances <= self.doa_threshold, 
+                               average_distances.dtype)
+        self.TP += tf.reduce_sum(close_angles * matched_frames_exist)
+
+        false_negative = tf.math.reduce_sum(
+            (1-close_angles) * matched_frames_exist)
+        self.FN += false_negative
+        loc_FN += false_negative
+
+        # TODO: FIX THIS (loc_FP, loc_FN are inaccurate)
+        self.S += tf.math.minimum(loc_FP, loc_FN)
+        self.D += tf.math.maximum(0, loc_FN - loc_FP)
+        self.I += tf.math.maximum(0, loc_FP - loc_FN)
+
+
+def calculate_seld_score(metric_values):
     """
     Compute early stopping metric from sed and doa errors.
 
-    :param sed_error: [error rate (0 to 1 range), f score (0 to 1 range)]
-    :param doa_error: [doa error (in degrees), frame recall (0 to 1 range)]
+    :param metric_values: [error rate (0 to 1 range), 
+                           f score (0 to 1 range),
+                           doa error (in degrees), 
+                           frame recall (0 to 1 range)]
     :return: seld metric result
     """
-    error_rate = sed_error[0]
-    f_score = sed_error[1]
-    doa_error = doa_error[0] / 180 # in degrees
-    recall = doa_error[1]
+    error_rate, f_score, doa_error, recall = metric_values
+    doa_error = doa_error / 180 # degress to [0, 1]
 
     return (error_rate + 1 - f_score + doa_error + 1 - recall)/4
 
 
-def reshape_3Dto2D(tensor):
-    return tf.reshape(tensor, (-1, tensor.shape[-1]))
-
-
-class SELDMetrics:
-    def __init__(self, doa_threshold=20, nb_classes=11):
-        self.doa_threshold = doa_threshold
-        self.class_num = nb_classes
-        self.reset()
-
-    def reset(self):
-        self.TP = 0
-        self.FP = 0
-        self.TN = 0
-        self.FN = 0
-
-        self.S = 0
-        self.D = 0
-        self.I = 0
-
-        self.Nref = 0
-        self.Nsys = 0
-
-        self.total_DE = 0
-        self.DE_TP = 0
-
-    def compute_seld_scores(self):
-        # Location-senstive detection performance
-        ER = (self.S + self.D + self.I) / float(self.Nref + eps)
-
-        prec = float(self.TP) / float(self.Nsys + eps)
-        recall = float(self.TP) / float(self.Nref + eps)
-        F = 2 * prec * recall / (prec + recall + eps)
-
-        # Class-sensitive localization performance
-        if self.DE_TP:
-            DE = self.total_DE / float(self.DE_TP + eps)
-        else:
-            DE = 180 # When the total number of prediction is zero
-
-        DE_prec = float(self.DE_TP) / float(self.Nsys + eps)
-        DE_recall = float(self.DE_TP) / float(self.Nref + eps)
-        DE_F = 2 * DE_prec * DE_recall / (DE_prec + DE_recall + eps)
-
-        return ER, F, DE, DE_F
-
-    def update_seld_scores_xyz(self, pred, gt):
-        # blockwise
-        for block_cnt in range(len(gt.keys())):
-            loc_FN, loc_FP = 0, 0
-
-            # classwise
-            for class_cnt in range(self.class_num):
-                if class_cnt in gt[block_cnt]:
-                    self.Nref += 1
-                if class_cnt in pred[block_cnt]:
-                    self.Nsys += 1
-
-                # both in GT and PRED
-                if class_cnt in gt[block_cnt] and class_cnt in pred[block_cnt]:
-                    total_spatial_dist = 0
-                    total_framewise_matching_doa = 0
-                    gt_ind_list = gt[block_cnt][class_cnt][0][0] # frames
-                    pred_ind_list = pred[block_cnt][class_cnt][0][0]
-
-                    for gt_ind, gt_val in enumerate(gt_ind_list):
-                        if gt_val in pred_ind_list: # gt frame is in pred
-                            total_framewise_matching_doa += 1
-                            pred_ind = pred_ind_list.index(gt_val)
-
-                            # find xyz
-                            gt_arr = np.array(gt[block_cnt][class_cnt][0][1][gt_ind])
-                            pred_arr = np.array(pred[block_cnt][class_cnt][0][1][pred_ind])
-
-                            total_spatial_dist += distance_between_cartesian_coordinates(
-                                gt_arr[0], pred_arr[0])
-
-                    if total_spatial_dist == 0 and total_framewise_matching_doa == 0:
-                        loc_FN += 1
-                        self.FN += 1
-                    else:
-                        avg_spatial_dist = (total_spatial_dist / total_framewise_matching_doa)
-
-                        self.total_DE += avg_spatial_dist
-                        self.DE_TP += 1
-
-                        if avg_spatial_dist <= self.doa_threshold:
-                            self.TP += 1
-                        else:
-                            loc_FN += 1
-                            self.FN += 1
-                elif class_cnt in gt[block_cnt] and class_cnt not in pred[block_cnt]:
-                    # False negative
-                    loc_FN += 1
-                    self.FN += 1
-                elif class_cnt not in gt[block_cnt] and class_cnt in pred[block_cnt]:
-                    # False positive
-                    loc_FP += 1
-                    self.FP += 1
-                elif class_cnt not in gt[block_cnt] and class_cnt not in pred[block_cnt]:
-                    # True negative
-                    self.TN += 1
-
-            self.S += np.minimum(loc_FP, loc_FN)
-            self.D += np.maximum(0, loc_FN - loc_FP)
-            self.I += np.maximum(0, loc_FP - loc_FN)
-        return
-
-
-def distance_between_cartesian_coordinates(xyz0, xyz1): # x1, y1, z1, x2, y2, z2):
+def distance_between_cartesian_coordinates(xyz0, xyz1):
     """
     Angular distance between two cartesian coordinates
     MORE: https://en.wikipedia.org/wiki/Great-circle_distance
@@ -137,14 +159,14 @@ def distance_between_cartesian_coordinates(xyz0, xyz1): # x1, y1, z1, x2, y2, z2
 
     :return: angular distance in degrees
     """
-    # xyz0 = tf.stack([x1, y1, z1], axis=-1) # [samples, 3]
-    xyz0 = tf.math.l2_normalize(xyz0)
-    # xyz1 = tf.stack([x2, y2, z2], axis=-1) # [samples, 3]
-    xyz1 = tf.math.l2_normalize(xyz1)
+    xyz0 = tf.math.l2_normalize(xyz0, axis=-1)
+    xyz1 = tf.math.l2_normalize(xyz1, axis=-1)
+    zeros = tf.cast(tf.math.reduce_sum(xyz0, axis=-1)==0, xyz0.dtype) \
+          * tf.cast(tf.math.reduce_sum(xyz1, axis=-1)==0, xyz1.dtype) 
 
     distance = tf.reduce_sum(xyz0 * xyz1, axis=-1)
     distance = tf.clip_by_value(distance, -1, 1)
-    distance = radian_to_degree(tf.math.acos(distance))
+    distance = radian_to_degree(tf.math.acos(distance)) * (1-zeros)
     
     return distance
 
@@ -170,55 +192,5 @@ def regression_label_format_to_output_format(preds):
             output_dict[i] = []
             for cls in classes:
                 output_dict[i].append([cls, *doa_labels[i, :, cls]])
-    return output_dict
-
-
-def segment_labels(_pred_dict, _max_frames, fs=24000, label_len_s=0.1):
-    '''
-    Collects class-wise sound event location information 
-    in segments of length 1s from reference dataset
-
-    :param _pred_dict: Dictionary containing frame-wise sound event time 
-                       and location information. Output of SELD method
-    :param _max_frames: Total number of frames in the recording
-    :return: Dictionary containing class-wise sound event location information in each segment of audio
-            dictionary_name[segment-index][class-index] = list(frame-cnt-within-segment, azimuth, elevation)
-    '''
-    _nb_label_frames_1s = int(fs / float(int(fs * label_len_s)))
-
-    nb_blocks = int(np.ceil(_max_frames/float(_nb_label_frames_1s)))
-    output_dict = {x: {} for x in range(nb_blocks)}
-    for frame_cnt in range(0, _max_frames, _nb_label_frames_1s):
-
-        # Collect class-wise information for each block
-        # [class][frame] = <list of doa values>
-        # Data structure supports multi-instance occurence of same class
-        block_cnt = frame_cnt // _nb_label_frames_1s
-        loc_dict = {}
-        for audio_frame in range(frame_cnt, frame_cnt+_nb_label_frames_1s):
-            if audio_frame not in _pred_dict:
-                continue
-            for value in _pred_dict[audio_frame]:
-                if value[0] not in loc_dict: # value[0] = class
-                    loc_dict[value[0]] = {}
-
-                block_frame = audio_frame - frame_cnt
-                if block_frame not in loc_dict[value[0]]:
-                    loc_dict[value[0]][block_frame] = []
-                loc_dict[value[0]][block_frame].append(value[1:]) # append xyz
-
-        # Update the block wise details collected above in a global structure
-        for class_cnt in loc_dict:
-            if class_cnt not in output_dict[block_cnt]:
-                output_dict[block_cnt][class_cnt] = []
-
-            keys = [k for k in loc_dict[class_cnt]]
-            values = [loc_dict[class_cnt][k] for k in loc_dict[class_cnt]]
-
-            output_dict[block_cnt][class_cnt].append([keys, values])
-
-    '''
-    output_dict[block_count][class] = [frames, xyzs]
-    '''
     return output_dict
 
