@@ -8,7 +8,7 @@ from metrics import evaluation_metrics, SELD_evaluation_metrics
 import models
 from params import get_param
 from transforms import *
-
+import losses
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
@@ -16,11 +16,14 @@ def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
         y_p = model(x, training=True)
         sloss = sed_loss(y[0], y_p[0])
         dloss = doa_loss(y[1], y_p[1])
+        
         loss = sloss * loss_weight[0] + dloss * loss_weight[1]
+
     grad = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grad, model.trainable_variables))
-    return y_p, sloss, dloss
 
+    return y_p, sloss, dloss
+    
 
 @tf.function
 def teststep(model, x, y, sed_loss, doa_loss):
@@ -150,10 +153,14 @@ def main(config):
 
     # model load
     model = getattr(models, config.model)(input_shape, n_classes=class_num)
-    
+    model.summary()
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
-    doa_loss = getattr(tf.keras.losses, config.doa_loss)
+    
+    try:
+        doa_loss = getattr(tf.keras.losses, config.doa_loss)
+    except:
+        doa_loss = getattr(losses, 'get_' + config.doa_loss)(class_num)
 
     if config.resume:
         from glob import glob

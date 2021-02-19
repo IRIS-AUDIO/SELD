@@ -1,0 +1,18 @@
+{
+    "abspath": "/root/datasets",
+    "batch": 256,
+    "decay": 0.7071067811865475,
+    "doa_loss": "MSE",
+    "epoch": 300,
+    "freq_mask_size": 8,
+    "inf": false,
+    "lad_doa_thresh": 20,
+    "loss_weight": "1,1000",
+    "lr": 0.001,
+    "maxstep": 50,
+    "model": "attention_seldnet_v1",
+    "name": "attention_seldnet_v1_nomask_v_0",
+    "patience": 100,
+    "resume": false,
+    "time_mask_size": 24
+}
