@@ -11,7 +11,7 @@ def initial_seldnet(data_in,
                   fnn_size=None):
     '''
     regression SELDnet
-    data_in: [batch, freq, time, chan]
+    data_in: [batch, time, freq, chan]
     '''
     if pool_size is None:
         pool_size = [4, 4, 2]
@@ -26,10 +26,12 @@ def initial_seldnet(data_in,
     spec_cnn = spec_start
 
     for i, convCnt in enumerate(pool_size):
-        spec_cnn = Conv2D(nb_cnn2d_filt, kernel_size=3, padding='same')(spec_cnn)
+        spec_cnn = Conv2D(nb_cnn2d_filt, kernel_size=3, padding='same')(
+            spec_cnn)
         spec_cnn = BatchNormalization()(spec_cnn)
         spec_cnn = Activation('relu')(spec_cnn)
-        spec_cnn = MaxPooling2D(pool_size=(t_pool_size[i], pool_size[i]))(spec_cnn)
+        spec_cnn = MaxPooling2D(pool_size=(t_pool_size[i], pool_size[i]))(
+            spec_cnn)
         spec_cnn = Dropout(dropout_rate)(spec_cnn)
 
     # [b, t, f, c] -> [b, t, c]
