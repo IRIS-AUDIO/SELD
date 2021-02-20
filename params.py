@@ -39,7 +39,7 @@ def get_param(known=None):
     if known is None:
         known = []
     config = args.parse_known_args(known)[0]
-    config.name = config.model + '_' + config.name + '_' + config.doa_loss
+    config.name = config.model + '_' + config.doa_loss + '_' + config.name
     config = get_config(config.name, config, mode=config.config_mode)
 
     return config
