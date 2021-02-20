@@ -85,13 +85,13 @@ class SELDMetrics:
         self.Nsys += tf.math.reduce_sum(pred_classes)
         self.TN += tf.math.reduce_sum((1-true_classes)*(1-pred_classes))
 
-        false_negative = tf.math.reduce_sum(true_classes*(1-pred_classes))
-        false_positive = tf.math.reduce_sum((1-true_classes)*pred_classes)
+        false_negative = true_classes * (1-pred_classes)
+        false_positive = (1-true_classes) * pred_classes
 
-        self.FN += false_negative
-        self.FP += false_positive
-        loc_FN = false_negative
-        loc_FP = false_positive
+        self.FN += tf.math.reduce_sum(false_negative)
+        self.FP += tf.math.reduce_sum(false_positive)
+        loc_FN = tf.math.reduce_sum(false_negative, axis=(-2, -1))
+        loc_FP = tf.math.reduce_sum(false_positive, axis=(-2, -1))
 
         ''' when a class exists in both y_true and y_pred '''
         true_positives = true_classes * pred_classes
@@ -106,10 +106,9 @@ class SELDMetrics:
                                        total_matched_frames.dtype)
         self.DE_TP += tf.math.reduce_sum(matched_frames_exist)
 
-        false_negative = tf.math.reduce_sum(
-            true_positives * (1-matched_frames_exist))
-        self.FN += false_negative
-        loc_FN += false_negative
+        false_negative = true_positives * (1-matched_frames_exist)
+        self.FN += tf.math.reduce_sum(false_negative)
+        loc_FN += tf.math.reduce_sum(false_negative, axis=(-2, -1))
 
         # [..., n_frames, n_classes]
         angular_distances = distance_between_cartesian_coordinates(
@@ -124,15 +123,13 @@ class SELDMetrics:
                                average_distances.dtype)
         self.TP += tf.reduce_sum(close_angles * matched_frames_exist)
 
-        false_negative = tf.math.reduce_sum(
-            (1-close_angles) * matched_frames_exist)
-        self.FN += false_negative
-        loc_FN += false_negative
+        false_negative = (1-close_angles) * matched_frames_exist
+        self.FN += tf.reduce_sum(false_negative)
+        loc_FN += tf.reduce_sum(false_negative, axis=(-2, -1))
 
-        # TODO: FIX THIS (loc_FP, loc_FN are inaccurate)
-        self.S += tf.math.minimum(loc_FP, loc_FN)
-        self.D += tf.math.maximum(0, loc_FN - loc_FP)
-        self.I += tf.math.maximum(0, loc_FP - loc_FN)
+        self.S += tf.reduce_sum(tf.math.minimum(loc_FP, loc_FN))
+        self.D += tf.reduce_sum(tf.math.maximum(0, loc_FN - loc_FP))
+        self.I += tf.reduce_sum(tf.math.maximum(0, loc_FP - loc_FN))
 
 
 def calculate_seld_score(metric_values):
