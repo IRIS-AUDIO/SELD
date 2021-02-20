@@ -64,9 +64,9 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num
             ddloss(dloss)
             pbar.set_postfix(epoch=epoch, 
                              ErrorRate=metric_values[0].numpy(), 
-                             F=metric_values[1].numpy(), 
+                             F=metric_values[1].numpy() * 100, 
                              DoaErrorRate=metric_values[2].numpy(), 
-                             DoaErrorRateF=metric_values[3].numpy(), 
+                             DoaErrorRateF=metric_values[3].numpy() * 100, 
                              seldScore=seld_score.numpy())
             ER(metric_values[0])
             F(metric_values[1]*100)
@@ -179,6 +179,8 @@ def main(config):
                 print(f'Early Stopping at {epoch}, score is {score}')
                 break
             patience += 1
+    
+    
 
 
 if __name__=='__main__':
