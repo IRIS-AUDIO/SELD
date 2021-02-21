@@ -51,11 +51,11 @@ def extract_features(path: str,
                      mode='foa',
                      n_mels=64,
                      **kwargs) -> np.ndarray:
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     wav, r = torchaudio.load(path)
     melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
-                                              sample_rate=r)
-
-    spec = complex_spec(wav, **kwargs)
+                                              sample_rate=r).to(device)
+    spec = complex_spec(wav.to(device), **kwargs)
 
     mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
     mel_spec = melscale(mel_spec)
@@ -81,7 +81,7 @@ def extract_features(path: str,
     features = torch.cat(features, axis=0)
 
     # [chan, freq, time] -> [time, freq, chan]
-    features = torch.transpose(features, 0, 2).numpy()
+    features = torch.transpose(features, 0, 2).cpu().numpy()
     return features
 
 
@@ -147,12 +147,13 @@ def preprocess_features_labels(features: np.ndarray,
 
 
 ''' Feature Extraction '''
-def complex_spec(wav: torch.Tensor, 
+def complex_spec(wav, 
                  pad=0,
                  n_fft=512,
                  win_length=None,
                  hop_length=None,
-                 normalized=False) -> torch.Tensor:
+                 normalized=False):
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     if win_length is None:
         win_length = n_fft
     if hop_length is None:
@@ -160,7 +161,7 @@ def complex_spec(wav: torch.Tensor,
     spec = torchaudio.functional.spectrogram(
         wav, 
         pad=pad, 
-        window=torch.hann_window(win_length),
+        window=torch.hann_window(win_length,device=device),
         n_fft=n_fft,
         hop_length=hop_length, 
         win_length=win_length, 
@@ -169,7 +170,7 @@ def complex_spec(wav: torch.Tensor,
     return spec
 
 
-def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
+def foa_intensity_vectors(complex_specs):
     if not torch.is_complex(complex_specs):
         complex_specs = torch.view_as_complex(complex_specs)
 
@@ -187,8 +188,8 @@ def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
     return torch.stack([IVx, IVy, IVz], axis=0)
 
 
-def gcc_features(complex_specs: torch.Tensor,
-                 n_mels: int) -> torch.Tensor:
+def gcc_features(complex_specs,
+                 n_mels: int):
     if not torch.is_complex(complex_specs):
         complex_specs = torch.view_as_complex(complex_specs)
 
@@ -261,10 +262,12 @@ if __name__ == '__main__':
     print(x.shape, x.dtype)
     print(y.shape, y.dtype)
     '''
-    
-    extract_seldnet_data('/media/data1/datasets/DCASE2020/foa_dev',
-                         'mic_dev',
-                         '/media/data1/datasets/DCASE2020/metadata_dev',
-                         'mic_label',
-                         mode='mic')
+    path = '/media/data1/datasets'
+    if not os.path.exists(path):
+        path = '/root/datasets'
+    extract_seldnet_data(path + '/DCASE2020/foa_dev',
+                         'foa_dev',
+                         path + '/DCASE2020/metadata_dev',
+                         'foa_label',
+                         mode='foa')
 
