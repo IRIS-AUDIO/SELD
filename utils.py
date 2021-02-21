@@ -1,7 +1,7 @@
 import tensorflow as tf
+import torch
 
-
-class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+class CustomSchedule(tf.keras.optimizers.schedules):
     def __init__(self, d_model, decay):
         super(CustomSchedule, self).__init__()
 
@@ -19,3 +19,6 @@ def safe_div(x, y, eps=1e-8):
     # returns safe x / max(y, epsilon)
     return x / tf.maximum(y, eps)
 
+
+def get_device():
+    return torch.device('cuda:' if torch.cuda.is_available() else 'cpu')
