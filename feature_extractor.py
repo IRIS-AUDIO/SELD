@@ -147,12 +147,12 @@ def preprocess_features_labels(features: np.ndarray,
 
 
 ''' Feature Extraction '''
-def complex_spec(wav, 
+def complex_spec(wav: torch.Tensor, 
                  pad=0,
                  n_fft=512,
                  win_length=None,
                  hop_length=None,
-                 normalized=False):
+                 normalized=False) -> torch.Tensor:
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     if win_length is None:
         win_length = n_fft
@@ -170,7 +170,7 @@ def complex_spec(wav,
     return spec
 
 
-def foa_intensity_vectors(complex_specs):
+def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
     if not torch.is_complex(complex_specs):
         complex_specs = torch.view_as_complex(complex_specs)
 
@@ -188,8 +188,8 @@ def foa_intensity_vectors(complex_specs):
     return torch.stack([IVx, IVy, IVz], axis=0)
 
 
-def gcc_features(complex_specs,
-                 n_mels: int):
+def gcc_features(complex_specs: torch.Tensor,
+                 n_mels: int) -> torch.Tensor:
     if not torch.is_complex(complex_specs):
         complex_specs = torch.view_as_complex(complex_specs)
 
@@ -266,8 +266,8 @@ if __name__ == '__main__':
     if not os.path.exists(path):
         path = '/root/datasets'
     extract_seldnet_data(path + '/DCASE2020/foa_dev',
-                         'foa_dev',
+                         'foa_dev_1024',
                          path + '/DCASE2020/metadata_dev',
-                         'foa_label',
-                         mode='foa')
+                         'foa_label_1024',
+                         mode='foa', n_fft=1024)
 
