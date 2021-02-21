@@ -5,6 +5,7 @@ import torchaudio
 from functools import partial
 from torch.fft import irfft
 from data_utils import *
+from utils import get_device
 
 
 ''' For SELDnet Data '''
@@ -51,7 +52,7 @@ def extract_features(path: str,
                      mode='foa',
                      n_mels=64,
                      **kwargs) -> np.ndarray:
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = get_device()
     wav, r = torchaudio.load(path)
     melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
                                               sample_rate=r).to(device)
@@ -153,7 +154,7 @@ def complex_spec(wav: torch.Tensor,
                  win_length=None,
                  hop_length=None,
                  normalized=False) -> torch.Tensor:
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = get_device()
     if win_length is None:
         win_length = n_fft
     if hop_length is None:
@@ -265,9 +266,9 @@ if __name__ == '__main__':
     path = '/media/data1/datasets'
     if not os.path.exists(path):
         path = '/root/datasets'
-    extract_seldnet_data(path + '/DCASE2020/foa_dev',
+    extract_seldnet_data(os.path.join(path, 'DCASE2020/foa_dev'),
                          'foa_dev_1024',
-                         path + '/DCASE2020/metadata_dev',
+                         os.path.join(path, 'DCASE2020/metadata_dev'),
                          'foa_label_1024',
                          mode='foa', n_fft=1024)
 
