@@ -1,4 +1,4 @@
-import argparse
+import argparse, os, json
 import numpy as np 
 from config_manager import get_config
 
@@ -14,8 +14,8 @@ def get_param(known=None):
     args.add_argument('--config_mode', type=str, default='')
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
-    args.add_argument('--model', type=str, default='initial_seldnet_v1', 
-                      choices=['initial_seldnet', 'initial_seldnet_v1', 
+    args.add_argument('--model', type=str, default='seldnet', 
+                      choices=['seldnet', 'initial_seldnet_v1', 
                       'initial_seldnet_v2', 'initial_seldnet_v3', 
                       'attention_seldnet', 'attention_seldnet_v1',
                       'initial_mmse_seldnet'])
@@ -39,10 +39,18 @@ def get_param(known=None):
     if known is None:
         known = []
     config = args.parse_known_args(known)[0]
+    
+    # model config
+    model_config = os.path.join('./model_config', config.model+'.json')
+    
+    if not os.path.exists(model_config):
+        raise ValueError('Model config is not exists')
+    model_config = argparse.Namespace(**json.load(open(model_config,'rb')))
+
     config.name = config.model + '_' + config.doa_loss + '_' + config.name
     config = get_config(config.name, config, mode=config.config_mode)
 
-    return config
+    return config, model_config
 
 
 if __name__ == '__main__':
