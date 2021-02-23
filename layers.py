@@ -56,7 +56,7 @@ def sed_layer_base(config, n_classes):
 def doa_layer_base(config, n_classes):
     fnn_size = [int(i) for i in config.doa_layer_filter.split(',')]
 
-    def _sed_layer(inputs):
+    def _doa_layer(inputs):
         x = inputs
         for nb_fnn_filt in fnn_size:
             x = TimeDistributed(Dense(nb_fnn_filt))(x)
@@ -64,4 +64,4 @@ def doa_layer_base(config, n_classes):
         x = TimeDistributed(Dense(n_classes*3, name='doa_out'))(x) 
         outputs = x
         return outputs
-    return _sed_layer
+    return _doa_layer
