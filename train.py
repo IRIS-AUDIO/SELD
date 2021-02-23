@@ -2,11 +2,11 @@ import os, pdb
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
+
 from data_loader import *
 from metrics import * 
 from params import get_param
 from transforms import *
-import layers
 import losses
 import models
 
@@ -90,10 +90,7 @@ def get_dataset(config, mode:str='train'):
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
-    sample_transforms = [
-        lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
-        lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
-    ]
+
     batch_transforms = [
         split_total_labels_to_sed_doa
     ]
@@ -102,15 +99,12 @@ def get_dataset(config, mode:str='train'):
         batch_transforms=batch_transforms,
         label_window_size=60,
         batch_size=config.batch,
-        sample_transforms=sample_transforms,
         inf_loop=True if mode=='train' else False
     )
     return dataset
 
 
 def main(config):
-    model_config = config[1]
-    config = config[0]
     tensorboard_path = os.path.join('./tensorboard_log', config.name)
     if not os.path.exists(tensorboard_path):
         print(f'tensorboard log directory: {tensorboard_path}')
@@ -139,12 +133,7 @@ def main(config):
     del a
 
     # model load
-    model = models.seldnet(input_shape,
-            hlfr=getattr(layers, 'high_level_feature_representation_'+model_config.high_level_feature_representation)(model_config),
-            tcr=getattr(layers, 'temporal_context_representation_'+model_config.temporal_context_representation)(model_config),
-            sedl=getattr(layers, 'sed_layer_'+model_config.sed_layer)(model_config, class_num),
-            doal=getattr(layers, 'doa_layer_'+model_config.doa_layer)(model_config, class_num),
-            n_classes=class_num)
+    model = getattr(models, config.model)(input_shape, n_classes=class_num)
     model.summary()
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')

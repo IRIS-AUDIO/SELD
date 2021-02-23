@@ -1,7 +1,7 @@
 import tensorflow as tf
 import torch
 
-class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+class CustomSchedule(tf.keras.optimizers.schedules):
     def __init__(self, d_model, decay):
         super(CustomSchedule, self).__init__()
 
