@@ -54,8 +54,6 @@ def seldnet_v1(data_in,
     
     x = hlfr(spec_start)
 
-    # [b, t, f, c] -> [b, t, c]
-    x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
     x = tcr(x)
 
     # sed
