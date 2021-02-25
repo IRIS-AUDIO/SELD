@@ -79,9 +79,12 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     print(f'{mode}_dloss: {ddloss.result().numpy()}')
     writer.add_scalar(f'{mode}/{mode}_ErrorRate', ER.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_F', F.result().numpy(), epoch)
-    writer.add_scalar(f'{mode}/{mode}_DoaErrorRate', DER.result().numpy(), epoch)
-    writer.add_scalar(f'{mode}/{mode}_DoaErrorRateF', DERF.result().numpy(), epoch)
-    writer.add_scalar(f'{mode}/{mode}_seldScore', SeldScore.result().numpy(), epoch)
+    writer.add_scalar(f'{mode}/{mode}_DoaErrorRate', 
+                      DER.result().numpy(), epoch)
+    writer.add_scalar(f'{mode}/{mode}_DoaErrorRateF', 
+                      DERF.result().numpy(), epoch)
+    writer.add_scalar(f'{mode}/{mode}_seldScore', 
+                      SeldScore.result().numpy(), epoch)
 
     return SeldScore.result()
 
@@ -180,7 +183,10 @@ def main(config):
             os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')
             best_score = score
             patience = 0
-            tf.keras.models.save_model(model, os.path.join(model_path, f'bestscore_{best_score}.hdf5'), include_optimizer=False)
+            tf.keras.models.save_model(
+                model, 
+                os.path.join(model_path, f'bestscore_{best_score}.hdf5'), 
+                include_optimizer=False)
         else:
             if patience == config.patience:
                 print(f'Early Stopping at {epoch}, score is {score}')
