@@ -1,0 +1,13 @@
+{
+    "doa_layer": "base",
+    "doa_layer_filter": "128",
+    "dropout_rate": 0.0,
+    "high_level_feature_representation": "base",
+    "high_level_feature_representation_filter": 64,
+    "high_level_feature_representation_pool1": "5,1,1",
+    "high_level_feature_representation_pool2": "4,2,2",
+    "sed_layer": "base",
+    "sed_layer_filter": "128",
+    "temporal_context_representation": "base",
+    "temporal_context_representation_filter": "128,128"
+}
