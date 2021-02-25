@@ -1,5 +1,8 @@
-import argparse, os, json
+import argparse
+import json
+import os
 import numpy as np 
+
 from config_manager import get_config
 
 
@@ -16,6 +19,7 @@ def get_param(known=None):
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet', 
                       choices=['seldnet', 'seldnet_v1'])
+    args.add_argument('--model_config', type=str, default='')
     
     # training
     args.add_argument('--lr', type=float, default=0.001)
@@ -29,14 +33,9 @@ def get_param(known=None):
     args.add_argument('--maxstep', type=int, default=75)
     args.add_argument('--inf', action='store_true')
 
-    # temporary
-    args.add_argument('--model_config', type=str, default='')
-
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
 
-    if known is None:
-        known = []
     config = args.parse_known_args(known)[0]
     
     # model config
@@ -51,7 +50,7 @@ def get_param(known=None):
         raise ValueError('Model config is not exists')
     model_config = argparse.Namespace(**json.load(open(model_config,'rb')))
 
-    config.name = config.model + '_' + config.doa_loss + '_' + config.name
+    config.name = f'{config.model}_{config.doa_loss}_{config.name}'
     config = get_config(config.name, config, mode=config.config_mode)
 
     return config, model_config
