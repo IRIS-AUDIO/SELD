@@ -68,6 +68,54 @@ def doa_layer_base(config, n_classes):
     return _doa_layer
 
 
+# TEMPORARY
+def simple_conv_block(model_config: dict):
+    # mandatory parameters
+    filters = model_config['filters']
+    pool_size = model_config['pool_size']
+
+    dropout_rate = model_config.get('dropout_rate', 0.)
+
+    if len(filters) == 0:
+        filters = filters * len(pool_size)
+    elif len(filters) != len(pool_size):
+        raise ValueError("len of filters and pool_size do not match")
+    
+    def conv_block(inputs):
+        x = inputs
+        for i in range(len(filters)):
+            x = Conv2D(filters[i], kernel_size=3, padding='same')(x)
+            x = BatchNormalization()(x)
+            x = Activation('relu')(x)
+            x = MaxPooling2D(pool_size=pool_size[i])(x)
+            x = Dropout(dropout_rate)(x)
+        return x
+
+    return conv_block
+
+
+def bidirectional_GRU_block(model_config):
+    # mandatory parameters
+    units_per_layer = model_config['units']
+
+    dropout_rate = model_config.get('dropout_rate', 0.)
+
+    def GRU_block(inputs):
+        x = inputs
+        if len(x.shape) == 4: # [batch, time, freq, chan]
+            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+
+        for units in units_per_layer:
+            x = Bidirectional(
+                GRU(units, activation='tanh', 
+                    dropout=dropout_rate, recurrent_dropout=dropout_rate, 
+                    return_sequences=True),
+                merge_mode='mul')(x)
+        return x
+
+    return GRU_block
+
+
 def simple_dense_block(model_config: dict):
     # mandatory parameters
     units_per_layer = model_config['units']

@@ -5,6 +5,33 @@ from layers import *
 
 
 class LayersTest(tf.test.TestCase):
+    def test_simple_conv_block(self):
+        model_config = {
+            'filters': [128, 128], # mandatory
+            'pool_size': [[4, 4], [1, 1]]
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 8, 8, 128
+
+        self.block_test(simple_conv_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_bidirectional_GRU_block(self):
+        model_config = {
+            'units': [128, 128], # mandatory
+        }
+
+        exp_input_shape = 32, 10, 32, 8
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(bidirectional_GRU_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_simple_dense_block(self):
         model_config = {
             'units': [128, 128], # mandatory
