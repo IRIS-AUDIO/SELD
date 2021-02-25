@@ -8,7 +8,7 @@ class LayersTest(tf.test.TestCase):
     def test_simple_conv_block(self):
         model_config = {
             'filters': [128, 128], # mandatory
-            'pool_size': [[4, 4], [1, 1]]
+            'pool_size': [[4, 4], [1, 1]] # mandatory
         }
 
         exp_input_shape = 32, 32, 32, 3

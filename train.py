@@ -134,7 +134,7 @@ def main(config):
     # extract data size
     x, y = [(x, y) for x, y in trainset.take(1)][0]
     input_shape = x.shape
-    sed_shape, doa_shape = y[0].shape, y[1].shape
+    sed_shape, doa_shape = tf.shape(y[0]), tf.shape(y[1])
     print('-----------data shape------------')
     print()
     print(f'data shape: {input_shape}')
