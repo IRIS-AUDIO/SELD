@@ -68,3 +68,29 @@ def seldnet_v1(data_in,
 
     model = tf.keras.Model(inputs=spec_start, outputs=[sed, doa])
     return model
+
+
+def seldnet_architecture(input_shape, hlfr, tcr, sed, doa):
+    '''
+    regression SELDnet
+    input_shape: [batch, time, freq, chan]
+    hlfr: high-level feature representation
+    tcr: temporal context representation
+    sed: sed-layer
+    doa: doa-layer
+    '''
+    inputs = Input(shape=input_shape)
+
+    x = hlfr(inputs)
+    x = tcr(x)
+
+    # sed
+    sed_out = sed(x)
+    sed_out = sigmoid(sed_out)
+
+    # doa
+    doa_out = doa(x)
+    doa_out = tanh(doa_out)
+
+    return tf.keras.Model(inputs=inputs, outputs=[sed_out, doa_out])
+
