@@ -1,14 +1,15 @@
-import os, pdb
+import os
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
+
+import layers
+import losses
+import models
 from data_loader import *
 from metrics import * 
 from params import get_param
 from transforms import *
-import layers
-import losses
-import models
 
 
 @tf.function
@@ -34,7 +35,7 @@ def teststep(model, x, y, sed_loss, doa_loss):
     return y_p, sloss, dloss
 
 
-def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, maxstep=0, optimizer=None, mode='train'):
+def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, maxstep=0, optimizer=None, mode='train'):
     # metric
     ER = tf.keras.metrics.Mean()
     F = tf.keras.metrics.Mean()
@@ -109,8 +110,8 @@ def get_dataset(config, mode:str='train'):
 
 
 def main(config):
-    model_config = config[1]
-    config = config[0]
+    config, model_config = config[0], config[1]
+
     tensorboard_path = os.path.join('./tensorboard_log', config.name)
     if not os.path.exists(tensorboard_path):
         print(f'tensorboard log directory: {tensorboard_path}')
@@ -126,26 +127,27 @@ def main(config):
     trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
     testset = get_dataset(config, 'test')
-    a = [(i,j) for i,j in trainset.take(1)]
-    input_shape = a[0][0].shape
+
+    # extract data size
+    x, y = [(x, y) for x, y in trainset.take(1)][0]
+    input_shape = x.shape
+    sed_shape, doa_shape = y[0].shape, y[1].shape
     print('-----------data shape------------')
     print()
-    print(f'data shape: {a[0][0].shape}')
-    print(f'label shape(sed, doa): {a[0][1][0].shape}, {a[0][1][1].shape}')
+    print(f'data shape: {input_shape}')
+    print(f'label shape(sed, doa): {sed_shape}, {doa_shape}')
     print()
     print('---------------------------------')
-    
-    class_num = a[0][1][0].shape[-1]
-    del a
 
     # model load
-    model = models.seldnet(input_shape,
-            hlfr=getattr(layers, 'high_level_feature_representation_'+model_config.high_level_feature_representation)(model_config),
-            tcr=getattr(layers, 'temporal_context_representation_'+model_config.temporal_context_representation)(model_config),
-            sedl=getattr(layers, 'sed_layer_'+model_config.sed_layer)(model_config, class_num),
-            doal=getattr(layers, 'doa_layer_'+model_config.doa_layer)(model_config, class_num),
-            n_classes=class_num)
+    model = models.seldnet_architecture(
+        input_shape,
+        getattr(layers, model_config.HIGH_LEVEL)(model_config.HIGH_LEVEL_ARGS),
+        getattr(layers, model_config.TEMPORAL)(model_config.TEMPORAL_ARGS),
+        getattr(layers, model_config.SED)(model_config.SED_ARGS),
+        getattr(layers, model_config.DOA)(model_config.DOA_ARGS))
     model.summary()
+
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
     
@@ -160,7 +162,6 @@ def main(config):
         if len(_model_path) == 0:
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
-
     
     best_score = 99999
     patience = 0
@@ -170,15 +171,15 @@ def main(config):
     for epoch in range(config.epoch):
         # train loop
         metric_class.reset_states()
-        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, config.maxstep, optimizer=optimizer, mode='train') 
+        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, config.maxstep, optimizer=optimizer, mode='train') 
 
         # validation loop
         metric_class.reset_states()
-        score = iterloop(model, valset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='val')
+        score = iterloop(model, valset, sed_loss, doa_loss, metric_class, config, epoch, writer, mode='val')
 
         # evaluation loop
         metric_class.reset_states()
-        iterloop(model, testset, sed_loss, doa_loss, metric_class, config, class_num, epoch, writer, mode='test')
+        iterloop(model, testset, sed_loss, doa_loss, metric_class, config, epoch, writer, mode='test')
 
         if best_score > score:
             os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')
@@ -190,8 +191,6 @@ def main(config):
                 print(f'Early Stopping at {epoch}, score is {score}')
                 break
             patience += 1
-    
-    
 
 
 if __name__=='__main__':

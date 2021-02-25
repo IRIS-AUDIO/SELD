@@ -79,7 +79,7 @@ def seldnet_architecture(input_shape, hlfr, tcr, sed, doa):
     sed: sed-layer
     doa: doa-layer
     '''
-    inputs = Input(shape=input_shape)
+    inputs = Input(shape=input_shape[-3:])
 
     x = hlfr(inputs)
     x = tcr(x)

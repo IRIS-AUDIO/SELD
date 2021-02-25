@@ -17,7 +17,6 @@ def get_param(known=None):
     args.add_argument('--model', type=str, default='seldnet', 
                       choices=['seldnet', 'seldnet_v1'])
     
-    
     # training
     args.add_argument('--lr', type=float, default=0.001)
     args.add_argument('--decay', type=float, default=1/np.sqrt(2))
@@ -30,6 +29,9 @@ def get_param(known=None):
     args.add_argument('--maxstep', type=int, default=75)
     args.add_argument('--inf', action='store_true')
 
+    # temporary
+    args.add_argument('--model_config', type=str, default='')
+
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
 
@@ -38,7 +40,12 @@ def get_param(known=None):
     config = args.parse_known_args(known)[0]
     
     # model config
-    model_config = os.path.join('./model_config', config.model+'.json')
+    model_config = config.model_config
+    if len(model_config) == 0:
+        model_config = config.model
+    if not model_config.endswith('.json'):
+        model_config = model_config + '.json'
+    model_config = os.path.join('./model_config', model_config)
     
     if not os.path.exists(model_config):
         raise ValueError('Model config is not exists')
