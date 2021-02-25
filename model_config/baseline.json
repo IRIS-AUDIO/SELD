@@ -4,13 +4,13 @@
     {
         "filters": [64, 64, 64],
         "pool_size": [[5, 4], [1, 2], [1, 2]],
-	"dropout_rate": 0.0 
+        "dropout_rate": 0.0 
     },
     "SECOND": "bidirectional_GRU_block",
     "SECOND_ARGS":
     {
         "units": [128, 128],
-	"dropout_rate": 0.0
+        "dropout_rate": 0.0
     },
     "SED": "simple_dense_block",
     "SED_ARGS":
