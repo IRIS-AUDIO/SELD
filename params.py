@@ -15,10 +15,7 @@ def get_param(known=None):
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet', 
-                      choices=['seldnet', 'initial_seldnet_v1', 
-                      'initial_seldnet_v2', 'initial_seldnet_v3', 
-                      'attention_seldnet', 'attention_seldnet_v1',
-                      'initial_mmse_seldnet'])
+                      choices=['seldnet', 'seldnet_v1'])
     
     
     # training
