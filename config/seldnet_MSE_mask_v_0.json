@@ -10,8 +10,8 @@
     "loss_weight": "1,1000",
     "lr": 0.001,
     "maxstep": 75,
-    "model": "initial_seldnet",
-    "name": "initial_seldnet_test_v_0",
+    "model": "seldnet",
+    "name": "seldnet_MSE_mask_v_0",
     "patience": 100,
     "resume": false,
     "time_mask_size": 24
