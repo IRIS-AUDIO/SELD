@@ -68,7 +68,6 @@ def doa_layer_base(config, n_classes):
     return _doa_layer
 
 
-# TEMPORARY
 def simple_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
@@ -94,7 +93,7 @@ def simple_conv_block(model_config: dict):
     return conv_block
 
 
-def bidirectional_GRU_block(model_config):
+def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
     units_per_layer = model_config['units']
 
@@ -121,7 +120,6 @@ def simple_dense_block(model_config: dict):
     units_per_layer = model_config['units']
     n_classes = model_config['n_classes']
 
-    # additional parameters
     dropout_rate = model_config.get('dropout_rate', 0)
     activation = model_config.get('activation', None)
     name = model_config.get('name', None)

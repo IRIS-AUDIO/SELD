@@ -9,5 +9,6 @@
     "sed_layer": "base",
     "sed_layer_filter": "128",
     "temporal_context_representation": "base",
-    "temporal_context_representation_filter": "128,128"
+    "temporal_context_representation_filter": "128,128",
+    "n_classes": 14
 }

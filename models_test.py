@@ -7,7 +7,7 @@ class ModelsTest(tf.test.TestCase):
     def setUp(self):
         self.batch = 32
         self.freq = 257
-        self.time = 10
+        self.time = 60
         self.chan = 2
         self.n_classes = 2
 

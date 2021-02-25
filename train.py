@@ -140,12 +140,7 @@ def main(config):
     print('---------------------------------')
 
     # model load
-    model = models.seldnet_architecture(
-        input_shape,
-        getattr(layers, model_config.HIGH_LEVEL)(model_config.HIGH_LEVEL_ARGS),
-        getattr(layers, model_config.TEMPORAL)(model_config.TEMPORAL_ARGS),
-        getattr(layers, model_config.SED)(model_config.SED_ARGS),
-        getattr(layers, model_config.DOA)(model_config.DOA_ARGS))
+    model = getattr(models, config.model)(input_shape, model_config)
     model.summary()
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
