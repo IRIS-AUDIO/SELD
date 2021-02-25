@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.layers import *
 
+
 def high_level_feature_representation_base(config):
     t_pool_size = [int(i) for i in config.high_level_feature_representation_pool1.split(',')]
     pool_size = [int(i) for i in config.high_level_feature_representation_pool2.split(',')]
@@ -65,3 +66,26 @@ def doa_layer_base(config, n_classes):
         outputs = x
         return outputs
     return _doa_layer
+
+
+def simple_dense_block(model_config: dict):
+    # mandatory parameters
+    units_per_layer = model_config['units']
+    n_classes = model_config['n_classes']
+
+    # additional parameters
+    dropout_rate = model_config.get('dropout_rate', 0)
+    activation = model_config.get('activation', None)
+    name = model_config.get('name', None)
+
+    def dense_block(inputs):
+        x = inputs
+        for units in units_per_layer:
+            x = TimeDistributed(Dense(units))(x)
+            x = Dropout(dropout_rate)(x)
+        x = TimeDistributed(
+            Dense(n_classes, activation=activation, name=name))(x) 
+        return x
+
+    return dense_block
+
