@@ -1,5 +1,8 @@
-import argparse, os, json
+import argparse
+import json
+import os
 import numpy as np 
+
 from config_manager import get_config
 
 
@@ -15,8 +18,8 @@ def get_param(known=None):
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet', 
-                      choices=['seldnet', 'seldnet_v1'])
-    
+                      choices=['seldnet', 'seldnet_v1', 'seldnet_architecture'])
+    args.add_argument('--model_config', type=str, default='')
     
     # training
     args.add_argument('--lr', type=float, default=0.001)
@@ -33,18 +36,21 @@ def get_param(known=None):
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
 
-    if known is None:
-        known = []
     config = args.parse_known_args(known)[0]
     
     # model config
-    model_config = os.path.join('./model_config', config.model+'.json')
+    model_config = config.model_config
+    if len(model_config) == 0:
+        model_config = config.model
+    if not model_config.endswith('.json'):
+        model_config = model_config + '.json'
+    model_config = os.path.join('./model_config', model_config)
     
     if not os.path.exists(model_config):
         raise ValueError('Model config is not exists')
     model_config = argparse.Namespace(**json.load(open(model_config,'rb')))
 
-    config.name = config.model + '_' + config.doa_loss + '_' + config.name
+    config.name = f'{model_config[:-4]}_{config.doa_loss}_{config.name}'
     config = get_config(config.name, config, mode=config.config_mode)
 
     return config, model_config
