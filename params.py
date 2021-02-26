@@ -18,7 +18,8 @@ def get_param(known=None):
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet', 
-                      choices=['seldnet', 'seldnet_v1', 'seldnet_architecture'])
+                      choices=['seldnet', 'seldnet_v1', 'seldnet_architecture',
+                               'xception_gru'])
     args.add_argument('--model_config', type=str, default='')
     
     # training
@@ -41,16 +42,16 @@ def get_param(known=None):
     # model config
     model_config = config.model_config
     if len(model_config) == 0:
-        model_config = config.model
+        model_config_name = config.model
     if not model_config.endswith('.json'):
-        model_config = model_config + '.json'
+        model_config = model_config_name + '.json'
     model_config = os.path.join('./model_config', model_config)
     
     if not os.path.exists(model_config):
         raise ValueError('Model config is not exists')
     model_config = argparse.Namespace(**json.load(open(model_config,'rb')))
 
-    config.name = f'{model_config[:-4]}_{config.doa_loss}_{config.name}'
+    config.name = f'{model_config_name}_{config.doa_loss}_{config.name}'
     config = get_config(config.name, config, mode=config.config_mode)
 
     return config, model_config
