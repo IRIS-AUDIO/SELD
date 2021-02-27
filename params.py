@@ -31,8 +31,7 @@ def get_param(known=None):
     args.add_argument('--patience', type=int, default=100)
     args.add_argument('--freq_mask_size', type=int, default=8)
     args.add_argument('--time_mask_size', type=int, default=24)
-    args.add_argument('--maxstep', type=int, default=75)
-    args.add_argument('--inf', action='store_true')
+    args.add_argument('--loop_time', type=int, default=5, help='times of train dataset iter for an epoch')
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
