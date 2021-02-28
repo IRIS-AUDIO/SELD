@@ -1,5 +1,5 @@
 {
-    "FIRST": "xception_block",
+    "FIRST": "xception_2d_block",
     "FIRST_ARGS":
     {
         "filters": 32
