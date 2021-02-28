@@ -35,7 +35,7 @@ def teststep(model, x, y, sed_loss, doa_loss):
     return y_p, sloss, dloss
 
 
-def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, maxstep=0, optimizer=None, mode='train'):
+def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=None, mode='train'):
     # metric
     ER = tf.keras.metrics.Mean()
     F = tf.keras.metrics.Mean()
@@ -44,15 +44,11 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     SeldScore = tf.keras.metrics.Mean()
     ssloss = tf.keras.metrics.Mean()
     ddloss = tf.keras.metrics.Mean()
-    if maxstep == 0:
-        maxstep = len(dataset)
 
     loss_weight = [int(i) for i in config.loss_weight.split(',')]
-    with tqdm(dataset, total=maxstep) as pbar:
-        for step, (x, y) in enumerate(pbar):
+    with tqdm(dataset) as pbar:
+        for x, y in pbar:
             if mode == 'train':
-                if step == maxstep:
-                    break
                 preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer)
             else:
                 preds, sloss, dloss = teststep(model, x, y, sed_loss, doa_loss)
@@ -94,10 +90,13 @@ def get_dataset(config, mode:str='train'):
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
-    sample_transforms = [
-        lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
-        lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
-    ]
+    if mode == 'train' and not 'nomask' in config.name:
+        sample_transforms = [
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+        ]
+    else:
+        sample_transforms = []
     batch_transforms = [
         split_total_labels_to_sed_doa
     ]
@@ -107,7 +106,7 @@ def get_dataset(config, mode:str='train'):
         label_window_size=60,
         batch_size=config.batch,
         sample_transforms=sample_transforms,
-        inf_loop=True if mode=='train' else False
+        loop_time=config.loop_time
     )
     return dataset
 
@@ -145,7 +144,7 @@ def main(config):
     # model load
     model = getattr(models, config.model)(input_shape, model_config)
     model.summary()
-
+    
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
     sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
     
@@ -169,7 +168,7 @@ def main(config):
     for epoch in range(config.epoch):
         # train loop
         metric_class.reset_states()
-        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, config.maxstep, optimizer=optimizer, mode='train') 
+        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=optimizer, mode='train') 
 
         # validation loop
         metric_class.reset_states()

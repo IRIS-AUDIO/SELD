@@ -9,7 +9,7 @@ def data_loader(dataset,
                 sample_transforms=None, 
                 batch_transforms=None,
                 deterministic=False,
-                inf_loop=False,
+                loop_time=None,
                 batch_size=32) -> tf.data.Dataset:
     '''
     INPUT
@@ -41,8 +41,7 @@ def data_loader(dataset,
 
     dataset = apply_ops(dataset, preprocessing)
     dataset = dataset.cache()
-    if inf_loop:
-        dataset = dataset.repeat()
+    dataset = dataset.repeat(loop_time)
     dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)
     dataset = apply_ops(dataset, batch_transforms)
@@ -97,6 +96,7 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                drop_remainder=True,
                                shuffle_size=None,
                                batch_size=32,
+                               loop_time=1,
                                **kwargs):
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -115,8 +115,10 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y),
                           num_parallel_calls=AUTOTUNE)
     del features, labels
-
-    dataset = data_loader(dataset, batch_size=batch_size, **kwargs)
+    
+    dataset = data_loader(dataset, batch_size=batch_size, 
+            loop_time=loop_time if train else 1, **kwargs)
+    
     if train:
         if shuffle_size is None:
             shuffle_size = n_samples // batch_size
