@@ -106,7 +106,7 @@ def get_dataset(config, mode:str='train'):
         label_window_size=60,
         batch_size=config.batch,
         sample_transforms=sample_transforms,
-        config=config
+        loop_time=config.loop_time
     )
     return dataset
 
