@@ -116,9 +116,10 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                           num_parallel_calls=AUTOTUNE)
     del features, labels
     
+    dataset = data_loader(dataset, batch_size=batch_size, 
+            loop_time=config.loop_time if train else 1, **kwargs)
+    
     if train:
-        dataset = data_loader(dataset, batch_size=batch_size, 
-                loop_time=config.loop_time if config != None else None, **kwargs)
         if shuffle_size is None:
             shuffle_size = n_samples // batch_size
         dataset = dataset.shuffle(shuffle_size)
