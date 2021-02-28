@@ -138,16 +138,7 @@ def simple_dense_block(model_config: dict):
 
 def xception_block(model_config: dict):
     filters = model_config['filters']
-    pool_size = model_config['pool_size']
-
-    dropout_rate = model_config.get('dropout_rate', 0.)
-
     padding = 'same'
-    if type(filters) != int:
-        if len(filters) == 0:
-            filters = filters * len(pool_size)
-        elif len(filters) != len(pool_size):
-            raise ValueError("len of filters and pool_size do not match")
 
     def _xception_block(inputs):
         x = TimeDistributed(Conv1D(
@@ -251,3 +242,109 @@ def xception_block(model_config: dict):
 
         return x
     return _xception_block
+
+
+def xception_2d_block(model_config: dict):
+    filters = model_config['filters']
+    padding = 'same'
+
+    def _xception_2d_block(inputs):
+        x = Conv2D(
+            32, (3, 3),
+            strides=(5,5),
+            use_bias=False,
+            name='block1_conv1')(inputs)
+        x = BatchNormalization(name='block1_conv1_bn')(x)
+        x = Activation('relu', name='block1_conv1_act')(x)
+        x = Conv2D(64, (3, 3), use_bias=False, padding='same', name='block1_conv2')(x)
+        x = BatchNormalization(name='block1_conv2_bn')(x)
+        x = Activation('relu', name='block1_conv2_act')(x)
+
+        residual = Conv2D(
+            128, (1, 1), strides=(1, 2), padding='same', use_bias=False)(x)
+        residual = BatchNormalization()(residual)
+
+        x = SeparableConv2D(
+            128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+        x = BatchNormalization(name='block2_sepconv1_bn')(x)
+        x = Activation('relu', name='block2_sepconv2_act')(x)
+        x = SeparableConv2D(
+            128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+        x = BatchNormalization(name='block2_sepconv2_bn')(x)
+
+        x = MaxPooling2D((1, 3),
+                                strides=(1, 2),
+                                padding='same',
+                                name='block2_pool')(x)
+        x = add([x, residual])
+
+        residual = Conv2D(
+            256, (1, 1), strides=(1, 2), padding='same', use_bias=False)(x)
+        residual = BatchNormalization()(residual)
+
+        x = Activation('relu', name='block3_sepconv1_act')(x)
+        x = SeparableConv2D(
+            256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+        x = BatchNormalization(name='block3_sepconv1_bn')(x)
+        x = Activation('relu', name='block3_sepconv2_act')(x)
+        x = SeparableConv2D(
+            256, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+        x = BatchNormalization(name='block3_sepconv2_bn')(x)
+
+        x = MaxPooling2D((1, 3),
+                                strides=(1, 2),
+                                padding='same',
+                                name='block3_pool')(x)
+        x = add([x, residual])
+
+        residual = Conv2D(
+            728, (1, 1), strides=(1, 2), padding='same', use_bias=False)(x)
+        residual = BatchNormalization()(residual)
+
+        x = Activation('relu', name='block4_sepconv1_act')(x)
+        x = SeparableConv2D(
+            728, (3, 3), padding='same', use_bias=False, name='block4_sepconv1')(x)
+        x = BatchNormalization(name='block4_sepconv1_bn')(x)
+        x = Activation('relu', name='block4_sepconv2_act')(x)
+        x = SeparableConv2D(
+            728, (3, 3), padding='same', use_bias=False, name='block4_sepconv2')(x)
+        x = BatchNormalization(name='block4_sepconv2_bn')(x)
+
+        x = MaxPooling2D((3, 3),
+                                strides=(1, 2),
+                                padding='same',
+                                name='block4_pool')(x)
+        x = add([x, residual])
+
+        for i in range(8):
+            residual = x
+            prefix = 'block' + str(i + 5)
+
+            x = Activation('relu', name=prefix + '_sepconv1_act')(x)
+            x = SeparableConv2D(
+                728, (3, 3),
+                padding='same',
+                use_bias=False,
+                name=prefix + '_sepconv1')(x)
+            x = BatchNormalization(
+                name=prefix + '_sepconv1_bn')(x)
+            x = Activation('relu', name=prefix + '_sepconv2_act')(x)
+            x = SeparableConv2D(
+                728, (3, 3),
+                padding='same',
+                use_bias=False,
+                name=prefix + '_sepconv2')(x)
+            x = BatchNormalization(
+                name=prefix + '_sepconv2_bn')(x)
+            x = Activation('relu', name=prefix + '_sepconv3_act')(x)
+            x = SeparableConv2D(
+                728, (3, 3),
+                padding='same',
+                use_bias=False,
+                name=prefix + '_sepconv3')(x)
+            x = BatchNormalization(
+                name=prefix + '_sepconv3_bn')(x)
+
+            x = add([x, residual])
+        return x
+    return _xception_2d_block
