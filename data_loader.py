@@ -96,7 +96,7 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                drop_remainder=True,
                                shuffle_size=None,
                                batch_size=32,
-                               config=None,
+                               loop_time=1,
                                **kwargs):
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -117,7 +117,7 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     del features, labels
     
     dataset = data_loader(dataset, batch_size=batch_size, 
-            loop_time=config.loop_time if train else 1, **kwargs)
+            loop_time=loop_time if train else 1, **kwargs)
     
     if train:
         if shuffle_size is None:
