@@ -24,11 +24,11 @@ def get_param(known=None):
     
     # training
     args.add_argument('--lr', type=float, default=0.001)
-    args.add_argument('--decay', type=float, default=1/np.sqrt(2))
+    args.add_argument('--decay', type=float, default=0.9)
     args.add_argument('--batch', type=int, default=256)
     args.add_argument('--epoch', type=int, default=1000)
     args.add_argument('--loss_weight', type=str, default='1,1000')
-    args.add_argument('--patience', type=int, default=30)
+    args.add_argument('--patience', type=int, default=100)
     args.add_argument('--freq_mask_size', type=int, default=8)
     args.add_argument('--time_mask_size', type=int, default=24)
     args.add_argument('--loop_time', type=int, default=5, help='times of train dataset iter for an epoch')
