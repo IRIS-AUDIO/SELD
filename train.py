@@ -188,6 +188,7 @@ def main(config):
                 os.path.join(model_path, f'bestscore_{best_score}.hdf5'), 
                 include_optimizer=False)
         else:
+            # TODO: reduce lr on plateau
             if patience == 80 and config.decay != 1 and config.model != 'seldnet':
                 optimizer.learning_rate = optimizer.learning_rate * config.decay
             if patience == config.patience:
