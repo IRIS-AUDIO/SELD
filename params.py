@@ -28,7 +28,7 @@ def get_param(known=None):
     args.add_argument('--batch', type=int, default=256)
     args.add_argument('--epoch', type=int, default=1000)
     args.add_argument('--loss_weight', type=str, default='1,1000')
-    args.add_argument('--patience', type=int, default=100)
+    args.add_argument('--patience', type=int, default=30)
     args.add_argument('--freq_mask_size', type=int, default=8)
     args.add_argument('--time_mask_size', type=int, default=24)
     args.add_argument('--loop_time', type=int, default=5, help='times of train dataset iter for an epoch')
@@ -39,6 +39,8 @@ def get_param(known=None):
     config = args.parse_known_args(known)[0]
     
     # model config
+    if len(config.model_config) == 0:
+        config.model_config = config.model
     model_config_name = config.model_config
     model_config = model_config_name + '.json'
     model_config = os.path.join('./model_config', model_config)
