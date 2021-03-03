@@ -24,7 +24,7 @@ def get_param(known=None):
     
     # training
     args.add_argument('--lr', type=float, default=0.001)
-    args.add_argument('--decay', type=float, default=1/np.sqrt(2))
+    args.add_argument('--decay', type=float, default=0.9)
     args.add_argument('--batch', type=int, default=256)
     args.add_argument('--epoch', type=int, default=1000)
     args.add_argument('--loss_weight', type=str, default='1,1000')
@@ -39,11 +39,10 @@ def get_param(known=None):
     config = args.parse_known_args(known)[0]
     
     # model config
-    model_config = config.model_config
-    if len(model_config) == 0:
-        model_config_name = config.model
-    if not model_config.endswith('.json'):
-        model_config = model_config_name + '.json'
+    if len(config.model_config) == 0:
+        config.model_config = config.model
+    model_config_name = config.model_config
+    model_config = model_config_name + '.json'
     model_config = os.path.join('./model_config', model_config)
     
     if not os.path.exists(model_config):

@@ -59,17 +59,17 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
             ssloss(sloss)
             ddloss(dloss)
-            pbar.set_postfix(epoch=epoch, 
-                             ErrorRate=metric_values[0].numpy(), 
-                             F=metric_values[1].numpy() * 100, 
-                             DoaErrorRate=metric_values[2].numpy(), 
-                             DoaErrorRateF=metric_values[3].numpy() * 100, 
-                             seldScore=seld_score.numpy())
             ER(metric_values[0])
             F(metric_values[1]*100)
             DER(metric_values[2])
             DERF(metric_values[3]*100)
             SeldScore(seld_score)
+            pbar.set_postfix(epoch=epoch, 
+                             ErrorRate=ER.result().numpy(), 
+                             F=F.result().numpy(), 
+                             DoaErrorRate=DER.result().numpy(), 
+                             DoaErrorRateF=DERF.result().numpy() * 100, 
+                             seldScore=SeldScore.result().numpy())
 
     print(f'{mode}_sloss: {ssloss.result().numpy()}')
     print(f'{mode}_dloss: {ddloss.result().numpy()}')
@@ -102,6 +102,7 @@ def get_dataset(config, mode:str='train'):
     ]
     dataset = seldnet_data_to_dataloader(
         x, y,
+        train= mode == 'train',
         batch_transforms=batch_transforms,
         label_window_size=60,
         batch_size=config.batch,
@@ -187,6 +188,9 @@ def main(config):
                 os.path.join(model_path, f'bestscore_{best_score}.hdf5'), 
                 include_optimizer=False)
         else:
+            # TODO: reduce lr on plateau
+            if patience == 80 and config.decay != 1 and config.model != 'seldnet':
+                optimizer.learning_rate = optimizer.learning_rate * config.decay
             if patience == config.patience:
                 print(f'Early Stopping at {epoch}, score is {score}')
                 break
