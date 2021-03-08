@@ -31,32 +31,26 @@ def get_param(known=None):
     args.add_argument('--patience', type=int, default=100)
     args.add_argument('--freq_mask_size', type=int, default=8)
     args.add_argument('--time_mask_size', type=int, default=24)
-    args.add_argument('--loop_time', type=int, default=5, 
-                      help='the number of iterations per epoch (trainset)')
+    args.add_argument('--loop_time', type=int, default=5, help='times of train dataset iter for an epoch')
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
 
     config = args.parse_known_args(known)[0]
     
+    # model config
     if len(config.model_config) == 0:
         config.model_config = config.model
-    config.model_config = os.path.splitext(config.model_config)[0]
+    model_config_name = config.model_config
+    model_config = model_config_name + '.json'
+    model_config = os.path.join('./model_config', model_config)
+    
+    if not os.path.exists(model_config):
+        raise ValueError('Model config is not exists')
+    model_config = argparse.Namespace(**json.load(open(model_config,'rb')))
 
-    # config
-    model_name = config.model
-    if config.model_config != model_name:
-        model_name = f'{model_name}_{config.model_config}'        
-    config.name = f'{model_name}_{config.doa_loss}_{config.name}'
+    config.name = f'{model_config_name}_{config.doa_loss}_{config.name}'
     config = get_config(config.name, config, mode=config.config_mode)
-
-    # model config
-    model_config_path = os.path.join('./model_config', 
-                                     config.model_config+'.json')
-    if not os.path.exists(model_config_path):
-        raise ValueError(f'"{model_config_path}" does not exist')
-    model_config = argparse.Namespace(
-        **json.load(open(model_config_path, 'rb')))
 
     return config, model_config
 
