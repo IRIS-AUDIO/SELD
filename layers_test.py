@@ -8,7 +8,9 @@ class LayersTest(tf.test.TestCase):
     def test_simple_conv_block(self):
         model_config = {
             'filters': [128, 128], # mandatory
-            'pool_size': [[4, 4], [1, 1]] # mandatory
+            'pool_size': [[4, 4], [1, 1]], # mandatory
+            'dropout_rate': 0.3,
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.},
         }
 
         exp_input_shape = 32, 32, 32, 3
@@ -22,6 +24,7 @@ class LayersTest(tf.test.TestCase):
     def test_bidirectional_GRU_block(self):
         model_config = {
             'units': [128, 128], # mandatory
+            'dropout_rate': 0.3,
         }
 
         exp_input_shape = 32, 10, 32, 8
@@ -36,9 +39,10 @@ class LayersTest(tf.test.TestCase):
         model_config = {
             'units': [128, 128], # mandatory
             'n_classes': 10, # mandatory 
-            'dropout_rate': 0,
+            'name': 'simple_dense_block',
             'activation': 'relu',
-            'name': 'simple_dense_block'
+            'dropout_rate': 0,
+            'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
         }
 
         exp_input_shape = 32, 10, 128 # batch, time, feat
