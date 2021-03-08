@@ -68,7 +68,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                              ErrorRate=ER.result().numpy(), 
                              F=F.result().numpy(), 
                              DoaErrorRate=DER.result().numpy(), 
-                             DoaErrorRateF=DERF.result().numpy() * 100, 
+                             DoaErrorRateF=DERF.result().numpy(), 
                              seldScore=SeldScore.result().numpy())
 
     print(f'{mode}_sloss: {ssloss.result().numpy()}')
