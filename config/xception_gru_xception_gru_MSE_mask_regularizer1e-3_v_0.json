@@ -1,0 +1,18 @@
+{
+    "abspath": "/root/datasets",
+    "batch": 256,
+    "decay": 0.9,
+    "doa_loss": "MSE",
+    "epoch": 1000,
+    "freq_mask_size": 8,
+    "lad_doa_thresh": 20,
+    "loop_time": 5,
+    "loss_weight": "1,1000",
+    "lr": 0.001,
+    "model": "xception_gru",
+    "model_config": "xception_gru",
+    "name": "xception_gru_xception_gru_MSE_mask_regularizer1e-3_v_0",
+    "patience": 100,
+    "resume": false,
+    "time_mask_size": 24
+}

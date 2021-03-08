@@ -1,14 +1,30 @@
 {
-    "doa_layer": "base",
-    "doa_layer_filter": "128",
-    "dropout_rate": 0.0,
-    "high_level_feature_representation": "base",
-    "high_level_feature_representation_filter": 64,
-    "high_level_feature_representation_pool1": "5,1,1",
-    "high_level_feature_representation_pool2": "4,4,2",
-    "sed_layer": "base",
-    "sed_layer_filter": "128",
-    "temporal_context_representation": "base",
-    "temporal_context_representation_filter": "128,128",
-    "n_classes": 14
+    "FIRST": "simple_conv_block",
+    "FIRST_ARGS":
+    {
+        "filters": [64, 64, 64],
+        "pool_size": [[5, 4], [1, 4], [1, 2]],
+        "dropout_rate": 0.0 
+    },
+    "SECOND": "bidirectional_GRU_block",
+    "SECOND_ARGS":
+    {
+        "units": [128, 128],
+        "dropout_rate": 0.0
+    },
+    "SED": "simple_dense_block",
+    "SED_ARGS":
+    {
+	"units": [128],
+	"n_classes": 14,
+	"activation": "sigmoid",
+	"name": "sed_out"
+    },
+    "DOA": "simple_dense_block",
+    "DOA_ARGS":
+    {
+	"units": [128],
+	"n_classes": 42,
+	"name": "doa_out"
+    }
 }

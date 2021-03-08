@@ -1,5 +1,5 @@
 {
-    "FIRST": "simple_conv_block",
+    "FIRST": "dynamic_conv_block",
     "FIRST_ARGS":
     {
         "filters": [64, 64, 64],
