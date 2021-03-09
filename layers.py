@@ -42,6 +42,15 @@ class CondConv2D(Layer):
     def __init__(self, filters, kernel_size, stride=1, use_bias=True, num_experts=3, padding="same", **kwargs):
         super(CondConv2D, self).__init__(**kwargs)
 
+        def conv2d(kernel_size, stride, filters, 
+                   kernel_regularizer=tf.keras.regularizers.l2(1e-3), 
+                   padding="same", use_bias=False,
+                   kernel_initializer="he_normal", **kwargs):
+            return Conv2D(kernel_size=kernel_size, strides=stride, 
+                          filters=filters, kernel_regularizer=kernel_regularizer, 
+                          padding=padding, use_bias=use_bias, 
+                          kernel_initializer=kernel_initializer, **kwargs)
+
         self.routing = Routing(out_channels=num_experts, dropout_rate=0.2, name="routing_layer")
         self.convs = []
         for _ in range(num_experts):
