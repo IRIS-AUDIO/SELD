@@ -82,6 +82,7 @@ def dynamic_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
     pool_size = model_config['pool_size']
+    
     dropout_rate = model_config.get('dropout_rate', 0.)
     activation = model_config.get('activation', 'softmax')    
     kernel_regularizer = tf.keras.regularizers.l1_l2(
@@ -109,6 +110,7 @@ def cond_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
     pool_size = model_config['pool_size']
+    
     dropout_rate = model_config.get('dropout_rate', 0.)  
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
@@ -246,6 +248,7 @@ class DConv2D(Layer):
 def xception_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
+    
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
@@ -268,7 +271,6 @@ def xception_block(model_config: dict):
             x = BatchNormalization()(x)
 
             x = add([x, residual])
-
 
         return x
     return _xception_block
