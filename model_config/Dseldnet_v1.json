@@ -1,10 +1,11 @@
 {
-    "FIRST": "simple_conv_block",
+    "FIRST": "dynamic_conv_block",
     "FIRST_ARGS":
     {
         "filters": [64, 64, 64],
         "pool_size": [[5, 4], [1, 4], [1, 2]],
-        "dropout_rate": 0.0 
+        "dropout_rate": 0.0,
+        "activation": "sigmoid"
     },
     "SECOND": "bidirectional_GRU_block",
     "SECOND_ARGS":
