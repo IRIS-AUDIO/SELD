@@ -2,6 +2,7 @@ import os
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
+from collections import OrderedDict
 
 import layers
 import losses
@@ -64,12 +65,15 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
             DER(metric_values[2])
             DERF(metric_values[3]*100)
             SeldScore(seld_score)
-            pbar.set_postfix(epoch=epoch, 
-                             ErrorRate=ER.result().numpy(), 
-                             F=F.result().numpy(), 
-                             DoaErrorRate=DER.result().numpy(), 
-                             DoaErrorRateF=DERF.result().numpy(), 
-                             seldScore=SeldScore.result().numpy())
+            pbar.set_postfix(OrderedDict({
+                             'mode' : mode,
+                             'epoch' : epoch, 
+                             'ErrorRate' : ER.result().numpy(), 
+                             'F' : F.result().numpy(), 
+                            #  'DoaErrorRate'=DER.result().numpy(), 
+                            #  'DoaErrorRateF'=DERF.result().numpy(), 
+                             'seldScore' : SeldScore.result().numpy()
+                             }))
 
     print(f'{mode}_sloss: {ssloss.result().numpy()}')
     print(f'{mode}_dloss: {ddloss.result().numpy()}')
