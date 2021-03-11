@@ -2,8 +2,11 @@ import numpy as np
 import os
 import torch
 import torchaudio
+import tqdm
 from functools import partial
+from glob import glob
 from torch.fft import irfft
+
 from data_utils import *
 from utils import get_device
 
@@ -15,8 +18,6 @@ def extract_seldnet_data(feature_path: str,
                          label_output_path: str,
                          mode='foa',
                          **kwargs):
-    from glob import glob
-    import tqdm
 
     if feature_output_path == label_output_path:
         raise ValueError('output folders for features and labels must differ')
@@ -210,6 +211,26 @@ def gcc_features(complex_specs: torch.Tensor,
     return torch.stack(gcc_feat, axis=0)
 
 
+''' Normalizating Features '''
+def calculate_statistics(feature_path: str):
+    features = sorted(glob(os.path.join(feature_path, '*.npy')))
+    features = np.concatenate([np.load(f) for f in features], 0)
+    mean = features.mean(axis=0, keepdims=True)
+    std = features.std(axis=0, keepdims=True)
+    return mean, std
+
+
+def apply_normalizer(feature_path, new_feature_path, mean, std):
+    features = sorted(glob(os.path.join(feature_path, '*.npy')))
+    create_folder(new_feature_path)
+
+    for feature in tqdm.tqdm(features):
+        new_name = os.path.join(new_feature_path, 
+                                os.path.split(feature)[1])
+        new_feat = (np.load(feature) - mean) / std
+        np.save(new_name, new_feat)
+
+
 ''' Unit Conversion '''
 def cartesian_to_polar(coordinates):
     if not isinstance(coordinates, np.ndarray):
@@ -249,26 +270,23 @@ def polar_to_cartesian(coordinates):
 
 if __name__ == '__main__':
     # How to use
-    '''
-    hop_length = int(24000 * 0.02)
-    win_length = hop_length * 2
-    n_fft = 2 ** (win_length-1).bit_length()
+    # Extracting Features and Labels
+    FEATURE_PATH = '/media/data1/datasets/DCASE2020/foa_dev'
+    LABEL_PATH = '/media/data1/datasets/DCASE2020/metadata_dev'
 
-    x = extract_features(
-        'x.wav', mode='mic', 
-        hop_length=hop_length, win_length=win_length, n_fft=n_fft)
-    y = extract_labels('label.csv', max_frames=600)
+    FEATURE_OUTPUT_PATH = 'foa_dev'
+    LABEL_OUTPUT_PATH = 'foa_dev_label'
 
-    x, y = preprocess_features_labels(x, y)
-    print(x.shape, x.dtype)
-    print(y.shape, y.dtype)
-    '''
-    path = '/media/data1/datasets'
-    if not os.path.exists(path):
-        path = '/root/datasets'
-    extract_seldnet_data(os.path.join(path, 'DCASE2020/foa_dev'),
-                         'foa_dev_1024',
-                         os.path.join(path, 'DCASE2020/metadata_dev'),
-                         'foa_label_1024',
-                         mode='foa', n_fft=1024)
+    extract_seldnet_data(FEATURE_PATH, 
+                         FEATURE_OUTPUT_PATH,
+                         LABEL_PATH, 
+                         LABEL_OUTPUT_PATH,,
+                         mode='foa', 
+                         n_fft=1024)
+
+    # Normalizing Extracted Features
+    NORM_FEATURE_PATH = 'foa_dev_norm'
+    mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
+
+    apply_normalizer(FEATURE_OUTPUT_PATH, NORM_FEATURE_PATH, mean, std)
 
