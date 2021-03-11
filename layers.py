@@ -54,7 +54,7 @@ class CondConv2D(Layer):
         self.routing = Routing(out_channels=num_experts, dropout_rate=0.2, name="routing_layer")
         self.convs = []
         for _ in range(num_experts):
-            self.convs.append(conv2d(filters=filters, stride=stride, kernel_size=kernel_size, use_bias=use_bias, padding=padding))
+            self.convs.append(Conv2D(filters=filters, strides=stride, kernel_size=kernel_size, use_bias=use_bias, padding=padding))
 
     def get_config(self):
         config = super().get_config().copy()
