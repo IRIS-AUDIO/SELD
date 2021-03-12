@@ -21,6 +21,55 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_dynamic_conv_block(self):
+        model_config = {
+            'filters': [128, 128], # mandatory
+            'pool_size': [[4, 4], [1, 1]], # mandatory
+            'dropout_rate': 0.3,
+            'activation': 'relu',
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.},
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 8, 8, 128
+
+        self.block_test(dynamic_conv_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_cond_conv_block(self):
+        model_config = {
+            'filters': [128, 128], # mandatory
+            'pool_size': [[4, 4], [1, 1]], # mandatory
+            'dropout_rate': 0.3,
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.},
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 8, 8, 128
+
+        self.block_test(cond_conv_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_xception_block(self):
+        model_config = {
+            'filters': 32, # mandatory
+            'block_num': 1, # mandatory
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.},
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 6, 32, 64
+
+        self.block_test(xception_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+
     def test_bidirectional_GRU_block(self):
         model_config = {
             'units': [128, 128], # mandatory
@@ -34,15 +83,6 @@ class ModulesTest(tf.test.TestCase):
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
-
-    def test_dynamic_conv_block(self):
-        raise NotImplemented()
-
-    def test_cond_conv_block(self):
-        raise NotImplemented()
-
-    def test_xception_block(self):
-        raise NotImplemented()
 
     def test_simple_dense_block(self):
         model_config = {
