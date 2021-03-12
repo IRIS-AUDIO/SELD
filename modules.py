@@ -131,6 +131,8 @@ def res_bottleneck_stage(model_config: dict):
     depth = model_config['depth']
     strides = model_config['strides']
 
+    model_config = copy.deepcopy(model_config)
+
     def stage(inputs):
         x = inputs
         for i in range(depth):
