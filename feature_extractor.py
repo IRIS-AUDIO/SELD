@@ -172,7 +172,7 @@ def complex_spec(wav: torch.Tensor,
     return spec
 
 
-def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
+def foa_intensity_vectors(complex_specs: torch.Tensor, eps=1e-8) -> torch.Tensor:
     if not torch.is_complex(complex_specs):
         complex_specs = torch.view_as_complex(complex_specs)
 
@@ -182,6 +182,7 @@ def foa_intensity_vectors(complex_specs: torch.Tensor) -> torch.Tensor:
     IVz = torch.real(torch.conj(complex_specs[0]) * complex_specs[2])
 
     norm = torch.sqrt(IVx**2 + IVy**2 + IVz**2)
+    norm = torch.maximum(norm, torch.zeros_like(norm)+eps)
     IVx = IVx / norm
     IVy = IVy / norm
     IVz = IVz / norm
@@ -220,14 +221,14 @@ def calculate_statistics(feature_path: str):
     return mean, std
 
 
-def apply_normalizer(feature_path, new_feature_path, mean, std):
+def apply_normalizer(feature_path, new_feature_path, mean, std, eps=1e-8):
     features = sorted(glob(os.path.join(feature_path, '*.npy')))
     create_folder(new_feature_path)
 
     for feature in tqdm.tqdm(features):
         new_name = os.path.join(new_feature_path, 
                                 os.path.split(feature)[1])
-        new_feat = (np.load(feature) - mean) / std
+        new_feat = (np.load(feature) - mean) / np.maximum(std, eps)
         np.save(new_name, new_feat)
 
 
@@ -280,7 +281,7 @@ if __name__ == '__main__':
     extract_seldnet_data(FEATURE_PATH, 
                          FEATURE_OUTPUT_PATH,
                          LABEL_PATH, 
-                         LABEL_OUTPUT_PATH,,
+                         LABEL_OUTPUT_PATH,
                          mode='foa', 
                          n_fft=1024)
 
