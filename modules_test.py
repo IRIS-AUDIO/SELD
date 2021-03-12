@@ -69,6 +69,38 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_res_bottleneck_stage(self):
+        model_config = {
+            'depth': 2, # mandatory
+            'filters': 32, # mandatory (for res bottleneck block)
+            'strides': 2, # mandatory (for res bottleneck block)
+            'groups': 2, # mandatory (for res bottleneck block)
+            'bottleneck_ratio': 2, # mandatory (for res bottleneck block)
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 16, 16, 32
+
+        self.block_test(res_bottleneck_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_res_bottleneck_block(self):
+        model_config = {
+            'filters': 32, # mandatory
+            'strides': 2, # mandatory
+            'groups': 2, # mandatory
+            'bottleneck_ratio': 2, # mandatory
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 16, 16, 32
+
+        self.block_test(res_bottleneck_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
 
     def test_bidirectional_GRU_block(self):
         model_config = {
@@ -127,6 +159,6 @@ class ModulesTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     tf.test.main()
 
