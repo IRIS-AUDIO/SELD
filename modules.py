@@ -166,11 +166,10 @@ def res_bottleneck_block(model_config: dict):
         out = Conv2D(filters, 1)(out)
         out = BatchNormalization()(out)
 
-        if strides == (1, 1) or inputs.shape[-1] != filters:
+        if strides != (1, 1) or inputs.shape[-1] != filters:
             inputs = Conv2D(filters, 1, strides)(inputs)
         
-        out = out + inputs
-        out = Activation(activation)(out)
+        out = Activation(activation)(out + inputs)
 
         return out
 
