@@ -124,6 +124,58 @@ def xception_block(model_config: dict):
 
         return x
     return _xception_block
+
+
+def res_bottleneck_stage(model_config: dict):
+    # mandatory parameters
+    depth = model_config['depth']
+    strides = model_config['strides']
+
+    model_config = copy.deepcopy(model_config)
+
+    def stage(inputs):
+        x = inputs
+        for i in range(depth):
+            x = res_bottleneck_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
+def res_bottleneck_block(model_config: dict):
+    # mandatory parameters
+    filters = model_config['filters']
+    strides = model_config['strides']
+    groups = model_config['groups']
+    bottleneck_ratio = model_config['bottleneck_ratio']
+
+    activation = model_config.get('activation', 'relu')
+
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    bottleneck_size = int(filters * bottleneck_ratio)
+
+    def bottleneck_block(inputs):
+        out = Conv2D(filters, 1)(inputs)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(bottleneck_size, 3, strides, 
+                     padding='same', groups=groups)(out)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(filters, 1)(out)
+        out = BatchNormalization()(out)
+
+        if strides != (1, 1) or inputs.shape[-1] != filters:
+            inputs = Conv2D(filters, 1, strides)(inputs)
+        
+        out = Activation(activation)(out + inputs)
+
+        return out
+
+    return bottleneck_block
     
 
 """      sequential blocks      """
