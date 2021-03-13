@@ -1,3 +1,4 @@
+import copy
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from layers import *
@@ -146,6 +147,35 @@ def bidirectional_GRU_block(model_config: dict):
         return x
 
     return GRU_block
+
+
+def transformer_encoder_layer(model_config: dict):
+    # mandatory parameters
+    d_model = model_config['d_model']
+    n_head = model_config['n_head']
+
+    activation = model_config.get('activation', 'relu')
+    dim_feedforward = model_config.get('dim_feedforward', d_model*4)
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+    
+    def block(inputs):
+        assert inputs.shape[-1] == d_model
+        x = inputs
+        attn = MultiHeadAttention(
+            n_head, d_model//n_head, dropout=dropout_rate)(x, x)
+        attn = Dropout(dropout_rate)(attn)
+        x = LayerNormalization()(x + attn)
+
+        # FFN
+        ffn = Dense(dim_feedforward, activation=activation)(x)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Dense(d_model)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        x = LayerNormalization()(x + ffn)
+
+        return x
+
+    return block
 
 
 """      other blocks      """

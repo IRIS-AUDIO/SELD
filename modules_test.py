@@ -69,7 +69,6 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-
     def test_bidirectional_GRU_block(self):
         model_config = {
             'units': [128, 128], # mandatory
@@ -80,6 +79,22 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 10, 128
 
         self.block_test(bidirectional_GRU_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_transformer_encoder_layer(self):
+        model_config = {
+            'd_model': 64, # mandatory
+            'n_head': 8, # mandatory
+            'dim_feedforward': 128,
+            'dropout_rate': 0.1,
+        }
+
+        exp_input_shape = 32, 20, 64
+        exp_output_shape = 32, 20, 64
+
+        self.block_test(transformer_encoder_layer, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
