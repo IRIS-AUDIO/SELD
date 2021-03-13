@@ -99,21 +99,6 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_multi_head_attention(self):
-        model_config = {
-            'd_model': 32, # mandatory
-            'n_head': 8, # mandatory
-            'dropout_rate': 0.1,
-        }
-
-        exp_input_shape = 32, 20, 64
-        exp_output_shape = 32, 20, 64
-
-        self.block_test(multi_head_attention, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
     def test_simple_dense_block(self):
         model_config = {
             'units': [128, 128], # mandatory

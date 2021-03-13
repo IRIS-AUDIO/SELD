@@ -159,8 +159,10 @@ def transformer_encoder_layer(model_config: dict):
     dropout_rate = model_config.get('dropout_rate', 0.1)
     
     def block(inputs):
+        assert inputs.shape[-1] == d_model
         x = inputs
-        attn = multi_head_attention(copy.deepcopy(model_config))(x)
+        attn = MultiHeadAttention(
+            n_head, d_model//n_head, dropout=dropout_rate)(x, x)
         attn = Dropout(dropout_rate)(attn)
         x = LayerNormalization()(x + attn)
 
@@ -174,57 +176,6 @@ def transformer_encoder_layer(model_config: dict):
         return x
 
     return block
-
-
-def multi_head_attention(model_config: dict):
-    # mandatory parameters
-    d_model = model_config['d_model']
-    n_head = model_config['n_head']
-
-    dropout_rate = model_config.get('dropout_rate', 0.1)
-
-    assert d_model % n_head == 0
-
-    def mha(query, key=None, value=None):
-        if key is None:
-            key = query
-        if value is None:
-            value = query
-        q, k, v = query, key, value
-
-        q = Dense(d_model)(q) # (batch_size, seq_q, d_model)
-        k = Dense(d_model)(k) # (batch_size, seq_kv, d_model)
-        v = Dense(d_model)(v) # (batch_size, seq_kv, d_model)
-
-        # split heads (batch, seq, d_model) -> (batch, n_head, seq, depth)
-        depth = d_model // n_head
-        q = Reshape((-1, n_head, depth))(q)
-        q = Permute((2, 1, 3))(q)
-        k = Reshape((-1, n_head, depth))(k)
-        k = Permute((2, 1, 3))(k)
-        v = Reshape((-1, n_head, depth))(v)
-        v = Permute((2, 1, 3))(v)
-
-        # dot product attention
-        '''
-        q: (..., seq_len_q, depth)
-        k: (..., seq_len_kv, depth)
-        v: (..., seq_len_kv, depth_v)
-        '''
-        logits = tf.matmul(q, k, transpose_b=True)
-        logits /= tf.math.sqrt(tf.cast(tf.shape(k)[-1], tf.float32))
-
-        weights = tf.nn.softmax(logits)
-        weights = Dropout(dropout_rate)(weights)
-        attn = tf.matmul(weights, v) 
-
-        attn = Permute((2, 1, 3))(attn)
-        attn = Reshape((-1, d_model))(attn)
-        attn = Dense(value.shape[-1])(attn)
-
-        return attn
-
-    return mha
 
 
 """      other blocks      """
