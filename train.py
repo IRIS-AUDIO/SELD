@@ -11,10 +11,11 @@ from data_loader import *
 from metrics import * 
 from params import get_param
 from transforms import *
+from utils import adaptive_clip_grad
 
 
 @tf.function
-def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
+def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, agc):
     with tf.GradientTape() as tape:
         y_p = model(x, training=True)
         sloss = sed_loss(y[0], y_p[0])
@@ -23,6 +24,8 @@ def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer):
         loss = sloss * loss_weight[0] + dloss * loss_weight[1]
 
     grad = tape.gradient(loss, model.trainable_variables)
+    if agc:
+        grad = adaptive_clip_grad(model.trainable_variables, grad)
     optimizer.apply_gradients(zip(grad, model.trainable_variables))
 
     return y_p, sloss, dloss
@@ -34,7 +37,6 @@ def teststep(model, x, y, sed_loss, doa_loss):
     sloss = sed_loss(y[0], y_p[0])
     dloss = doa_loss(y[1], y_p[1])
     return y_p, sloss, dloss
-
 
 def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=None, mode='train'):
     # metric
@@ -50,7 +52,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     with tqdm(dataset) as pbar:
         for x, y in pbar:
             if mode == 'train':
-                preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer)
+                preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, config.agc)
             else:
                 preds, sloss, dloss = teststep(model, x, y, sed_loss, doa_loss)
 
@@ -91,7 +93,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
-    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_512_1'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
     if mode == 'train' and not 'nomask' in config.name:
@@ -193,7 +195,7 @@ def main(config):
                 include_optimizer=False)
         else:
             # TODO: reduce lr on plateau
-            if patience == 80 and config.decay != 1 and config.model != 'seldnet':
+            if patience == 80 % config.loop_time and config.decay != 1 and config.model != 'seldnet':
                 optimizer.learning_rate = optimizer.learning_rate * config.decay
             if patience == config.patience:
                 print(f'Early Stopping at {epoch}, score is {score}')

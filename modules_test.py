@@ -54,21 +54,6 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_xception_block(self):
-        model_config = {
-            'filters': 32, # mandatory
-            'block_num': 1, # mandatory
-            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.},
-        }
-
-        exp_input_shape = 32, 32, 32, 3
-        exp_output_shape = 32, 6, 32, 64
-
-        self.block_test(xception_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
     def test_res_bottleneck_stage(self):
         model_config = {
             'depth': 2, # mandatory
@@ -150,6 +135,22 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_timedistributed_xception_block(self):
+        model_config = {
+            'filters' : 32,
+            'name': 'timedistributed_xception_block',
+            'block_num': 2,
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
+        }
+
+        exp_input_shape = 32, 300, 64, 3
+        exp_output_shape = 32, 60, 2, 2048
+
+        self.block_test(timedistributed_xception_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def block_test(self, 
                    block_fn,
                    model_config: dict,
@@ -175,6 +176,6 @@ class ModulesTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     tf.test.main()
 
