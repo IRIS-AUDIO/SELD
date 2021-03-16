@@ -163,7 +163,7 @@ def complex_spec(wav: torch.Tensor,
     spec = torchaudio.functional.spectrogram(
         wav, 
         pad=pad, 
-        window=torch.hann_window(win_length,device=device),
+        window=torch.hann_window(win_length, device=device),
         n_fft=n_fft,
         hop_length=hop_length, 
         win_length=win_length, 
@@ -172,7 +172,8 @@ def complex_spec(wav: torch.Tensor,
     return spec
 
 
-def foa_intensity_vectors(complex_specs: torch.Tensor, eps=1e-8) -> torch.Tensor:
+def foa_intensity_vectors(complex_specs: torch.Tensor, 
+                          eps=1e-8) -> torch.Tensor:
     if not torch.is_complex(complex_specs):
         complex_specs = torch.view_as_complex(complex_specs)
 
@@ -283,6 +284,8 @@ if __name__ == '__main__':
                          LABEL_PATH, 
                          LABEL_OUTPUT_PATH,
                          mode='foa', 
+                         win_length=960,
+                         hop_length=480,
                          n_fft=1024)
 
     # Normalizing Extracted Features
