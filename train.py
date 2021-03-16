@@ -93,7 +93,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
-    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_512_1'),
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm_1'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
     if mode == 'train' and not 'nomask' in config.name:
