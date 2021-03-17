@@ -31,7 +31,7 @@ def complexity(model_config: OrderedDict,
             flops, output_shape = mapping_dict[block](model_config[key], 
                                                       input_shape)
             complexity += flops
-            inpuput_shape = output_shape
+            input_shape = output_shape
             block = None
 
     return complexity
