@@ -53,3 +53,4 @@ def adaptive_clip_grad(parameters, gradients, clip_factor=0.01,
         new_grad = tf.where(grad_norm < max_norm, grads, clipped_grad)
         new_grads.append(new_grad)
     return new_grads
+    

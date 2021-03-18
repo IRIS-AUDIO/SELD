@@ -48,3 +48,4 @@ def xception_gru(input_shape, model_config):
     doa = getattr(modules, model_config.DOA)(model_config.DOA_ARGS)(x)
 
     return tf.keras.Model(inputs=inputs, outputs=[sed, doa])
+    
