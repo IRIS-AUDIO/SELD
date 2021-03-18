@@ -273,11 +273,14 @@ def polar_to_cartesian(coordinates):
 if __name__ == '__main__':
     # How to use
     # Extracting Features and Labels
-    FEATURE_PATH = '/media/data1/datasets/DCASE2020/foa_dev'
-    LABEL_PATH = '/media/data1/datasets/DCASE2020/metadata_dev'
+    abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    FEATURE_PATH = os.path.join(abspath, 'foa_dev')
+    LABEL_PATH = os.path.join(abspath, 'metadata_dev')
 
+    # should 
     FEATURE_OUTPUT_PATH = 'foa_dev'
     LABEL_OUTPUT_PATH = 'foa_dev_label'
+    NORM_FEATURE_PATH = 'foa_dev_norm'
 
     extract_seldnet_data(FEATURE_PATH, 
                          FEATURE_OUTPUT_PATH,
@@ -289,8 +292,6 @@ if __name__ == '__main__':
                          n_fft=1024)
 
     # Normalizing Extracted Features
-    NORM_FEATURE_PATH = 'foa_dev_norm'
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
 
     apply_normalizer(FEATURE_OUTPUT_PATH, NORM_FEATURE_PATH, mean, std)
-

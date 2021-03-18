@@ -18,13 +18,14 @@ def get_param(known=None):
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet', 
-                      choices=['seldnet', 'seldnet_v1', 'xception_gru'])
+                      choices=['seldnet', 'seldnet_v1', 'resnet'])
     args.add_argument('--model_config', type=str, default='')
     
     # training
     args.add_argument('--lr', type=float, default=0.001)
     args.add_argument('--decay', type=float, default=0.9)
     args.add_argument('--batch', type=int, default=256)
+    args.add_argument('--agc', type=bool, default=False)
     args.add_argument('--epoch', type=int, default=1000)
     args.add_argument('--loss_weight', type=str, default='1,1000')
     args.add_argument('--patience', type=int, default=100)
