@@ -277,8 +277,10 @@ if __name__ == '__main__':
     FEATURE_PATH = os.path.join(abspath, 'foa_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
 
-    FEATURE_OUTPUT_PATH = os.path.join(abspath, f'feat_label/foa_dev_1')
-    LABEL_OUTPUT_PATH = os.path.join(abspath, f'feat_label/foa_dev_label_1')
+    # should 
+    FEATURE_OUTPUT_PATH = 'foa_dev'
+    LABEL_OUTPUT_PATH = 'foa_dev_label'
+    NORM_FEATURE_PATH = 'foa_dev_norm'
 
     extract_seldnet_data(FEATURE_PATH, 
                          FEATURE_OUTPUT_PATH,
@@ -290,8 +292,6 @@ if __name__ == '__main__':
                          n_fft=1024)
 
     # Normalizing Extracted Features
-    NORM_FEATURE_PATH = os.path.join(abspath, f'feat_label/foa_dev_norm_1')
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
 
     apply_normalizer(FEATURE_OUTPUT_PATH, NORM_FEATURE_PATH, mean, std)
-
