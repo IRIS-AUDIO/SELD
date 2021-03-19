@@ -38,13 +38,12 @@ def foa_intensity_vec_aug(x, y):
     x = tf.identity(x)
     y = tf.identity(y)
     # [batch, time, 4*n_classes] to [batch, time, 4, n_classes]
-    y = tf.reshape(y, [*y.shape[:-1]] + [4, -1]) 
+    y = tf.reshape(y, [-1] + [*y.shape[1:-1]] + [4, y.shape[-1]//4])
 
     intensity_vectors = x[..., -3:]
     cartesian = y[..., -3:, :]
 
-    batch = x.shape[0]
-    flip = tf.random.uniform([batch, 3], 0, 2, dtype=tf.int32)
+    flip = tf.random.uniform([tf.shape(x)[0], 3], 0, 2, dtype=tf.int32)
     flip = tf.cast(flip, 'float32')
 
     intensity_vectors = (1 - 2*tf.reshape(flip, (-1, 1, 1, 3))) * intensity_vectors 
@@ -52,7 +51,7 @@ def foa_intensity_vec_aug(x, y):
 
     x = tf.concat([x[..., :-3], intensity_vectors], axis=-1)
     y = tf.concat([y[..., :-3, :], cartesian], axis=-2)
-    y = tf.reshape(y, [*y.shape[:-2]] + [4*y.shape[-1]])
+    y = tf.reshape(y, [-1] + [*y.shape[1:-2]] + [4*y.shape[-1]])
 
     return x, y
 
