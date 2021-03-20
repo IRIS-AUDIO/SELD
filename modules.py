@@ -7,7 +7,7 @@ from layers import *
 Modules
 
 This is only for implementing modules.
-Use only custom layers or predefined layers.
+Use only custom layers or predefined 
 """
 
 """      conv based blocks      """
@@ -416,4 +416,55 @@ def xception_2d_block(model_config: dict):
         x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
         return x
     return _xception_block
+    
+
+def dense_2d_block(model_config: dict):
+    filters = model_config['filters']
+    block_num = model_config['block_num']
+
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def conv_block(x, growth_rate):
+        x1 = BatchNormalization(epsilon=1.001e-5)(x)
+        x1 = Activation('relu')(x1)
+        x1 = Conv2D(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
+        x1 = BatchNormalization(epsilon=1.001e-5)(x1)
+        x1 = Activation('relu')(x1)
+        x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
+        x = Concatenate()([x, x1])
+        return x
+
+    def transition_block(x, reduction):
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+        x = Conv2D(x.shape[-1] * reduction, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
+        x = AveragePooling2D(2, strides=(1,2), padding='same')(x)
+        return x
+    
+    def dense_block(x, block_num):
+        for i in range(block_num):
+            x = conv_block(x, 32)
+        return x
+
+    def _dense_2d_block(inputs):
+        x = Conv2D(filters, 5, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+        x = MaxPooling2D(pool_size=(5,2))(x)
+
+        x = dense_block(x, block_num[0])
+        x = transition_block(x, 0.5)
+        x = dense_block(x, block_num[1])
+        x = transition_block(x, 0.5)
+        x = dense_block(x, block_num[2])
+        x = transition_block(x, 0.5)
+        x = dense_block(x, block_num[3])
+
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+
+        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
+        return x
+    return _dense_2d_block
     
