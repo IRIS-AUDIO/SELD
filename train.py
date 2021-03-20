@@ -72,13 +72,11 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                              'epoch' : epoch, 
                              'ErrorRate' : ER.result().numpy(), 
                              'F' : F.result().numpy(), 
-                            #  'DoaErrorRate'=DER.result().numpy(), 
-                            #  'DoaErrorRateF'=DERF.result().numpy(), 
+                             'sedLoss' : ssloss.result().numpy(),
+                             'doaLoss' : ddloss.result().numpy(),
                              'seldScore' : SeldScore.result().numpy()
                              }))
 
-    print(f'{mode}_sloss: {ssloss.result().numpy()}')
-    print(f'{mode}_dloss: {ddloss.result().numpy()}')
     writer.add_scalar(f'{mode}/{mode}_ErrorRate', ER.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_F', F.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_DoaErrorRate', 
