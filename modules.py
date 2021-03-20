@@ -355,3 +355,65 @@ def xception_1d_block(model_config: dict):
         x = _sepconv_block(x, filters * 64, 'relu')
         return x
     return _xception_block
+
+
+def xception_2d_block(model_config: dict):
+    filters = model_config['filters']
+    block_num = model_config['block_num']
+    
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def _sepconv_block(inputs, filters, activation):
+        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization()(x)
+        x = Activation(activation)(x) if activation else x
+        return x
+    
+    def _residual_block(inputs, filters):
+        if type(filters) != list:
+            filters1 = filters2 = filters
+        else:
+            filters1, filters2 = filters
+
+        residual = Conv2D(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        residual = BatchNormalization()(residual)
+
+        x = _sepconv_block(inputs, filters1, 'relu')
+        x = _sepconv_block(x, filters2, None)
+        x = MaxPooling2D((1,3), strides=(1,2), padding='same')(x)
+
+        x = add([x, residual])
+        return x
+
+    def _xception_block(inputs):
+        x = Conv2D(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = MaxPooling2D(pool_size=(5,1))(x)
+        x = Conv2D(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = _residual_block(x, filters * 4)
+        x = _residual_block(x, filters * 8)
+        x = _residual_block(x, int(filters * 22.75))
+
+        for i in range(block_num):
+            residual = x
+
+            x = Activation('relu')(x)
+            x = _sepconv_block(x, int(filters * 22.75), 'relu')
+            x = _sepconv_block(x, int(filters * 22.75), 'relu')
+            x = _sepconv_block(x, int(filters * 22.75), None)
+
+            x = add([x, residual])
+
+        x = _residual_block(x, [int(filters * 22.75), filters * 32])
+
+        x = _sepconv_block(x, filters * 48, 'relu')
+        x = _sepconv_block(x, filters * 64, 'relu')
+        x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        return x
+    return _xception_block
+    

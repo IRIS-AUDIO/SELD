@@ -167,6 +167,22 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_xception_2d_block(self):
+        model_config = {
+            'filters' : 32,
+            'name': 'xception_2d_block',
+            'block_num': 8,
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
+        }
+
+        exp_input_shape = 32, 300, 64, 3
+        exp_output_shape = 32, 60, 8192
+
+        self.block_test(xception_2d_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def block_test(self, 
                    block_fn,
                    model_config: dict,
