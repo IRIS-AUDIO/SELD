@@ -55,11 +55,3 @@ def adaptive_clip_grad(parameters, gradients, clip_factor=0.01,
         new_grads.append(new_grad)
     return new_grads
     
-
-class ArgumentError(Exception):
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return f"Input argument {self.msg} is wrong"
-        

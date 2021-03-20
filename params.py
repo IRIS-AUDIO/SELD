@@ -1,9 +1,6 @@
 import argparse
 import json
 import os
-import numpy as np 
-import sys
-from utils import ArgumentError
 from config_manager import get_config
 
 
@@ -37,12 +34,7 @@ def get_param(known=None):
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
 
-    config = args.parse_known_args(known)[0]
-
-    # check arg
-    for i in sys.argv:
-        if i[:2] == '--' and not (i[2:] in vars(config).keys()):
-            raise ArgumentError(i)
+    config = args.parse_args()
 
     # model config
     if len(config.model_config) == 0:
@@ -62,5 +54,5 @@ def get_param(known=None):
 
 
 if __name__ == '__main__':
-    config = get_param(sys.argv[1:])
+    config = get_param()
     print(config)

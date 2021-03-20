@@ -202,6 +202,5 @@ def main(config):
 
 
 if __name__=='__main__':
-    import sys
-    main(get_param(sys.argv[1:]))
+    main(get_param())
 
