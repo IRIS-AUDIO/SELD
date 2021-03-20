@@ -381,7 +381,7 @@ def xception_2d_block(model_config: dict):
 
         x = _sepconv_block(inputs, filters1, 'relu')
         x = _sepconv_block(x, filters2, None)
-        x = MaxPooling2D((1,3), strides=(1,2), padding='same')(x)
+        x = MaxPooling2D((3,3), strides=(1,2), padding='same')(x)
 
         x = add([x, residual])
         return x
