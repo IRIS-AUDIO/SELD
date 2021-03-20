@@ -27,6 +27,7 @@ def get_device():
 def compute_norm(x, axis, keepdims):
     return tf.math.reduce_sum(x ** 2, axis=axis, keepdims=keepdims) ** 0.5
 
+
 def unitwise_norm(x):
     if len(x.get_shape()) <= 1:  # Scalars and vectors
         axis = None
@@ -54,3 +55,11 @@ def adaptive_clip_grad(parameters, gradients, clip_factor=0.01,
         new_grads.append(new_grad)
     return new_grads
     
+
+class ArgumentError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return f"Input argument {self.msg} is wrong"
+        
