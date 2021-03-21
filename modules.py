@@ -224,7 +224,7 @@ def simple_dense_block(model_config: dict):
     return dense_block
 
 
-def timedistributed_xception_block(model_config: dict):
+def timedistributed_xception_net_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
     
@@ -255,7 +255,7 @@ def timedistributed_xception_block(model_config: dict):
         x = add([x, residual])
         return x
 
-    def _xception_block(inputs):
+    def _xception_net_block(inputs):
         x = Conv2D(filters, kernel_size=3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
@@ -290,7 +290,7 @@ def timedistributed_xception_block(model_config: dict):
 
         x = Reshape((x.shape[1], x.shape[2], x.shape[3] * x.shape[4]))(x)
         return x
-    return _xception_block
+    return _xception_net_block
 
 
 def xception_1d_block(model_config: dict):
@@ -321,7 +321,7 @@ def xception_1d_block(model_config: dict):
         x = add([x, residual])
         return x
 
-    def _xception_block(inputs):
+    def _xception_net_block(inputs):
         x = Conv2D(filters, kernel_size=3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
@@ -354,10 +354,10 @@ def xception_1d_block(model_config: dict):
         x = _sepconv_block(x, filters * 48, 'relu')
         x = _sepconv_block(x, filters * 64, 'relu')
         return x
-    return _xception_block
+    return _xception_net_block
 
 
-def xception_2d_block(model_config: dict):
+def xception_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
     
@@ -386,7 +386,7 @@ def xception_2d_block(model_config: dict):
         x = add([x, residual])
         return x
 
-    def _xception_block(inputs):
+    def _xception_net_block(inputs):
         x = Conv2D(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
@@ -415,10 +415,10 @@ def xception_2d_block(model_config: dict):
         x = _sepconv_block(x, filters * 64, 'relu')
         x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
         return x
-    return _xception_block
+    return _xception_net_block
     
 
-def dense_2d_block(model_config: dict):
+def dense_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
 
@@ -442,29 +442,29 @@ def dense_2d_block(model_config: dict):
         x = AveragePooling2D(2, strides=(1,2), padding='same')(x)
         return x
     
-    def dense_block(x, block_num):
+    def dense_net_block(x, block_num):
         for i in range(block_num):
             x = conv_block(x, 32)
         return x
 
-    def _dense_2d_block(inputs):
+    def _dense_block(inputs):
         x = Conv2D(filters, 5, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
         x = BatchNormalization(epsilon=1.001e-5)(x)
         x = Activation('relu')(x)
         x = MaxPooling2D(pool_size=(5,2))(x)
 
-        x = dense_block(x, block_num[0])
+        x = dense_net_block(x, block_num[0])
         x = transition_block(x, 0.5)
-        x = dense_block(x, block_num[1])
+        x = dense_net_block(x, block_num[1])
         x = transition_block(x, 0.5)
-        x = dense_block(x, block_num[2])
+        x = dense_net_block(x, block_num[2])
         x = transition_block(x, 0.5)
-        x = dense_block(x, block_num[3])
+        x = dense_net_block(x, block_num[3])
 
         x = BatchNormalization(epsilon=1.001e-5)(x)
         x = Activation('relu')(x)
 
         x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
         return x
-    return _dense_2d_block
+    return _dense_block
     

@@ -167,10 +167,10 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_xception_2d_block(self):
+    def test_xception_block(self):
         model_config = {
             'filters' : 32,
-            'name': 'xception_2d_block',
+            'name': 'xception_block',
             'block_num': 8,
             'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
         }
@@ -178,15 +178,15 @@ class ModulesTest(tf.test.TestCase):
         exp_input_shape = 32, 300, 64, 3
         exp_output_shape = 32, 60, 8192
 
-        self.block_test(xception_2d_block, 
+        self.block_test(xception_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_dense_2d_block(self):
+    def test_dense_block(self):
         model_config = {
             'filters' : 32,
-            'name': 'dense_2d_block',
+            'name': 'dense_block',
             'block_num': [6,12,24,16],
             'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
         }
@@ -194,7 +194,7 @@ class ModulesTest(tf.test.TestCase):
         exp_input_shape = 2, 300, 64, 3
         exp_output_shape = 2, 60, 4080
 
-        self.block_test(dense_2d_block, 
+        self.block_test(dense_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
