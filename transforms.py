@@ -32,6 +32,30 @@ def mask(specs, axis, max_mask_size=None, n_mask=1):
     return specs * mask
 
 
+def foa_intensity_vec_aug(x, y):
+    # x : [batch, time, freq, 7]
+    # y : [batch, time, 4*n_classes]
+    x = tf.identity(x)
+    y = tf.identity(y)
+    # [batch, time, 4*n_classes] to [batch, time, 4, n_classes]
+    y = tf.reshape(y, [-1] + [*y.shape[1:-1]] + [4, y.shape[-1]//4])
+
+    intensity_vectors = x[..., -3:]
+    cartesian = y[..., -3:, :]
+
+    flip = tf.random.uniform([tf.shape(x)[0], 3], 0, 2, dtype=tf.int32)
+    flip = tf.cast(flip, 'float32')
+
+    intensity_vectors = (1 - 2*tf.reshape(flip, (-1, 1, 1, 3))) * intensity_vectors 
+    cartesian = (1 - 2*tf.reshape(flip, (-1, 1, 3, 1))) * cartesian 
+
+    x = tf.concat([x[..., :-3], intensity_vectors], axis=-1)
+    y = tf.concat([y[..., :-3, :], cartesian], axis=-2)
+    y = tf.reshape(y, [-1] + [*y.shape[1:-2]] + [4*y.shape[-1]])
+
+    return x, y
+
+
 def split_total_labels_to_sed_doa(x, y):
     n_classes = tf.shape(y)[-1] // 4
     return x, (y[..., :n_classes], y[..., n_classes:])
