@@ -9,7 +9,8 @@ from torch.fft import irfft
 
 from data_utils import *
 from utils import get_device
-
+import random as rnd
+from glob import glob
 
 ''' For SELDnet Data '''
 def extract_seldnet_data(feature_path: str,
@@ -40,6 +41,24 @@ def extract_seldnet_data(feature_path: str,
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
 
+        # RANDOMLY PICK ANOTHER WAV FILE TO MIX       
+        check = True
+        while(check):
+            #random_number is mixed index
+            random_number = rnd.randrange(len(f_paths))
+            if f_paths[random_number] != f:
+                check = False
+
+        # Randomly Using augment or not
+        pick_or = rnd.randrange(2)
+        if pick_or == 1:
+            # file and label that will be mixed
+            mixed_f = f_paths[random_number]
+            mixed_l = l_paths[random_number]
+            # mix and extract label
+            mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
+            mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
+
         f = extract_features(f, mode=mode, **kwargs)
         l = extract_labels(l)
         f, l = preprocess_features_labels(f, l)
@@ -48,6 +67,11 @@ def extract_seldnet_data(feature_path: str,
         np.save(os.path.join(feature_output_path, new_name), f)
         np.save(os.path.join(label_output_path, new_name), l)
 
+        if pick_or == 1:        
+            # save file when we need augmentation
+            aug_new_name = name + '_aug.npy'
+            np.save(os.path.join(feature_output_path, aug_new_name), mixed_f)
+            np.save(os.path.join(label_output_path, aug_new_name), mixed_l)
 
 def extract_features(path: str,
                      mode='foa',
@@ -269,7 +293,124 @@ def polar_to_cartesian(coordinates):
 
     return np.stack([x, y, z], axis=-1)
 
+def mix_and_extract(original, mix, original_label, mix_label, 
+                    n_classes = 14, max_frames = None, mode='foa', n_mels=64,
+                    **kwargs):
+    
+    #load original and random sound
+    original_sound, r = torchaudio.load(original)
+    mixing_sound, r = torchaudio.load(mix)
+    
+    new_label = np.asarray([])
+    
+    #Choose SNR
+    snr_list = [-15 + 5*i for i in range(7)]
+    snr = rnd.sample(snr_list, 1)[0]
 
+    # mix two sound
+    mix, source, noise, _ = adjust_noise(mixing_sound, original_sound, snr)
+    
+    # check same class exist at same frame
+    # First, add all metadata of original and mixing data
+    # and if frame and class are same erase metadata of mixing sound
+    with open(original_label, 'r') as o: # Original metadata
+        with open(mix_label, 'r') as o_2: # mixing metadata
+            index = 0
+            o_2_line = list(o_2.readlines())
+            for line in o.readlines():
+                # add original label to new label
+                frame, cls, unknown, azi, ele = list(map(int, line.split(',')))                    
+                origin_label = np.asarray([frame, cls, unknown, azi, ele])
+                new_label = np.concatenate([new_label, origin_label], axis = 0)
+
+                # Check If we read all second label  
+                if index < len(o_2_line):
+
+                    # extracting second file meta data and add it
+                    frame_2, cls_2, unknown_2, azi_2, ele_2 =\
+                        list(map(int, (o_2_line[index].split('\n')[0]).split(',')))
+                    added_label = np.asarray([frame_2, cls_2, unknown_2, azi_2, ele_2])
+                    new_label = np.concatenate([new_label, added_label], axis = 0)
+
+                    # if mixing metadata frmae is larger than original label
+                    # check next label
+                    if frame_2 > frame:
+                        continue
+                    
+                    # if mixing and original metadata frame is same 
+                    elif frame_2 == frame:
+                        index += 1
+                        # check if class is same
+                        # if so, replace this frame from mixed to original
+                        # And erase meatadata
+                        if cls_2 == cls:
+                            mix[int(0.1*r*frame):int(0.1*r*(frame+1))] = \
+                            source[int(0.1*r*frame):int(0.1*r*(frame+1))]                   
+                            new_label = new_label[:-5]
+                    else:
+                        index += 1 
+
+            # if mixing metadata exist add it to new label 
+            while(index < len(o_2_line)):                
+                frame_2, cls_2, unknown_2, azi_2, ele_2 =\
+                list(map(int, (o_2_line[index].split('\n')[0]).split(',')))
+                added_label = np.asarray([frame_2, cls_2, unknown_2, azi_2, ele_2])
+                new_label = np.concatenate([new_label, added_label], axis = 0)
+                index += 1
+    
+    # reshape metadata
+    new_label = new_label.reshape(int(len(new_label)//5),-1)
+    new_label = new_label[new_label[:,0].argsort()]
+    
+    device = get_device()
+    # feature extracting
+    melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
+                                              sample_rate=r).to(device)
+    spec = complex_spec(mix.to(device), **kwargs)
+
+    mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
+    mel_spec = melscale(mel_spec)
+    mel_spec = torchaudio.functional.amplitude_to_DB(
+        mel_spec,
+        multiplier=10.,
+        amin=1e-10,
+        db_multiplier=np.log10(max(1., 1e-10)), # log10(max(ref, amin))
+        top_db=80.,
+    )
+
+    features = [mel_spec]
+    if mode == 'foa':
+        foa = foa_intensity_vectors(spec)
+        foa = melscale(foa)
+        features.append(foa)
+    elif mode == 'mic':
+        gcc = gcc_features(spec, n_mels=n_mels)
+        features.append(gcc)
+    else:
+        raise ValueError('invalid mode')
+
+    features = torch.cat(features, axis=0)
+
+    # [chan, freq, time] -> [time, freq, chan]
+    features = torch.transpose(features, 0, 2).cpu().numpy()
+    
+    # label extracting
+    labels = np.concatenate(
+        [new_label[..., :2], polar_to_cartesian(new_label[..., 2:])], axis=-1)
+
+    # create an empty output
+    output_len = labels[..., 0].max().astype('int32') + 1
+    if max_frames is not None:
+        output_len = max(max_frames, output_len)
+    outputs = np.zeros((output_len, 4, n_classes), dtype='float32')
+
+    # fill in the output
+    for label in labels:
+        outputs[int(label[0]), :, int(label[1])] = [0.8, *label[2:]] 
+    outputs = outputs.reshape([-1, 4*n_classes])
+
+    return features, outputs
+    
 if __name__ == '__main__':
     # How to use
     # Extracting Features and Labels
