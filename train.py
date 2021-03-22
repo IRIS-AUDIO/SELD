@@ -101,9 +101,9 @@ def get_dataset(config, mode:str='train'):
         ]
     else:
         sample_transforms = []
-    batch_transforms = [
-        split_total_labels_to_sed_doa
-    ]
+    batch_transforms = [split_total_labels_to_sed_doa]
+    if 'aug' in config.name and mode == 'train':
+        batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
         train= mode == 'train',
@@ -166,7 +166,8 @@ def main(config):
         model = tf.keras.models.load_model(_model_path[0])
     
     best_score = 99999
-    patience = 0
+    early_stop_patience = 0
+    lr_decay_patience = 0
     metric_class = SELDMetrics(
         doa_threshold=config.lad_doa_thresh)
 
@@ -186,19 +187,22 @@ def main(config):
         if best_score > score:
             os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')
             best_score = score
-            patience = 0
+            early_stop_patience = 0
+            lr_decay_patience = 0
             tf.keras.models.save_model(
                 model, 
                 os.path.join(model_path, f'bestscore_{best_score}.hdf5'), 
                 include_optimizer=False)
         else:
-            # TODO: reduce lr on plateau
-            if patience == 80 % config.loop_time and config.decay != 1 and config.model != 'seldnet':
+            if lr_decay_patience == config.lr_patience and config.decay != 1:
                 optimizer.learning_rate = optimizer.learning_rate * config.decay
-            if patience == config.patience:
+                print(f'lr: {optimizer.learning_rate.numpy()}')
+                lr_decay_patience = 0
+            if early_stop_patience == config.patience // config.loop_time:
                 print(f'Early Stopping at {epoch}, score is {score}')
                 break
-            patience += 1
+            early_stop_patience += 1
+            lr_decay_patience += 1
 
 
 if __name__=='__main__':

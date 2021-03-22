@@ -16,7 +16,7 @@ def get_param(known=None):
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet', 
-                      choices=['seldnet', 'seldnet_v1', 'resnet'])
+                      choices=['seldnet', 'seldnet_v1'])
     args.add_argument('--model_config', type=str, default='')
     
     # training
@@ -26,8 +26,9 @@ def get_param(known=None):
     args.add_argument('--agc', type=bool, default=False)
     args.add_argument('--epoch', type=int, default=1000)
     args.add_argument('--loss_weight', type=str, default='1,1000')
-    args.add_argument('--patience', type=int, default=100)
-    args.add_argument('--freq_mask_size', type=int, default=8)
+    args.add_argument('--lr_patience', type=int, default=3, help='learning rate decay patience for plateau')
+    args.add_argument('--patience', type=int, default=10, help='early stop patience, real using value is patience // loop_time')
+    args.add_argument('--freq_mask_size', type=int, default=16)
     args.add_argument('--time_mask_size', type=int, default=24)
     args.add_argument('--loop_time', type=int, default=5, help='times of train dataset iter for an epoch')
 
