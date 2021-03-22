@@ -1,8 +1,6 @@
 import argparse
 import json
 import os
-import numpy as np 
-
 from config_manager import get_config
 
 
@@ -36,8 +34,8 @@ def get_param(known=None):
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
 
-    config = args.parse_known_args(known)[0]
-    
+    config = args.parse_args()
+
     # model config
     if len(config.model_config) == 0:
         config.model_config = config.model
@@ -56,7 +54,5 @@ def get_param(known=None):
 
 
 if __name__ == '__main__':
-    import sys
-    config = get_param(sys.argv[1:])
+    config = get_param()
     print(config)
-

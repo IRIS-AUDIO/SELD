@@ -7,7 +7,7 @@ from layers import *
 Modules
 
 This is only for implementing modules.
-Use only custom layers or predefined layers.
+Use only custom layers or predefined 
 """
 
 """      conv based blocks      """
@@ -224,7 +224,7 @@ def simple_dense_block(model_config: dict):
     return dense_block
 
 
-def timedistributed_xception_block(model_config: dict):
+def timedistributed_xception_net_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
     
@@ -255,7 +255,7 @@ def timedistributed_xception_block(model_config: dict):
         x = add([x, residual])
         return x
 
-    def _xception_block(inputs):
+    def _xception_net_block(inputs):
         x = Conv2D(filters, kernel_size=3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
@@ -290,7 +290,7 @@ def timedistributed_xception_block(model_config: dict):
 
         x = Reshape((x.shape[1], x.shape[2], x.shape[3] * x.shape[4]))(x)
         return x
-    return _xception_block
+    return _xception_net_block
 
 
 def xception_1d_block(model_config: dict):
@@ -321,7 +321,7 @@ def xception_1d_block(model_config: dict):
         x = add([x, residual])
         return x
 
-    def _xception_block(inputs):
+    def _xception_net_block(inputs):
         x = Conv2D(filters, kernel_size=3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
@@ -354,4 +354,117 @@ def xception_1d_block(model_config: dict):
         x = _sepconv_block(x, filters * 48, 'relu')
         x = _sepconv_block(x, filters * 64, 'relu')
         return x
-    return _xception_block
+    return _xception_net_block
+
+
+def xception_block(model_config: dict):
+    filters = model_config['filters']
+    block_num = model_config['block_num']
+    
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def _sepconv_block(inputs, filters, activation):
+        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization()(x)
+        x = Activation(activation)(x) if activation else x
+        return x
+    
+    def _residual_block(inputs, filters):
+        if type(filters) != list:
+            filters1 = filters2 = filters
+        else:
+            filters1, filters2 = filters
+
+        residual = Conv2D(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        residual = BatchNormalization()(residual)
+
+        x = _sepconv_block(inputs, filters1, 'relu')
+        x = _sepconv_block(x, filters2, None)
+        x = MaxPooling2D((3,3), strides=(1,2), padding='same')(x)
+
+        x = add([x, residual])
+        return x
+
+    def _xception_net_block(inputs):
+        x = Conv2D(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = MaxPooling2D(pool_size=(5,1))(x)
+        x = Conv2D(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = _residual_block(x, filters * 4)
+        x = _residual_block(x, filters * 8)
+        x = _residual_block(x, int(filters * 22.75))
+
+        for i in range(block_num):
+            residual = x
+
+            x = Activation('relu')(x)
+            x = _sepconv_block(x, int(filters * 22.75), 'relu')
+            x = _sepconv_block(x, int(filters * 22.75), 'relu')
+            x = _sepconv_block(x, int(filters * 22.75), None)
+
+            x = add([x, residual])
+
+        x = _residual_block(x, [int(filters * 22.75), filters * 32])
+
+        x = _sepconv_block(x, filters * 48, 'relu')
+        x = _sepconv_block(x, filters * 64, 'relu')
+        x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        return x
+    return _xception_net_block
+    
+
+def dense_block(model_config: dict):
+    filters = model_config['filters']
+    block_num = model_config['block_num']
+
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def conv_block(x, growth_rate):
+        x1 = BatchNormalization(epsilon=1.001e-5)(x)
+        x1 = Activation('relu')(x1)
+        x1 = Conv2D(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
+        x1 = BatchNormalization(epsilon=1.001e-5)(x1)
+        x1 = Activation('relu')(x1)
+        x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
+        x = Concatenate()([x, x1])
+        return x
+
+    def transition_block(x, reduction):
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+        x = Conv2D(x.shape[-1] * reduction, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
+        x = AveragePooling2D(2, strides=(1,2), padding='same')(x)
+        return x
+    
+    def dense_net_block(x, block_num):
+        for i in range(block_num):
+            x = conv_block(x, 32)
+        return x
+
+    def _dense_block(inputs):
+        x = Conv2D(filters, 5, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+        x = MaxPooling2D(pool_size=(5,2))(x)
+
+        x = dense_net_block(x, block_num[0])
+        x = transition_block(x, 0.5)
+        x = dense_net_block(x, block_num[1])
+        x = transition_block(x, 0.5)
+        x = dense_net_block(x, block_num[2])
+        x = transition_block(x, 0.5)
+        x = dense_net_block(x, block_num[3])
+
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+
+        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
+        return x
+    return _dense_block
+    

@@ -27,6 +27,7 @@ def get_device():
 def compute_norm(x, axis, keepdims):
     return tf.math.reduce_sum(x ** 2, axis=axis, keepdims=keepdims) ** 0.5
 
+
 def unitwise_norm(x):
     if len(x.get_shape()) <= 1:  # Scalars and vectors
         axis = None
