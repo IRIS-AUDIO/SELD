@@ -18,26 +18,26 @@ def res_bottleneck_block_complexity(model_config, input_shape):
 
     # calculate
     complexity = {}
-    output_shape, cx = conv2d_complexity(input_shape, btn_size, 1)
+    cx, output_shape = conv2d_complexity(input_shape, btn_size, 1)
     complexity = dict_add(complexity, cx)
-    output_shape, cx = norm_complexity(output_shape)
+    cx, output_shape = norm_complexity(output_shape)
     complexity = dict_add(complexity, cx)
 
-    output_shape, cx = conv2d_complexity(
+    cx, output_shape = conv2d_complexity(
         output_shape, btn_size, 3, strides, groups)
     complexity = dict_add(complexity, cx)
-    output_shape, cx = norm_complexity(output_shape)
+    cx, output_shape = norm_complexity(output_shape)
     complexity = dict_add(complexity, cx)
 
-    output_shape, cx = conv2d_complexity(output_shape, filters, 1)
+    cx, output_shape = conv2d_complexity(output_shape, filters, 1)
     complexity = dict_add(complexity, cx)
-    output_shape, cx = norm_complexity(output_shape)
+    cx, output_shape = norm_complexity(output_shape)
     complexity = dict_add(complexity, cx)
 
     if strides != (1, 1) or inputs.shape[-1] != filters:
-        output_shape, cx = conv2d_complexity(input_shape, filters, 1, strides)
+        cx, output_shape = conv2d_complexity(input_shape, filters, 1, strides)
         complexity = dict_add(complexity, cx)
-        output_shape, cx = norm_complexity(output_shape)
+        cx, output_shape = norm_complexity(output_shape)
         complexity = dict_add(complexity, cx)
 
     return complexity, output_shape
@@ -49,7 +49,8 @@ def conv2d_complexity(input_shape: list,
                       kernel_size,
                       strides=(1, 1),
                       groups=1,
-                      use_bias=True):
+                      use_bias=True,
+                      previous_complexity=None):
     kernel_size = safe_tuple(kernel_size, 2)
     strides = safe_tuple(strides, 2)
 
@@ -64,11 +65,19 @@ def conv2d_complexity(input_shape: list,
         flops += filters 
         params += filters
 
-    return new_shape, {'flops': flops, 'params': params}
+    complexity = dict_add(
+        {'flops': flops, 'params': params},
+        previous_complexity if previous_complexity else {})
+
+    return complexity, new_shape
 
 
-def norm_complexity(input_shape, center=True, scale=True):
-    return input_shape, {'params': input_shape[-1] * (center + scale)}
+def norm_complexity(input_shape, center=True, scale=True, 
+                    previous_complexity=None):
+    complexity = dict_add(
+        {'params': input_shape[-1] * (center + scale)},
+        previous_complexity if previous_complexity else {})
+    return complexity, input_shape
 
 
 def pool2d_complexity(input_shape,
@@ -79,7 +88,7 @@ def pool2d_complexity(input_shape,
     h, w, c = input_shape[-3:]
     h, w = (h-1)//strides[0] + 1, (w-1)//strides[1] + 1
     new_shape = input_shape[:-3] + [h, w, c]
-    return new_shape, {}
+    return {}, new_shape
 
 
 def linear_complexity(input_shape, units, use_bias=True):
@@ -92,7 +101,7 @@ def linear_complexity(input_shape, units, use_bias=True):
 
     flops = (s + use_bias) * c * units
     params = (c + use_bias) * units
-    return new_shape, {'flops': flops, 'params': params}
+    return {'flops': flops, 'params': params}, new_shape
 
 
 # utils
