@@ -70,16 +70,16 @@ class ComplexityTest(tf.test.TestCase):
             (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_linear_complexity(self):
-        target_cx = {'flops': 1048576, 'params': 525312}
-        target_shape = [1, 1024]
+        target_cx = {'flops': 1050624, 'params': 525312}
+        target_shape = [2, 1024]
 
         self.assertEqual(
-            linear_complexity(input_shape=[1, 512],
+            linear_complexity(input_shape=[2, 512],
                               units=1024,
                               use_bias=True),
             (target_cx, target_shape))
         self.assertEqual(
-            linear_complexity(input_shape=[1, 512],
+            linear_complexity(input_shape=[2, 512],
                               units=1024,
                               use_bias=True,
                               prev_cx=self.prev_cx),

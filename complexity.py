@@ -93,7 +93,7 @@ def linear_complexity(input_shape, units, use_bias=True, prev_cx=None):
     for s in input_shape[:-1]:
         size *= s
 
-    flops = (s + use_bias) * c * units
+    flops = size * (c + use_bias) * units
     params = (c + use_bias) * units
     complexity = dict_add(
         {'flops': flops, 'params': params},
