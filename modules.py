@@ -124,7 +124,7 @@ def res_bottleneck_block(model_config: dict):
     bottleneck_size = int(filters * bottleneck_ratio)
 
     def bottleneck_block(inputs):
-        out = Conv2D(filters, 1)(inputs)
+        out = Conv2D(bottleneck_size, 1)(inputs)
         out = BatchNormalization()(out)
         out = Activation(activation)(out)
 
