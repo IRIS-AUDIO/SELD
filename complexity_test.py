@@ -4,6 +4,18 @@ from complexity import *
 
 
 class ComplexityTest(tf.test.TestCase):
+    def test_res_bottleneck_block_complexity(self):
+        model_config = {
+            'filters': 32,
+            'strides': 2,
+            'groups': 2,
+            'bottleneck_ratio': 2
+        }
+        input_shape = [32, 32, 16]
+        self.assertEqual(
+            res_bottleneck_block_complexity(model_config, input_shape),
+            ({'flops': 6422720, 'params': 22592}, [16, 16, 32]))
+
     def test_conv2d_complexity(self):
         self.assertEqual(
             conv2d_complexity(input_shape=[32, 32, 3],

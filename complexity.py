@@ -4,7 +4,46 @@
 # 
 # references
 # https://github.com/facebookresearch/pycls/blob/master/pycls/models/blocks.py
+from utils import dict_add
 
+def res_bottleneck_block_complexity(model_config, input_shape):
+    # mandatory parameters
+    filters = model_config['filters']
+    strides = model_config['strides']
+    groups = model_config['groups']
+    bottleneck_ratio = model_config['bottleneck_ratio']
+
+    stries = safe_tuple(strides, 2)
+    btn_size = int(filters * bottleneck_ratio)
+
+    # calculate
+    complexity = {}
+    output_shape, cx = conv2d_complexity(input_shape, btn_size, 1)
+    complexity = dict_add(complexity, cx)
+    output_shape, cx = norm_complexity(output_shape)
+    complexity = dict_add(complexity, cx)
+
+    output_shape, cx = conv2d_complexity(
+        output_shape, btn_size, 3, strides, groups)
+    complexity = dict_add(complexity, cx)
+    output_shape, cx = norm_complexity(output_shape)
+    complexity = dict_add(complexity, cx)
+
+    output_shape, cx = conv2d_complexity(output_shape, filters, 1)
+    complexity = dict_add(complexity, cx)
+    output_shape, cx = norm_complexity(output_shape)
+    complexity = dict_add(complexity, cx)
+
+    if strides != (1, 1) or inputs.shape[-1] != filters:
+        output_shape, cx = conv2d_complexity(input_shape, filters, 1, strides)
+        complexity = dict_add(complexity, cx)
+        output_shape, cx = norm_complexity(output_shape)
+        complexity = dict_add(complexity, cx)
+
+    return complexity, output_shape
+
+
+# basic complexity
 def conv2d_complexity(input_shape: list, 
                       filters,
                       kernel_size,
