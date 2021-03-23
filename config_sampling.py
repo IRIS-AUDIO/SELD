@@ -2,6 +2,8 @@ import copy
 import random
 from collections import OrderedDict
 
+from utils import dict_add
+
 
 def config_sampling(search_space: OrderedDict):
     sample = copy.deepcopy(search_space)
@@ -35,16 +37,4 @@ def complexity(model_config: OrderedDict,
             block = None
 
     return total_complexity
-
-
-def dict_add(first: dict, second: dict):
-    output = copy.deepcopy(first)
-
-    for key in second.keys():
-        if key in output:
-            output[key] += second[key]
-        else:
-            output[key] = second[key]
-
-    return output
 

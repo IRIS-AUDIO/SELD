@@ -47,15 +47,6 @@ class ConfigSamplingTest(tf.test.TestCase):
         self.assertEqual(
             gt, complexity(model_config, input_shape, mapping_dict))
 
-    def test_dict_add(self):
-        a = {'a': 3}
-        b = {'a': 2, 'b': 4}
-
-        gt = {'a': 5, 'b': 4}
-
-        c = dict_add(a, b)
-        self.assertEqual(c, gt)
-
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
