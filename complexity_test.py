@@ -4,6 +4,9 @@ from complexity import *
 
 
 class ComplexityTest(tf.test.TestCase):
+    def setUp(self):
+        self.prev_cx = {'flops': 456, 'params': 123}
+
     def test_res_bottleneck_block_complexity(self):
         model_config = {
             'filters': 32,
@@ -17,33 +20,70 @@ class ComplexityTest(tf.test.TestCase):
             ({'flops': 6422720, 'params': 22592}, [16, 16, 32]))
 
     def test_conv2d_complexity(self):
+        target_cx = {'flops': 442384, 'params': 448}
+        target_shape = [32, 32, 16]
+
         self.assertEqual(
             conv2d_complexity(input_shape=[32, 32, 3],
                               filters=16,
                               kernel_size=3,
                               strides=1),
-            ({'flops': 442384, 'params': 448}, [32, 32, 16]))
+            (target_cx, target_shape))
+        self.assertEqual(
+            conv2d_complexity(input_shape=[32, 32, 3],
+                              filters=16,
+                              kernel_size=3,
+                              strides=1,
+                              prev_cx=self.prev_cx),
+            (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_norm_complexity(self):
+        target_cx = {'params': 6}
+        target_shape = [32, 32, 3]
+
         self.assertEqual(
             norm_complexity(input_shape=[32, 32, 3],
-                              center=True,
-                              scale=True),
-            ({'params': 6}, [32, 32, 3]))
+                            center=True,
+                            scale=True),
+            (target_cx, target_shape))
+        self.assertEqual(
+            norm_complexity(input_shape=[32, 32, 3],
+                            center=True,
+                            scale=True,
+                            prev_cx=self.prev_cx),
+            (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_pool2d_complexity(self):
+        target_cx = {}
+        target_shape = [16, 32, 3]
+
         self.assertEqual(
             pool2d_complexity(input_shape=[32, 32, 3],
-                               pool_size=3,
-                               strides=(2, 1)),
-            ({}, [16, 32, 3]))
+                              pool_size=3,
+                              strides=(2, 1)),
+            (target_cx, target_shape))
+        self.assertEqual(
+            pool2d_complexity(input_shape=[32, 32, 3],
+                              pool_size=3,
+                              strides=(2, 1),
+                              prev_cx=self.prev_cx),
+            (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_linear_complexity(self):
+        target_cx = {'flops': 1048576, 'params': 525312}
+        target_shape = [1, 1024]
+
         self.assertEqual(
             linear_complexity(input_shape=[1, 512],
                               units=1024,
                               use_bias=True),
-            ({'flops': 1048576, 'params': 525312}, [1, 1024]))
+            (target_cx, target_shape))
+        self.assertEqual(
+            linear_complexity(input_shape=[1, 512],
+                              units=1024,
+                              use_bias=True,
+                              prev_cx=self.prev_cx),
+            (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_safe_tuple(self):
         self.assertEqual((1, 1), safe_tuple(1, 2))
