@@ -29,9 +29,9 @@ class FeatureExtractorTest(tf.test.TestCase):
         self.assertEqual(foa.ndim, 3)
         self.assertEqual(foa.shape[-1], 7) # channel
 
-        foa = extract_features(wav, r, mode='mic')
-        self.assertEqual(foa.ndim, 3)
-        self.assertEqual(foa.shape[-1], 10) # channel
+        mic = extract_features(wav, r, mode='mic')
+        self.assertEqual(mic.ndim, 3)
+        self.assertEqual(mic.shape[-1], 10) # channel
 
     def test_cartesian_to_polar(self):
         self.assertAllClose(
