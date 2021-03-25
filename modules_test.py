@@ -135,10 +135,10 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_timedistributed_xception_block(self):
+    def test_timedistributed_xception_net_block(self):
         model_config = {
             'filters' : 32,
-            'name': 'timedistributed_xception_block',
+            'name': 'timedistributed_xception_net_block',
             'block_num': 2,
             'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
         }
@@ -146,7 +146,7 @@ class ModulesTest(tf.test.TestCase):
         exp_input_shape = 32, 300, 64, 3
         exp_output_shape = 32, 60, 2, 2048
 
-        self.block_test(timedistributed_xception_block, 
+        self.block_test(timedistributed_xception_net_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
