@@ -95,9 +95,14 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
-    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm_1'),
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
+    mic_x, _ = load_seldnet_data(os.path.join(path, 'mic_dev_norm'),
+                             os.path.join(path, 'mic_dev_label'), 
+                             mode=mode, n_freq_bins=64)
+    x = np.concatenate([x, mic_x], -1)
+    
     if mode == 'train' and not 'nomask' in config.name:
         sample_transforms = [
             lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
