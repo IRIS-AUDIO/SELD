@@ -40,7 +40,8 @@ def extract_seldnet_data(feature_path: str,
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
 
-        f = extract_features(f, mode=mode, **kwargs)
+        wav, r = torchaudio.load(f)
+        f = extract_features(wav, r, mode=mode, **kwargs)
         l = extract_labels(l)
         f, l = preprocess_features_labels(f, l)
         
@@ -49,14 +50,14 @@ def extract_seldnet_data(feature_path: str,
         np.save(os.path.join(label_output_path, new_name), l)
 
 
-def extract_features(path: str,
+def extract_features(wav: torch.Tensor,
+                     sample_rate,
                      mode='foa',
                      n_mels=64,
                      **kwargs) -> np.ndarray:
     device = get_device()
-    wav, r = torchaudio.load(path)
-    melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
-                                              sample_rate=r).to(device)
+    melscale = torchaudio.transforms.MelScale(
+        n_mels=n_mels, sample_rate=sample_rate).to(device)
     spec = complex_spec(wav.to(device), **kwargs)
 
     mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
@@ -296,3 +297,4 @@ if __name__ == '__main__':
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
 
     apply_normalizer(FEATURE_OUTPUT_PATH, NORM_FEATURE_PATH, mean, std)
+
