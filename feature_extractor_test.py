@@ -1,5 +1,6 @@
 import os
 import tensorflow as tf
+import torch
 from feature_extractor import *
 
 
@@ -20,9 +21,17 @@ class FeatureExtractorTest(tf.test.TestCase):
             [   0,   0,   0],
         ]
 
-    def test_load_audio(self):
-        # TODO
-        pass
+    def test_extract_features(self):
+        wav = torch.zeros((4, 32000))
+        r = 16000
+
+        foa = extract_features(wav, r, mode='foa')
+        self.assertEqual(foa.ndim, 3)
+        self.assertEqual(foa.shape[-1], 7) # channel
+
+        mic = extract_features(wav, r, mode='mic')
+        self.assertEqual(mic.ndim, 3)
+        self.assertEqual(mic.shape[-1], 10) # channel
 
     def test_cartesian_to_polar(self):
         self.assertAllClose(
