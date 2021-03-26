@@ -433,7 +433,7 @@ if __name__ == '__main__':
                          win_length=960,
                          hop_length=480,
                          n_fft=1024,
-                         use_aug = True)
+                         use_aug = False)
 
     # Normalizing Extracted Features
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
