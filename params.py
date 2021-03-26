@@ -18,7 +18,8 @@ def get_param(known=None):
     args.add_argument('--model', type=str, default='seldnet', 
                       choices=['seldnet', 'seldnet_v1', 'resnet'])
     args.add_argument('--model_config', type=str, default='')
-    
+    args.add_argument('--use_gen', type=bool, default=False)
+    args.add_argument('--use_cache', type=str, default=1)
     # training
     args.add_argument('--lr', type=float, default=0.001)
     args.add_argument('--decay', type=float, default=0.9)
