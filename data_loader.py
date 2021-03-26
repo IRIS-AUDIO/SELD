@@ -10,7 +10,8 @@ def data_loader(dataset,
                 batch_transforms=None,
                 deterministic=False,
                 loop_time=None,
-                batch_size=32) -> tf.data.Dataset:
+                batch_size=32,
+                use_cache = True) -> tf.data.Dataset:
     '''
     INPUT
         preprocessing: a list of preprocessing ops
@@ -40,7 +41,10 @@ def data_loader(dataset,
         return dataset
 
     dataset = apply_ops(dataset, preprocessing)
-    dataset = dataset.cache()
+    if use_cache == 1:
+        dataset = dataset.cache()
+    else:
+        pass
     dataset = dataset.repeat(loop_time)
     dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)
@@ -88,7 +92,6 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     
     return features, labels
 
-
 def seldnet_data_to_dataloader(features: [list, tuple], 
                                labels: [list, tuple], 
                                train=True, 
@@ -97,6 +100,7 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                shuffle_size=None,
                                batch_size=32,
                                loop_time=1,
+                               use_cache = True,
                                **kwargs):
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -117,7 +121,7 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     del features, labels
     
     dataset = data_loader(dataset, batch_size=batch_size, 
-            loop_time=loop_time if train else 1, **kwargs)
+            loop_time=loop_time if train else 1, **kwargs, use_cache = use_cache)
     
     if train:
         if shuffle_size is None:
@@ -126,6 +130,75 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
     return dataset.prefetch(AUTOTUNE)
 
+def seldnet_data_to_dataloader_gen(features: [list, tuple], 
+                               labels: [list, tuple], 
+                               train=True, 
+                               label_window_size=60,
+                               drop_remainder=True,
+                               shuffle_size=None,
+                               batch_size=8,
+                               loop_time=1,
+                               use_cache = True,
+                               **kwargs):
+
+    x = np.load(features[0]) # get a sample feature shape
+    y = np.load(labels[0]) # get a sample label shape
+    n_samples = y.shape[0]*len(features) // label_window_size 
+    def gen_series(features = features, labels = labels):
+        for feature, label in zip(features, labels):
+
+          # data load   
+          feature_npy = np.load(feature)
+          label_npy = np.load(label)
+          
+          # reshape feature,  
+          # for each 5 input time slices, a single label time slices was designated
+          feature_npy = np.reshape(feature_npy, (-1, 5,*feature_npy.shape[1:]))
+          label_npy = np.reshape(label_npy, (-1, *label_npy.shape[1:]))
+          for i in range(label_npy.shape[0]):
+              yield (feature_npy[i], label_npy[i])
+    
+    dataset = tf.data.Dataset.from_generator(gen_series, output_types= (x.dtype, y.dtype),
+                                             output_shapes=(tf.TensorShape([5,x.shape[1],x.shape[2]]),
+                                             tf.TensorShape([y.shape[1]])))
+
+    dataset = dataset.batch(label_window_size, drop_remainder=drop_remainder)
+    dataset = dataset.map(lambda x, y: (tf.reshape(x, (-1, *x.shape[2:])), y),
+                           num_parallel_calls=AUTOTUNE)
+    dataset = data_loader(dataset, batch_size=batch_size, 
+            loop_time=loop_time if train else 1, use_cache=use_cache, **kwargs)
+    
+    if train:
+        if shuffle_size is None:
+            # shuffle_size = 4
+            shuffle_size = int((n_samples//2)) // batch_size
+        dataset = dataset.shuffle(shuffle_size)
+
+    return dataset.prefetch(AUTOTUNE)
+
+def load_seldnet_data_gen(feat_path, label_path, mode='train', n_freq_bins=64):
+    from glob import glob
+    import os
+
+    assert mode in ['train', 'val', 'test']
+    splits = {
+        'train': [3, 4, 5, 6],
+        'val': [2],
+        'test': [1]
+    }
+
+    # Do not load file, just list file name.
+    if not os.path.exists(feat_path):
+        raise ValueError(f'no such feat_path ({feat_path}) exists')
+    features = sorted(glob(os.path.join(feat_path, '*.npy')))
+    features = [f for f in features 
+                if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
+    
+    labels = sorted(glob(os.path.join(label_path, '*.npy')))
+    labels = [f for f in labels
+              if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
+
+    return features, labels
 
 if __name__ == '__main__':
     ''' An example of how to use '''
