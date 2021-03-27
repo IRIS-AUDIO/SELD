@@ -468,3 +468,63 @@ def dense_block(model_config: dict):
         return x
     return _dense_block
     
+def resnet50_block(model_config: dict):
+    filters = model_config['filters']
+    block_num = model_config['block_num']
+
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def block1(x, filters, kernel_size=3, strides=1, conv_shortcut=True):
+        if conv_shortcut:
+            shortcut = Conv2D(4 * filters, 1, strides=(1, strides), padding='same', kernel_regularizer=kernel_regularizer)(x)
+            shortcut = BatchNormalization(epsilon=1.001e-5)(shortcut)
+        else:
+            shortcut = x
+
+        x = Conv2D(filters, 1, strides=(1, strides), padding='same', kernel_regularizer=kernel_regularizer)(x)
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+
+        x = Conv2D(filters, kernel_size, padding='same', kernel_regularizer=kernel_regularizer)(x)
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = Activation('relu')(x)
+
+        x = Conv2D(4 * filters, 1, padding='same', kernel_regularizer=kernel_regularizer)(x)
+        x = BatchNormalization(epsilon=1.001e-5)(x)
+
+        x = Add()([shortcut, x])
+        x = Activation('relu')(x)
+        return x
+
+    def stack(x, filters, blocks, strides=2):
+        x = block1(x, filters, strides=strides)
+        for _ in range(blocks - 1):
+            x = block1(x, filters, conv_shortcut=False)
+        return x
+
+    def stack_fn(x):
+        x = stack(x, filters, block_num[0], strides=1)
+        x = stack(x, filters * 2, block_num[1])
+        x = stack(x, filters * 4, block_num[2])
+        return stack(x, filters * 8, block_num[3])
+
+    def _resnet50_block(inputs):
+        x = Conv2D(filters, 7, strides=(1, 2), padding='same', use_bias=True, kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = MaxPooling2D(3, strides=(5, 2), padding='same')(x)
+        x = stack_fn(x)
+        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
+        return x
+    return _resnet50_block
+    
+
+def conv2d_block(filters, kernel_size, strides=(1, 1), padding='same', activation='relu', use_bias=True, kernel_regularizer=None, norm_axis=-1):
+    def _conv2d_block(inputs):
+        x = Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=use_bias, kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization(norm_axis)(x)
+        x = Activation(activation)(x)
+        return x
+    return _conv2d_block
