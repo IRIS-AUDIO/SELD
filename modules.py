@@ -28,10 +28,7 @@ def simple_conv_block(model_config: dict):
     def conv_block(inputs):
         x = inputs
         for i in range(len(filters)):
-            x = Conv2D(filters[i], kernel_size=3, padding='same', 
-                       kernel_regularizer=kernel_regularizer)(x)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
+            x = conv2d_block(filters[i], kernel_size=3, kernel_regularizer=kernel_regularizer)(x)
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
         return x
@@ -109,42 +106,6 @@ def res_bottleneck_stage(model_config: dict):
         return x
     return stage
 
-
-def res_bottleneck_block(model_config: dict):
-    # mandatory parameters
-    filters = model_config['filters']
-    strides = model_config['strides']
-    groups = model_config['groups']
-    bottleneck_ratio = model_config['bottleneck_ratio']
-
-    activation = model_config.get('activation', 'relu')
-
-    if isinstance(strides, int):
-        strides = (strides, strides)
-    bottleneck_size = int(filters * bottleneck_ratio)
-
-    def bottleneck_block(inputs):
-        out = Conv2D(filters, 1)(inputs)
-        out = BatchNormalization()(out)
-        out = Activation(activation)(out)
-
-        out = Conv2D(bottleneck_size, 3, strides, 
-                     padding='same', groups=groups)(out)
-        out = BatchNormalization()(out)
-        out = Activation(activation)(out)
-
-        out = Conv2D(filters, 1)(out)
-        out = BatchNormalization()(out)
-
-        if strides != (1, 1) or inputs.shape[-1] != filters:
-            inputs = Conv2D(filters, 1, strides)(inputs)
-        
-        out = Activation(activation)(out + inputs)
-
-        return out
-
-    return bottleneck_block
-    
 
 """      sequential blocks      """
 def bidirectional_GRU_block(model_config: dict):
@@ -224,139 +185,6 @@ def simple_dense_block(model_config: dict):
     return dense_block
 
 
-def timedistributed_xception_net_block(model_config: dict):
-    filters = model_config['filters']
-    block_num = model_config['block_num']
-    
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def _sepconv_block(inputs, filters, activation):
-        x = TimeDistributed(SeparableConv2D(filters, (3, 3), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer))(inputs)
-        x = BatchNormalization()(x)
-        x = Activation(activation)(x) if activation else x
-        return x
-    
-    def _residual_block(inputs, filters):
-        if type(filters) != list:
-            filters1 = filters2 = filters
-        else:
-            filters1, filters2 = filters
-
-        residual = TimeDistributed(Conv2D(filters2, (1, 1), strides=(2, 2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer))(inputs)
-        residual = BatchNormalization()(residual)
-
-        x = _sepconv_block(inputs, filters1, 'relu')
-        x = _sepconv_block(x, filters2, None)
-
-        x = TimeDistributed(MaxPooling2D((3, 3),
-                                strides=(2, 2),
-                                padding='same'))(x)
-        x = add([x, residual])
-        return x
-
-    def _xception_net_block(inputs):
-        x = Conv2D(filters, kernel_size=3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = MaxPooling2D(pool_size=(5,1))(x)
-        x = x[...,tf.newaxis]
-
-        x = TimeDistributed(Conv2D(filters, (3, 3), strides=(2, 2), use_bias=False, kernel_regularizer=kernel_regularizer))(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = TimeDistributed(Conv2D(filters * 2, (3, 3), use_bias=False, kernel_regularizer=kernel_regularizer))(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-
-        x = _residual_block(x, filters * 4)
-        x = _residual_block(x, filters * 8)
-        x = _residual_block(x, int(filters * 22.75))
-
-        for i in range(block_num):
-            residual = x
-
-            x = Activation('relu')(x)
-            x = _sepconv_block(x, int(filters * 22.75), 'relu')
-            x = _sepconv_block(x, int(filters * 22.75), 'relu')
-            x = _sepconv_block(x, int(filters * 22.75), None)
-
-            x = add([x, residual])
-
-        x = _residual_block(x, [int(filters * 22.75), filters * 32])
-
-        x = _sepconv_block(x, filters * 48, 'relu')
-        x = _sepconv_block(x, filters * 64, 'relu')
-
-        x = Reshape((x.shape[1], x.shape[2], x.shape[3] * x.shape[4]))(x)
-        return x
-    return _xception_net_block
-
-
-def xception_1d_block(model_config: dict):
-    filters = model_config['filters']
-    block_num = model_config['block_num']
-    
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def _sepconv_block(inputs, filters, activation):
-        x = SeparableConv1D(filters, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
-        x = BatchNormalization()(x)
-        x = Activation(activation)(x) if activation else x
-        return x
-    
-    def _residual_block(inputs, filters):
-        if type(filters) != list:
-            filters1 = filters2 = filters
-        else:
-            filters1, filters2 = filters
-
-        residual = Conv1D(filters2, 1, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
-        residual = BatchNormalization()(residual)
-
-        x = _sepconv_block(inputs, filters1, 'relu')
-        x = _sepconv_block(x, filters2, None)
-
-        x = add([x, residual])
-        return x
-
-    def _xception_net_block(inputs):
-        x = Conv2D(filters, kernel_size=3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = MaxPooling2D(pool_size=(5,1))(x)
-        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
-
-        x = Conv1D(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = Conv1D(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-
-        x = _residual_block(x, filters * 4)
-        x = _residual_block(x, filters * 8)
-        x = _residual_block(x, int(filters * 22.75))
-
-        for i in range(block_num):
-            residual = x
-
-            x = Activation('relu')(x)
-            x = _sepconv_block(x, int(filters * 22.75), 'relu')
-            x = _sepconv_block(x, int(filters * 22.75), 'relu')
-            x = _sepconv_block(x, int(filters * 22.75), None)
-
-            x = add([x, residual])
-
-        x = _residual_block(x, [int(filters * 22.75), filters * 32])
-
-        x = _sepconv_block(x, filters * 48, 'relu')
-        x = _sepconv_block(x, filters * 64, 'relu')
-        return x
-    return _xception_net_block
-
-
 def xception_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
@@ -376,8 +204,7 @@ def xception_block(model_config: dict):
         else:
             filters1, filters2 = filters
 
-        residual = Conv2D(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
-        residual = BatchNormalization()(residual)
+        residual = conv2d_block(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer, activation=None)(x)
 
         x = _sepconv_block(inputs, filters1, 'relu')
         x = _sepconv_block(x, filters2, None)
@@ -387,13 +214,9 @@ def xception_block(model_config: dict):
         return x
 
     def _xception_net_block(inputs):
-        x = Conv2D(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(inputs)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
+        x = conv2d_block(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
         x = MaxPooling2D(pool_size=(5,1))(x)
-        x = Conv2D(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer, padding='same')(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
+        x = conv2d_block(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
 
         x = _residual_block(x, filters * 4)
         x = _residual_block(x, filters * 8)
@@ -431,6 +254,7 @@ def dense_block(model_config: dict):
         x1 = Conv2D(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
         x1 = BatchNormalization(epsilon=1.001e-5)(x1)
         x1 = Activation('relu')(x1)
+        x1 = conv2d_block(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
         x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
         x = Concatenate()([x, x1])
         return x
@@ -525,6 +349,6 @@ def conv2d_block(filters, kernel_size, strides=(1, 1), padding='same', activatio
     def _conv2d_block(inputs):
         x = Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=use_bias, kernel_regularizer=kernel_regularizer)(inputs)
         x = BatchNormalization(norm_axis)(x)
-        x = Activation(activation)(x)
+        x = Activation(activation)(x) if activation else x
         return x
     return _conv2d_block
