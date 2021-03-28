@@ -25,10 +25,10 @@ class ConfigSamplingTest(tf.test.TestCase):
     def test_complexity(self):
         # complexity calculating functions (for the test)
         def block_a_complexity(args, input_shape):
-            return {'flop': 2, 'params': 5}, input_shape
+            return {'flops': 2, 'params': 5}, input_shape
 
         def block_b_complexity(args, input_shape):
-            return {'flop': 7, 'params': 3}, input_shape
+            return {'flops': 7, 'params': 3}, input_shape
 
         # inputs for complexity (func)
         model_config = OrderedDict({
@@ -43,18 +43,9 @@ class ConfigSamplingTest(tf.test.TestCase):
             'B': block_b_complexity,
         }
 
-        gt = {'flop': 9, 'params': 8}
+        gt = {'flops': 9, 'params': 8}
         self.assertEqual(
             gt, complexity(model_config, input_shape, mapping_dict))
-
-    def test_dict_add(self):
-        a = {'a': 3}
-        b = {'a': 2, 'b': 4}
-
-        gt = {'a': 5, 'b': 4}
-
-        c = dict_add(a, b)
-        self.assertEqual(c, gt)
 
 
 if __name__ == '__main__':
