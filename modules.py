@@ -32,35 +32,6 @@ def simple_conv_block(model_config: dict):
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
         return x
-
-    return conv_block
-
-
-def dynamic_conv_block(model_config: dict):
-    # mandatory parameters
-    filters = model_config['filters']
-    pool_size = model_config['pool_size']
-    
-    dropout_rate = model_config.get('dropout_rate', 0.)
-    activation = model_config.get('activation', 'softmax')    
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    if len(filters) == 0:
-        filters = filters * len(pool_size)
-    elif len(filters) != len(pool_size):
-        raise ValueError("len of filters and pool_size do not match")
-    
-    def conv_block(inputs):
-        x = inputs
-        for i in range(len(filters)):
-            x = DConv2D(filters[i], kernel_size=3, padding='same', activation=activation)(x)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
-            x = MaxPooling2D(pool_size=pool_size[i])(x)
-            x = Dropout(dropout_rate)(x)
-        return x
-
     return conv_block
 
 
@@ -89,22 +60,6 @@ def cond_conv_block(model_config: dict):
         return x
 
     return conv_block
-
-
-def res_bottleneck_stage(model_config: dict):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-
-    model_config = copy.deepcopy(model_config)
-
-    def stage(inputs):
-        x = inputs
-        for i in range(depth):
-            x = res_bottleneck_block(model_config)(x)
-            model_config['strides'] = 1
-        return x
-    return stage
 
 
 """      sequential blocks      """
@@ -251,10 +206,7 @@ def dense_block(model_config: dict):
     def conv_block(x, growth_rate):
         x1 = BatchNormalization(epsilon=1.001e-5)(x)
         x1 = Activation('relu')(x1)
-        x1 = Conv2D(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
-        x1 = BatchNormalization(epsilon=1.001e-5)(x1)
-        x1 = Activation('relu')(x1)
-        x1 = conv2d_block(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
+        x1 = conv2d_block(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x1)
         x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
         x = Concatenate()([x, x1])
         return x
@@ -272,9 +224,7 @@ def dense_block(model_config: dict):
         return x
 
     def _dense_block(inputs):
-        x = Conv2D(filters, 5, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
+        x = conv2d_block(filters, 5, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
         x = MaxPooling2D(pool_size=(5,2))(x)
 
         x = dense_net_block(x, block_num[0])
@@ -292,6 +242,7 @@ def dense_block(model_config: dict):
         return x
     return _dense_block
     
+
 def resnet50_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
@@ -301,21 +252,15 @@ def resnet50_block(model_config: dict):
 
     def block1(x, filters, kernel_size=3, strides=1, conv_shortcut=True):
         if conv_shortcut:
-            shortcut = Conv2D(4 * filters, 1, strides=(1, strides), padding='same', kernel_regularizer=kernel_regularizer)(x)
-            shortcut = BatchNormalization(epsilon=1.001e-5)(shortcut)
+            x = conv2d_block(4 * filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, activation=None)(x)
         else:
             shortcut = x
 
-        x = Conv2D(filters, 1, strides=(1, strides), padding='same', kernel_regularizer=kernel_regularizer)(x)
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
+        x = conv2d_block(filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
 
-        x = Conv2D(filters, kernel_size, padding='same', kernel_regularizer=kernel_regularizer)(x)
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
+        x = conv2d_block(filters, kernel_size, strides=(1, strides), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
 
-        x = Conv2D(4 * filters, 1, padding='same', kernel_regularizer=kernel_regularizer)(x)
-        x = BatchNormalization(epsilon=1.001e-5)(x)
+        x = conv2d_block(4 * filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, activation=None, norm_eps=1.001e-5)(x)
 
         x = Add()([shortcut, x])
         x = Activation('relu')(x)
@@ -334,9 +279,7 @@ def resnet50_block(model_config: dict):
         return stack(x, filters * 8, block_num[3])
 
     def _resnet50_block(inputs):
-        x = Conv2D(filters, 7, strides=(1, 2), padding='same', use_bias=True, kernel_regularizer=kernel_regularizer)(inputs)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
+        conv2d_block(filters, 7, strides=(1, 2), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
 
         x = MaxPooling2D(3, strides=(5, 2), padding='same')(x)
         x = stack_fn(x)
@@ -345,10 +288,18 @@ def resnet50_block(model_config: dict):
     return _resnet50_block
     
 
-def conv2d_block(filters, kernel_size, strides=(1, 1), padding='same', activation='relu', use_bias=True, kernel_regularizer=None, norm_axis=-1):
+def conv2d_block(filters,
+                 kernel_size, 
+                 strides=(1, 1), 
+                 padding='same', 
+                 activation='relu', 
+                 use_bias=True, 
+                 kernel_regularizer=None, 
+                 norm_axis=-1,
+                 norm_eps=1e-3):
     def _conv2d_block(inputs):
         x = Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=use_bias, kernel_regularizer=kernel_regularizer)(inputs)
-        x = BatchNormalization(norm_axis)(x)
+        x = BatchNormalization(norm_axis, epsilon=norm_eps)(x)
         x = Activation(activation)(x) if activation else x
         return x
     return _conv2d_block
