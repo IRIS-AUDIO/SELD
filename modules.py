@@ -62,62 +62,6 @@ def cond_conv_block(model_config: dict):
     return conv_block
 
 
-<<<<<<< HEAD
-=======
-def res_bottleneck_stage(model_config: dict):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-
-    model_config = copy.deepcopy(model_config)
-
-    def stage(inputs):
-        x = inputs
-        for i in range(depth):
-            x = res_bottleneck_block(model_config)(x)
-            model_config['strides'] = 1
-        return x
-    return stage
-
-
-def res_bottleneck_block(model_config: dict):
-    # mandatory parameters
-    filters = model_config['filters']
-    strides = model_config['strides']
-    groups = model_config['groups']
-    bottleneck_ratio = model_config['bottleneck_ratio']
-
-    activation = model_config.get('activation', 'relu')
-
-    if isinstance(strides, int):
-        strides = (strides, strides)
-    bottleneck_size = int(filters * bottleneck_ratio)
-
-    def bottleneck_block(inputs):
-        out = Conv2D(bottleneck_size, 1)(inputs)
-        out = BatchNormalization()(out)
-        out = Activation(activation)(out)
-
-        out = Conv2D(bottleneck_size, 3, strides, 
-                     padding='same', groups=groups)(out)
-        out = BatchNormalization()(out)
-        out = Activation(activation)(out)
-
-        out = Conv2D(filters, 1)(out)
-        out = BatchNormalization()(out)
-
-        if strides != (1, 1) or inputs.shape[-1] != filters:
-            inputs = Conv2D(filters, 1, strides)(inputs)
-            inputs = BatchNormalization()(inputs)
-        
-        out = Activation(activation)(out + inputs)
-
-        return out
-
-    return bottleneck_block
-    
-
->>>>>>> 95df909f53000d186acd32940d041fa1e64dcdba
 """      sequential blocks      """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
@@ -283,6 +227,8 @@ def dense_block(model_config: dict):
         x = conv2d_block(filters, 5, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
         x = MaxPooling2D(pool_size=(5,2))(x)
 
+        for i in range(len(block_num)):
+            
         x = dense_net_block(x, block_num[0])
         x = transition_block(x, 0.5)
         x = dense_net_block(x, block_num[1])
@@ -298,7 +244,6 @@ def dense_block(model_config: dict):
         return x
     return _dense_block
     
-<<<<<<< HEAD
 
 def resnet50_block(model_config: dict):
     filters = model_config['filters']
@@ -360,5 +305,3 @@ def conv2d_block(filters,
         x = Activation(activation)(x) if activation else x
         return x
     return _conv2d_block
-=======
->>>>>>> 95df909f53000d186acd32940d041fa1e64dcdba
