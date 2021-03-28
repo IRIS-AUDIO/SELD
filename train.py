@@ -98,10 +98,10 @@ def get_dataset(config, mode:str='train'):
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
-    mic_x, _ = load_seldnet_data(os.path.join(path, 'mic_dev_norm'),
-                             os.path.join(path, 'mic_dev_label'), 
-                             mode=mode, n_freq_bins=64)
-    x = np.concatenate([x, mic_x], -1)
+    # mic_x, _ = load_seldnet_data(os.path.join(path, 'mic_dev_norm'),
+    #                          os.path.join(path, 'mic_dev_label'), 
+    #                          mode=mode, n_freq_bins=64)
+    # x = np.concatenate([x, mic_x], -1)
     
     if mode == 'train' and not 'nomask' in config.name:
         sample_transforms = [

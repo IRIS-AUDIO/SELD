@@ -1,8 +1,8 @@
 {
-    "FIRST": "dense_block",
+    "FIRST": "dense_net_block",
     "FIRST_ARGS":
     {
-        "filters": 32,
+        "filters": 64,
         "block_num": [6,12,24,16],
         "kernel_regularizer": {
             "l1": 0,

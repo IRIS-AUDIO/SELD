@@ -11,7 +11,7 @@ def get_param(known=None):
 
     args.add_argument('--gpus', type=str, default='-1')
     args.add_argument('--resume', action='store_true')    
-    args.add_argument('--abspath', type=str, default='/root/datasets')
+    args.add_argument('--abspath', type=str, default='./')
     args.add_argument('--config_mode', type=str, default='')
     args.add_argument('--doa_loss', type=str, default='MSE', 
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])

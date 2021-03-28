@@ -274,7 +274,7 @@ def polar_to_cartesian(coordinates):
 if __name__ == '__main__':
     # How to use
     # Extracting Features and Labels
-    mode = 'mic'
+    mode = 'foa'
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
