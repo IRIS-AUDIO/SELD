@@ -124,7 +124,7 @@ def res_bottleneck_block(model_config: dict):
     bottleneck_size = int(filters * bottleneck_ratio)
 
     def bottleneck_block(inputs):
-        out = Conv2D(filters, 1)(inputs)
+        out = Conv2D(bottleneck_size, 1)(inputs)
         out = BatchNormalization()(out)
         out = Activation(activation)(out)
 
@@ -138,6 +138,7 @@ def res_bottleneck_block(model_config: dict):
 
         if strides != (1, 1) or inputs.shape[-1] != filters:
             inputs = Conv2D(filters, 1, strides)(inputs)
+            inputs = BatchNormalization()(inputs)
         
         out = Activation(activation)(out + inputs)
 
