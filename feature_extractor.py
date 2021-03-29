@@ -272,9 +272,16 @@ def polar_to_cartesian(coordinates):
 
 
 if __name__ == '__main__':
+    import argparse
+    import os
+    arg = argparse.ArgumentParser()
+    arg.add_argument('--mode', default='foa', type=str, choices=['foa', 'mic'])
+    arg.add_argument('--gpus', default='-1', type=str)
+    config = arg.parse_args()
+    os.environ['CUDA_VISIBLE_DEVICES'] = config.gpus
     # How to use
     # Extracting Features and Labels
-    mode = 'foa'
+    mode = config.mode
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
