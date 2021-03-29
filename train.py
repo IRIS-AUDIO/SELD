@@ -111,7 +111,7 @@ def get_dataset(config, mode:str='train'):
     else:
         sample_transforms = []
     batch_transforms = [split_total_labels_to_sed_doa]
-    if 'aug' in config.name and mode == 'train':
+    if config.foa_aug and mode == 'train':
         batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
@@ -207,7 +207,7 @@ def main(config):
                 optimizer.learning_rate = optimizer.learning_rate * config.decay
                 print(f'lr: {optimizer.learning_rate.numpy()}')
                 lr_decay_patience = 0
-            if early_stop_patience == config.patience // config.loop_time:
+            if early_stop_patience == config.patience:
                 print(f'Early Stopping at {epoch}, score is {score}')
                 break
             early_stop_patience += 1
