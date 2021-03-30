@@ -53,11 +53,11 @@ def extract_seldnet_data(feature_path: str,
             removed_l.remove(l)
             #random_number is mixed index
             random_number = rnd.randrange(len(f_paths) -1)
-            pick_or = 1
+            pick_or = rnd.randrange(0,3)
             if pick_or == 1:
                 # file and label that will be mixed
                 mixed_f = removed_f[random_number]
-                mixed_l = remoced_l[random_number]
+                mixed_l = removed_l[random_number]
                 # mix and extract label
                 mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
                 mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
@@ -306,62 +306,38 @@ def mix_and_extract(original, mix, original_label, mix_label,
     original_sound, r = torchaudio.load(original)
     mixing_sound, r = torchaudio.load(mix)
     ms = r * 0.1 # ms frame
-    new_label = np.asarray([])
-    
-    #Choose SNR
     snr_list = [-10 + 2*i for i in range(11)]
     snr = rnd.sample(snr_list, 1)[0]
-
+    
     # mix two sound
     mix, source, noise, _ = adjust_noise(mixing_sound, original_sound, snr)
-    
-    # check same class exist at same frame
-    # First, add all metadata of original and mixing data
-    # and if frame and class are same erase metadata of mixing sound
+    ori_label_list = []
     with open(original_label, 'r') as o: # Original metadata
-        with open(mix_label, 'r') as o_2: # mixing metadata
-            index = 0
-            o_2_line = list(o_2.readlines())
-            for line in o.readlines():
-                # add original label to new label
-                frame, cls, unknown, azi, ele = list(map(int, line.split(',')))                    
-                origin_label = np.asarray([frame, cls, azi, ele])
-                new_label = np.concatenate([new_label, origin_label], axis = 0)
+        for line in o.readlines():
+            # add original label to new label
+            frame, cls, unknown, azi, ele = list(map(int, line.split(',')))                    
+            origin_label = [frame, cls, azi, ele]
+            ori_label_list.append(origin_label)
+    ori_label_list = np.asarray([ori_label_list])
+    ori_label_list = ori_label_list.reshape(-1,4)
 
-                # Check If we read all second label  
-                if index < len(o_2_line):
-
-                    # extracting second file meta data and add it
-                    frame_2, cls_2, unknown_2, azi_2, ele_2 =\
-                        list(map(int, o_2_line[index].strip('\n').split(',')))
-                    added_label = np.asarray([frame_2, cls_2, azi_2, ele_2])
-                    new_label = np.concatenate([new_label, added_label], axis = 0)
-
-                    # if mixing metadata frmae is larger than original label
-                    # check next label
-                    if frame_2 > frame:
-                        pass
-                    
-                    # if mixing and original metadata frame is same 
-                    elif frame_2 == frame:
-                        index += 1
-                        #check if class is same
-                        # if so, replace this frame from mixed to original
-                        #And erase meatadata
-                        if cls_2 == cls:
-                            mix[int(ms*frame):int(ms*(frame+1))] = \
-                            source[int(ms*frame):int(ms*(frame+1))]                   
-                            new_label = new_label[:-4]
-                    else:
-                        index += 1 
-
-            # if mixing metadata exist add it to new label 
-            while(index < len(o_2_line)):                
-                frame_2, cls_2, unknown_2, azi_2, ele_2 =\
-                list(map(int, (o_2_line[index].split('\n')[0]).split(',')))
-                added_label = np.asarray([frame_2, cls_2, azi_2, ele_2])
-                new_label = np.concatenate([new_label, added_label], axis = 0)
-                index += 1
+    new_label_list = []
+    with open(mix_label, 'r') as o_2: # mixing metadata
+        for o_2_line in o_2.readlines():
+            frame_2, cls_2, unknown_2, azi_2, ele_2 =\
+                list(map(int, o_2_line.strip('\n').split(',')))
+            added_label = [frame_2, cls_2, azi_2, ele_2]
+            new_label_list.append(added_label)
+    new_label_list = np.asarray([new_label_list])
+    new_label_list = new_label_list.reshape(-1,4)
+    for new_label in new_label_list:
+        if len(np.where(ori_label_list[:,0] == new_label[0])[0]):
+            frame_indexes = np.where(ori_label_list[:,0] == new_label[0])[0]
+            for frame_index in frame_indexes:
+                if ori_label_list[frame_index,1] == new_label[1]:
+                    np.delete(ori_label_list, frame_index, 0)
+                    mix[int(ms*frame_index):int(ms*(frame_index+1))] = \
+                    source[int(ms*frame_index):int(ms*(frame_index+1))]    
     
     # reshape metadata
     new_label = new_label.reshape(int(len(new_label)//4),-1)
@@ -420,6 +396,7 @@ if __name__ == '__main__':
     # How to use
     # Extracting Features and Labels
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    abspath = '/home/pjh/seld-dcase2020'
     FEATURE_PATH = os.path.join(abspath, 'foa_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
 
@@ -436,7 +413,7 @@ if __name__ == '__main__':
                          win_length=960,
                          hop_length=480,
                          n_fft=1024,
-                         use_aug = False)
+                         use_aug = use_aug)
 
     # Normalizing Extracted Features
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)

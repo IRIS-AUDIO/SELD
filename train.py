@@ -146,7 +146,6 @@ def get_dataset_gen(config, mode:str='train'):
 
 def main(config):
     config, model_config = config[0], config[1]
-
     tensorboard_path = os.path.join('./tensorboard_log', config.name)
     if not os.path.exists(tensorboard_path):
         print(f'tensorboard log directory: {tensorboard_path}')
