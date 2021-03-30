@@ -91,7 +91,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
-    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm_1'),
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
     if mode == 'train' and not 'nomask' in config.name:
@@ -111,14 +111,41 @@ def get_dataset(config, mode:str='train'):
         label_window_size=60,
         batch_size=config.batch,
         sample_transforms=sample_transforms,
-        loop_time=config.loop_time
+        loop_time=config.loop_time,
+        use_cache = config.use_cache
     )
     return dataset
 
+def get_dataset_gen(config, mode:str='train'):
+    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    x, y = load_seldnet_data_gen(os.path.join(path, 'foa_dev_norm'),
+                                os.path.join(path, 'foa_dev_label'), 
+                                mode=mode, n_freq_bins=64)
+    if mode == 'train' and not 'nomask' in config.name:
+        sample_transforms = [
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+        ]
+    else:
+        sample_transforms = []
+    batch_transforms = [
+        split_total_labels_to_sed_doa
+    ]
+    dataset = seldnet_data_to_dataloader_gen(
+        x, y,
+        train= mode == 'train',
+        batch_transforms=batch_transforms,
+        label_window_size=60,
+        batch_size=config.batch,
+        sample_transforms=sample_transforms,
+        loop_time=config.loop_time,
+        use_cache = config.use_cache
+        )
+
+    return dataset
 
 def main(config):
     config, model_config = config[0], config[1]
-
     tensorboard_path = os.path.join('./tensorboard_log', config.name)
     if not os.path.exists(tensorboard_path):
         print(f'tensorboard log directory: {tensorboard_path}')
@@ -131,11 +158,15 @@ def main(config):
         os.makedirs(model_path)
 
     # data load
-    trainset = get_dataset(config, 'train')
-    valset = get_dataset(config, 'val')
-    testset = get_dataset(config, 'test')
-
-    # extract data size
+    if config.use_gen:
+        trainset = get_dataset_gen(config, 'train')
+        valset = get_dataset_gen(config, 'val')
+        testset = get_dataset_gen(config, 'test')
+    else:
+        trainset = get_dataset(config, 'train')
+        valset = get_dataset(config, 'val')
+        testset = get_dataset(config, 'test')
+        # extract data size
     x, y = [(x, y) for x, y in trainset.take(1)][0]
     input_shape = x.shape
     sed_shape, doa_shape = tf.shape(y[0]), tf.shape(y[1])

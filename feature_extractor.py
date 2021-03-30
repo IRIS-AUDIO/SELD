@@ -9,6 +9,7 @@ from torch.fft import irfft
 
 from data_utils import *
 from utils import get_device
+import random as rnd
 
 
 ''' For SELDnet Data '''
@@ -17,6 +18,7 @@ def extract_seldnet_data(feature_path: str,
                          label_path: str,
                          label_output_path: str,
                          mode='foa',
+                         use_aug = False,
                          **kwargs):
 
     if feature_output_path == label_output_path:
@@ -40,15 +42,38 @@ def extract_seldnet_data(feature_path: str,
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
 
-        wav, r = torchaudio.load(f)
+        # Randomly Using augment or not
+        if use_aug:
+            removed_f = f_paths.copy() 
+            removed_f.remove(f)
+
+            removed_l = l_paths.copy()
+            removed_l.remove(l)
+            #random_number is mixed index
+            random_number = rnd.randrange(len(f_paths) -1)
+            pick_or = rnd.randrange(0,3)
+            if pick_or == 1:
+                # file and label that will be mixed
+                mixed_f = removed_f[random_number]
+                mixed_l = removed_l[random_number]
+                # mix and extract label
+                mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
+                mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
         f = extract_features(wav, r, mode=mode, **kwargs)
+        f = extract_features(f, mode=mode, **kwargs)
         l = extract_labels(l)
         f, l = preprocess_features_labels(f, l)
         
         new_name = name + '.npy'
         np.save(os.path.join(feature_output_path, new_name), f)
         np.save(os.path.join(label_output_path, new_name), l)
-
+        
+        if use_aug == True:
+            if pick_or == 1:        
+                #save file when we need augmentation
+                aug_new_name = name + '_aug.npy'
+                np.save(os.path.join(feature_output_path, aug_new_name), mixed_f)
+                np.save(os.path.join(label_output_path, aug_new_name), mixed_l)
 
 def extract_features(wav: torch.Tensor,
                      sample_rate,
@@ -271,10 +296,105 @@ def polar_to_cartesian(coordinates):
     return np.stack([x, y, z], axis=-1)
 
 
+def mix_and_extract(original, mix, original_label, mix_label, 
+                    n_classes = 14, max_frames = None, mode='foa', n_mels=64,
+                    **kwargs):
+    
+    #load original and random sound
+    original_sound, r = torchaudio.load(original)
+    mixing_sound, r = torchaudio.load(mix)
+    ms = r * 0.1 # ms frame
+    snr_list = [-10 + 2*i for i in range(11)]
+    snr = rnd.sample(snr_list, 1)[0]
+    
+    # mix two sound
+    mix, source, noise, _ = adjust_noise(mixing_sound, original_sound, snr)
+    ori_label_list = []
+    with open(original_label, 'r') as o: # Original metadata
+        for line in o.readlines():
+            # add original label to new label
+            frame, cls, unknown, azi, ele = list(map(int, line.split(',')))                    
+            origin_label = [frame, cls, azi, ele]
+            ori_label_list.append(origin_label)
+    ori_label_list = np.asarray([ori_label_list])
+    ori_label_list = ori_label_list.reshape(-1,4)
+
+    new_label_list = []
+    with open(mix_label, 'r') as o_2: # mixing metadata
+        for o_2_line in o_2.readlines():
+            frame_2, cls_2, unknown_2, azi_2, ele_2 =\
+                list(map(int, o_2_line.strip('\n').split(',')))
+            added_label = [frame_2, cls_2, azi_2, ele_2]
+            new_label_list.append(added_label)
+    new_label_list = np.asarray([new_label_list])
+    new_label_list = new_label_list.reshape(-1,4)
+    for new_label in new_label_list:
+        if len(np.where(ori_label_list[:,0] == new_label[0])[0]):
+            frame_indexes = np.where(ori_label_list[:,0] == new_label[0])[0]
+            for frame_index in frame_indexes:
+                if ori_label_list[frame_index,1] == new_label[1]:
+                    np.delete(ori_label_list, frame_index, 0)
+                    mix[int(ms*frame_index):int(ms*(frame_index+1))] = \
+                    source[int(ms*frame_index):int(ms*(frame_index+1))]    
+    
+    # reshape metadata
+    new_label = new_label.reshape(int(len(new_label)//4),-1)
+    new_label = new_label[new_label[:,0].argsort()]
+    
+    device = get_device()
+    # feature extracting
+    melscale = torchaudio.transforms.MelScale(n_mels=n_mels,
+                                              sample_rate=r).to(device)
+    spec = complex_spec(mix.to(device), **kwargs)
+
+    mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
+    mel_spec = melscale(mel_spec)
+    mel_spec = torchaudio.functional.amplitude_to_DB(
+        mel_spec,
+        multiplier=10.,
+        amin=1e-10,
+        db_multiplier=np.log10(max(1., 1e-10)), # log10(max(ref, amin))
+        top_db=80.,
+    )
+
+    features = [mel_spec]
+    if mode == 'foa':
+        foa = foa_intensity_vectors(spec)
+        foa = melscale(foa)
+        features.append(foa)
+    elif mode == 'mic':
+        gcc = gcc_features(spec, n_mels=n_mels)
+        features.append(gcc)
+    else:
+        raise ValueError('invalid mode')
+
+    features = torch.cat(features, axis=0)
+
+    # [chan, freq, time] -> [time, freq, chan]
+    features = torch.transpose(features, 0, 2).cpu().numpy()
+    
+    # label extracting
+    labels = np.concatenate(
+        [new_label[..., :2], polar_to_cartesian(new_label[..., 2:])], axis=-1)
+
+    # create an empty output
+    output_len = labels[..., 0].max().astype('int32') + 1
+    if max_frames is not None:
+        output_len = max(max_frames, output_len)
+    outputs = np.zeros((output_len, 4, n_classes), dtype='float32')
+
+    # fill in the output
+    for label in labels:
+        outputs[int(label[0]), :, int(label[1])] = [1., *label[2:]] 
+    outputs = outputs.reshape([-1, 4*n_classes])
+
+    return features, outputs
+
 if __name__ == '__main__':
     # How to use
     # Extracting Features and Labels
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    abspath = '/home/pjh/seld-dcase2020'
     FEATURE_PATH = os.path.join(abspath, 'foa_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
 
@@ -282,7 +402,7 @@ if __name__ == '__main__':
     FEATURE_OUTPUT_PATH = 'foa_dev'
     LABEL_OUTPUT_PATH = 'foa_dev_label'
     NORM_FEATURE_PATH = 'foa_dev_norm'
-
+    use_aug = False
     extract_seldnet_data(FEATURE_PATH, 
                          FEATURE_OUTPUT_PATH,
                          LABEL_PATH, 
@@ -290,7 +410,8 @@ if __name__ == '__main__':
                          mode='foa', 
                          win_length=960,
                          hop_length=480,
-                         n_fft=1024)
+                         n_fft=1024,
+                         use_aug = use_aug)
 
     # Normalizing Extracted Features
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
