@@ -11,6 +11,7 @@ from data_utils import *
 from utils import get_device
 import random as rnd
 
+
 ''' For SELDnet Data '''
 def extract_seldnet_data(feature_path: str,
                          feature_output_path: str,
@@ -41,20 +42,22 @@ def extract_seldnet_data(feature_path: str,
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
         # RANDOMLY PICK ANOTHER WAV FILE TO MIX       
-        check = True
-        while(check):
-            #random_number is mixed index
-            random_number = rnd.randrange(len(f_paths))
-            if f_paths[random_number] != f:
-                check = False
+
 
         # Randomly Using augment or not
-        if use_aug == True:
+        if use_aug:
+            removed_f = f_paths.copy() 
+            removed_f.remove(f)
+
+            removed_l = l_paths.copy()
+            removed_l.remove(l)
+            #random_number is mixed index
+            random_number = rnd.randrange(len(f_paths) -1)
             pick_or = 1
             if pick_or == 1:
                 # file and label that will be mixed
-                mixed_f = f_paths[random_number]
-                mixed_l = l_paths[random_number]
+                mixed_f = removed_f[random_number]
+                mixed_l = remoced_l[random_number]
                 # mix and extract label
                 mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
                 mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
@@ -302,7 +305,7 @@ def mix_and_extract(original, mix, original_label, mix_label,
     #load original and random sound
     original_sound, r = torchaudio.load(original)
     mixing_sound, r = torchaudio.load(mix)
-    
+    ms = r * 0.1 # ms frame
     new_label = np.asarray([])
     
     #Choose SNR
@@ -330,14 +333,14 @@ def mix_and_extract(original, mix, original_label, mix_label,
 
                     # extracting second file meta data and add it
                     frame_2, cls_2, unknown_2, azi_2, ele_2 =\
-                        list(map(int, (o_2_line[index].split('\n')[0]).split(',')))
+                        list(map(int, o_2_line[index].strip('\n').split(',')))
                     added_label = np.asarray([frame_2, cls_2, azi_2, ele_2])
                     new_label = np.concatenate([new_label, added_label], axis = 0)
 
                     # if mixing metadata frmae is larger than original label
                     # check next label
                     if frame_2 > frame:
-                        continue
+                        pass
                     
                     # if mixing and original metadata frame is same 
                     elif frame_2 == frame:
@@ -346,8 +349,8 @@ def mix_and_extract(original, mix, original_label, mix_label,
                         # if so, replace this frame from mixed to original
                         #And erase meatadata
                         if cls_2 == cls:
-                            mix[int(0.1*r*frame):int(0.1*r*(frame+1))] = \
-                            source[int(0.1*r*frame):int(0.1*r*(frame+1))]                   
+                            mix[int(ms*frame):int(ms*(frame+1))] = \
+                            source[int(ms*frame):int(ms*(frame+1))]                   
                             new_label = new_label[:-4]
                     else:
                         index += 1 

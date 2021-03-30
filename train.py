@@ -119,8 +119,8 @@ def get_dataset(config, mode:str='train'):
 def get_dataset_gen(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
     x, y = load_seldnet_data_gen(os.path.join(path, 'foa_dev_norm'),
-                             os.path.join(path, 'foa_dev_label'), 
-                             mode=mode, n_freq_bins=64)
+                                os.path.join(path, 'foa_dev_label'), 
+                                mode=mode, n_freq_bins=64)
     if mode == 'train' and not 'nomask' in config.name:
         sample_transforms = [
             lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),

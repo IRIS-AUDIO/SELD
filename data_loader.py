@@ -41,10 +41,7 @@ def data_loader(dataset,
         return dataset
 
     dataset = apply_ops(dataset, preprocessing)
-    if use_cache == 1:
-        dataset = dataset.cache()
-    else:
-        pass
+    if use_cache == 1: dataset = dataset.cache()
     dataset = dataset.repeat(loop_time)
     dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)
@@ -130,6 +127,7 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
     return dataset.prefetch(AUTOTUNE)
 
+
 def seldnet_data_to_dataloader_gen(features: [list, tuple], 
                                labels: [list, tuple], 
                                train=True, 
@@ -199,6 +197,7 @@ def load_seldnet_data_gen(feat_path, label_path, mode='train', n_freq_bins=64):
               if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
     return features, labels
+
 
 if __name__ == '__main__':
     ''' An example of how to use '''
