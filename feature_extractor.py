@@ -42,6 +42,7 @@ def extract_seldnet_data(feature_path: str,
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
 
+        wav, r = torchaudio.load(f)
         # Randomly Using augment or not
         if use_aug:
             removed_f = f_paths.copy() 
@@ -59,8 +60,8 @@ def extract_seldnet_data(feature_path: str,
                 # mix and extract label
                 mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
                 mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
+            
         f = extract_features(wav, r, mode=mode, **kwargs)
-        f = extract_features(f, mode=mode, **kwargs)
         l = extract_labels(l)
         f, l = preprocess_features_labels(f, l)
         
@@ -394,7 +395,6 @@ if __name__ == '__main__':
     # How to use
     # Extracting Features and Labels
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
-    abspath = '/home/pjh/seld-dcase2020'
     FEATURE_PATH = os.path.join(abspath, 'foa_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
 
