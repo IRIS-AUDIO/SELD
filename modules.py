@@ -11,6 +11,7 @@ Use only custom layers or predefined
 """
 
 """      conv based blocks      """
+
 def simple_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
@@ -47,7 +48,7 @@ def res_bottleneck_stage(model_config: dict):
             x = res_bottleneck_block(model_config)(x)
             model_config['strides'] = 1
         return x
-     return stage
+    return stage
 
 
 def res_bottleneck_block(model_config: dict):
@@ -307,21 +308,3 @@ def simple_dense_block(model_config: dict):
 
     return dense_block
     
-
-def conv2d_block(filters,
-                 kernel_size, 
-                 strides=(1, 1), 
-                 padding='same', 
-                 activation='relu', 
-                 use_bias=True, 
-                 kernel_regularizer=None, 
-                 groups=1,
-                 norm_axis=-1,
-                 norm_eps=1e-3):
-    def _conv2d_block(inputs):
-        x = Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=use_bias, kernel_regularizer=kernel_regularizer, groups=groups)(inputs)
-        x = BatchNormalization(norm_axis, epsilon=norm_eps)(x)
-        x = Activation(activation)(x) if activation else x
-        return x
-    return _conv2d_block
-
