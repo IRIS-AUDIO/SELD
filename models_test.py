@@ -10,7 +10,7 @@ class ModelsTest(tf.test.TestCase):
     def test_seldnet_v1(self):
         raise NotImplemented()
 
-    def test_seldnet_v1(self):
+    def test_conv_temporal(self):
         raise NotImplemented()
 
 
