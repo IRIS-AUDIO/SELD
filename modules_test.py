@@ -26,8 +26,8 @@ class ModulesTest(tf.test.TestCase):
              'depth': 2, # mandatory
              'filters': 32, # mandatory (for res bottleneck block)
              'strides': 2, # mandatory (for res bottleneck block)
-             'groups': 2, # mandatory (for res bottleneck block)
-             'bottleneck_ratio': 2, # mandatory (for res bottleneck block)
+             'groups': 1, 
+             'bottleneck_ratio': 2,
          }
 
          exp_input_shape = 32, 32, 32, 3
@@ -42,8 +42,8 @@ class ModulesTest(tf.test.TestCase):
          model_config = {
              'filters': 32, # mandatory
              'strides': 2, # mandatory
-             'groups': 2, # mandatory
-             'bottleneck_ratio': 2, # mandatory
+             'groups': 1,
+             'bottleneck_ratio': 2,
          }
 
          exp_input_shape = 32, 32, 32, 3

@@ -42,6 +42,7 @@ def res_bottleneck_stage(model_config: dict):
     depth = model_config['depth']
     strides = model_config['strides']
     model_config = copy.deepcopy(model_config)
+
     def stage(inputs):
         x = inputs
         for i in range(depth):
@@ -55,9 +56,9 @@ def res_bottleneck_block(model_config: dict):
      # mandatory parameters
      filters = model_config['filters']
      strides = model_config['strides']
-     groups = model_config['groups']
-     bottleneck_ratio = model_config['bottleneck_ratio']
 
+     groups = model_config.get('groups', 1)
+     bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
      activation = model_config.get('activation', 'relu')
 
      if isinstance(strides, int):
