@@ -9,6 +9,7 @@ from torch.fft import irfft
 
 from data_utils import *
 from utils import get_device
+import random as rnd
 
 
 ''' For SELDnet Data '''
@@ -17,6 +18,7 @@ def extract_seldnet_data(feature_path: str,
                          label_path: str,
                          label_output_path: str,
                          mode='foa',
+                         use_mix=False,
                          **kwargs):
 
     if feature_output_path == label_output_path:
@@ -24,6 +26,12 @@ def extract_seldnet_data(feature_path: str,
 
     f_paths = sorted(glob(os.path.join(feature_path, '*.wav')))
     l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
+
+    train = [3,4,5,6]
+    f_paths_train = [f for f in f_paths
+            if int(f[f.rfind(os.path.sep)+5]) in train]
+    l_paths_train = [f for f in l_paths
+                if int(f[f.rfind(os.path.sep)+5]) in train] 
 
     if len(f_paths) != len(l_paths):
         raise ValueError('# of features and labels are not matched')
@@ -39,8 +47,25 @@ def extract_seldnet_data(feature_path: str,
         name = extract_name(f)
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
-
         wav, r = torchaudio.load(f)
+        # Randomly Using augment or not
+        random_number = rnd.randrange(len(l_paths_train) -1)
+        pick_or = rnd.random() > 0.5
+        if pick_or:
+            check = use_mix and (f in (f_paths_train))
+            if check:
+                removed_f = f_paths_train.copy() 
+                removed_f.remove(f)
+    
+                removed_l = l_paths_train.copy()
+                removed_l.remove(l)
+                #random_number is mixed index
+                mixed_f = removed_f[random_number]
+                mixed_l = removed_l[random_number]
+                # mix and extract label
+                mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
+                mixed_f = extract_features_spec(mixed_f, r, **kwargs)
+                mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
         f = extract_features(wav, r, mode=mode, **kwargs)
         l = extract_labels(l)
         f, l = preprocess_features_labels(f, l)
@@ -48,6 +73,13 @@ def extract_seldnet_data(feature_path: str,
         new_name = name + '.npy'
         np.save(os.path.join(feature_output_path, new_name), f)
         np.save(os.path.join(label_output_path, new_name), l)
+
+        if pick_or:
+            if check:                    
+                #save file when we need augmentation
+                aug_new_name = name + '_aug.npy'
+                np.save(os.path.join(feature_output_path, aug_new_name), mixed_f)
+                np.save(os.path.join(label_output_path, aug_new_name), mixed_l)
 
 
 def extract_features(wav: torch.Tensor,
@@ -88,6 +120,17 @@ def extract_features(wav: torch.Tensor,
     return features
 
 
+def extract_features_spec(wav: torch.Tensor,
+                     sample_rate,
+                     **kwargs) -> np.ndarray:
+    device = get_device()
+    spec = complex_spec(wav.to(device), **kwargs)
+    features = [spec]
+    features = torch.cat(features, axis=0)
+    features = torch.transpose(features, 0, 2).cpu().numpy()
+    return features
+
+
 def extract_labels(path: str, n_classes=14, max_frames=None):
     labels = []
     with open(path, 'r') as o:
@@ -121,6 +164,41 @@ def preprocess_features_labels(features: np.ndarray,
     '''
     INPUT
     features: [time_f, freq, chan] shaped sample
+    labels:   [time_l, 4*n_classes] shaped sample
+    max_label_length: length of labels (time) will be set to given value
+    multiplier: how many feature frames are related to a single label frame
+
+    OUTPUT
+    features: [max_label_length*multiplier, freq, chan]
+    labels: [max_label_length, 4*n_classes]
+    '''
+    cur_len = labels.shape[0]
+    max_len = max_label_length
+
+    if cur_len < max_len: 
+        labels = np.pad(labels, ((0, max_len-cur_len), (0,0)), 'constant')
+    else:
+        labels = labels[:max_len]
+
+    cur_len = features.shape[0]
+    max_len = max_label_length * multiplier
+    if cur_len < max_len: 
+        features = np.pad(features, 
+                          ((0, max_len-cur_len), (0,0), (0,0)),
+                          'constant')
+    else:
+        features = features[:max_len]
+
+    return features, labels
+
+
+def preprocess_features_labels_spec(features: np.ndarray, 
+                               labels: np.ndarray, 
+                               max_label_length=600, 
+                               multiplier=5):
+    '''
+    INPUT
+    features: [time_f, freq, comp, chan] shaped sample
     labels:   [time_l, 4*n_classes] shaped sample
     max_label_length: length of labels (time) will be set to given value
     multiplier: how many feature frames are related to a single label frame
@@ -271,6 +349,50 @@ def polar_to_cartesian(coordinates):
     return np.stack([x, y, z], axis=-1)
 
 
+def mix_and_extract(original, mix, original_label, mix_label, 
+                    n_classes = 14, max_frames = None, mode='foa', n_mels=64,
+                    **kwargs):
+    
+    #load original and random sound
+    original_sound, r = torchaudio.load(original)
+    mixing_sound, r = torchaudio.load(mix)
+    ms = r * 0.1 # ms frame
+    snr = rnd.uniform(-10,10)
+    
+    # mix two sound
+    mix, source, noise, _ = adjust_noise(mixing_sound, original_sound, snr)
+    ori_label_list = []
+    with open(original_label, 'r') as o: # Original metadata
+        for line in o.readlines():
+            # add original label to new label
+            frame, cls, _, azi, ele = list(map(int, line.split(',')))                    
+            origin_label = [frame, cls, azi, ele]
+            ori_label_list.append(origin_label)
+    ori_label_list = np.asarray([ori_label_list])
+    ori_label_list = ori_label_list.reshape(-1,4)
+
+    new_label_list = []
+    with open(mix_label, 'r') as o_2: # mixing metadata
+        for o_2_line in o_2.readlines():
+            frame_2, cls_2, _, azi_2, ele_2 =\
+                list(map(int, o_2_line.strip('\n').split(',')))
+            added_label = [frame_2, cls_2, azi_2, ele_2]
+            new_label_list.append(added_label)
+    new_label_list = np.asarray([new_label_list])
+    new_label_list = new_label_list.reshape(-1,4)
+    frame_remove = []
+    ori_label = ori_label_list[ori_label_list[:,0].argsort()]  
+    new_label = new_label_list[new_label_list[:,0].argsort()]
+    for i, line in enumerate(new_label):
+        if len(np.where((ori_label[:,0:2] == line[0:2]).all(axis=1))[0]): 
+            frame_remove.append(i)
+    new_label = np.delete(new_label, frame_remove, axis = 0)
+    for frame in frame_remove:
+        mix[:, int(ms*frame):int(ms*(frame+1))] = \
+        source[:, int(ms*frame):int(ms*(frame+1))] 
+    return mix, new_label
+
+
 if __name__ == '__main__':
     import argparse
     import os
@@ -283,8 +405,10 @@ if __name__ == '__main__':
     # Extracting Features and Labels
     mode = config.mode
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    abspath = '/home/pjh/seld-dcase2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
+    USE_MIX = True
 
     # should 
     FEATURE_OUTPUT_PATH = f'{mode}_dev'
@@ -298,7 +422,8 @@ if __name__ == '__main__':
                          mode=mode, 
                          win_length=960,
                          hop_length=480,
-                         n_fft=1024)
+                         n_fft=1024,
+                         use_mix=USE_MIX)
 
     # Normalizing Extracted Features
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)

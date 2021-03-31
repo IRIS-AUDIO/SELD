@@ -97,7 +97,7 @@ def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
-                             mode=mode, n_freq_bins=64)
+                             mode=mode, n_freq_bins=64, use_gen=config.use_gen)
     # mic_x, _ = load_seldnet_data(os.path.join(path, 'mic_dev_norm'),
     #                          os.path.join(path, 'mic_dev_label'), 
     #                          mode=mode, n_freq_bins=64)
@@ -113,15 +113,29 @@ def get_dataset(config, mode:str='train'):
     batch_transforms = [split_total_labels_to_sed_doa]
     if config.foa_aug and mode == 'train':
         batch_transforms.insert(0, foa_intensity_vec_aug)
-    dataset = seldnet_data_to_dataloader(
-        x, y,
-        train= mode == 'train',
-        batch_transforms=batch_transforms,
-        label_window_size=60,
-        batch_size=config.batch,
-        sample_transforms=sample_transforms,
-        loop_time=config.loop_time
-    )
+
+    if config.use_gen:
+        dataset = seldnet_data_to_dataloader_gen(
+            x, y,
+            train= mode == 'train',
+            batch_transforms=batch_transforms,
+            label_window_size=60,
+            batch_size=config.batch,
+            sample_transforms=sample_transforms,
+            loop_time=config.loop_time,
+            use_cache = config.use_cache
+        )
+    else:
+        dataset = seldnet_data_to_dataloader(
+            x, y,
+            train= mode == 'train',
+            batch_transforms=batch_transforms,
+            label_window_size=60,
+            batch_size=config.batch,
+            sample_transforms=sample_transforms,
+            loop_time=config.loop_time,
+            use_cache = config.use_cache
+        )
     return dataset
 
 
