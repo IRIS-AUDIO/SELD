@@ -64,7 +64,8 @@ def extract_seldnet_data(feature_path: str,
                 mixed_l = removed_l[random_number]
                 # mix and extract label
                 mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
-                mixed_f = extract_features_spec(mixed_f, r, **kwargs)
+                mixed_f = extract_features(mixed_f, r, **kwargs)
+                mixed_l = extract_labels(l)
                 mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
         f = extract_features(wav, r, mode=mode, **kwargs)
         l = extract_labels(l)
@@ -84,7 +85,7 @@ def extract_seldnet_data(feature_path: str,
 
 def extract_features(wav: torch.Tensor,
                      sample_rate,
-                     mode='foa',
+                     mode='foa', 
                      n_mels=64,
                      **kwargs) -> np.ndarray:
     device = get_device()
@@ -405,7 +406,6 @@ if __name__ == '__main__':
     # Extracting Features and Labels
     mode = config.mode
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
-    abspath = '/home/pjh/seld-dcase2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
     USE_MIX = True
