@@ -27,6 +27,44 @@ def extract_seldnet_data(feature_path: str,
     f_paths = sorted(glob(os.path.join(feature_path, '*.wav')))
     l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
 
+    if len(f_paths) != len(l_paths):
+        raise ValueError('# of features and labels are not matched')
+
+    create_folder(feature_output_path)
+    create_folder(label_output_path)
+
+    def extract_name(path):
+        return path[path.rfind(os.path.sep)+1:path.rfind('.')]
+
+    for f, l in tqdm.tqdm(zip(f_paths, l_paths)):
+        # name must match
+        name = extract_name(f)
+        if name != extract_name(l):
+            raise ValueError('feature, label must share the same name')
+        wav, r = torchaudio.load(f)
+        f = extract_features(wav, r, mode=mode, **kwargs)
+        l = extract_labels(l)
+        f, l = preprocess_features_labels(f, l)
+        
+        new_name = name + '.npy'
+        np.save(os.path.join(feature_output_path, new_name), f)
+        np.save(os.path.join(label_output_path, new_name), l)
+
+
+def extract_mix_seldnet_data(feature_path: str,
+                         feature_output_path: str,
+                         label_path: str,
+                         label_output_path: str,
+                         mode='foa',
+                         use_mix=False,
+                         **kwargs):
+
+    if feature_output_path == label_output_path:
+        raise ValueError('output folders for features and labels must differ')
+
+    f_paths = sorted(glob(os.path.join(feature_path, '*.wav')))
+    l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
+
     train = [3,4,5,6]
     f_paths_train = [f for f in f_paths
             if int(f[f.rfind(os.path.sep)+5]) in train]
@@ -59,24 +97,17 @@ def extract_seldnet_data(feature_path: str,
     
                 removed_l = l_paths_train.copy()
                 removed_l.remove(l)
+
                 #random_number is mixed index
                 mixed_f = removed_f[random_number]
                 mixed_l = removed_l[random_number]
+
                 # mix and extract label
                 mixed_f, mixed_l = mix_and_extract(f, mixed_f, l, mixed_l)
                 mixed_f = extract_features(mixed_f, r, **kwargs)
                 mixed_l = extract_labels(l)
                 mixed_f, mixed_l = preprocess_features_labels(mixed_f, mixed_l)
-        f = extract_features(wav, r, mode=mode, **kwargs)
-        l = extract_labels(l)
-        f, l = preprocess_features_labels(f, l)
-        
-        new_name = name + '.npy'
-        np.save(os.path.join(feature_output_path, new_name), f)
-        np.save(os.path.join(label_output_path, new_name), l)
 
-        if pick_or:
-            if check:                    
                 #save file when we need augmentation
                 aug_new_name = name + '_aug.npy'
                 np.save(os.path.join(feature_output_path, aug_new_name), mixed_f)
@@ -406,9 +437,10 @@ if __name__ == '__main__':
     # Extracting Features and Labels
     mode = config.mode
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    abspath = '/home/pjh/seld-dcase2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
-    USE_MIX = True
+    USE_MIX = False
 
     # should 
     FEATURE_OUTPUT_PATH = f'{mode}_dev'
@@ -422,9 +454,16 @@ if __name__ == '__main__':
                          mode=mode, 
                          win_length=960,
                          hop_length=480,
-                         n_fft=1024,
-                         use_mix=USE_MIX)
-
+                         n_fft=1024)
+    if USE_MIX:
+        extract_mix_seldnet_data(FEATURE_PATH, 
+                             FEATURE_OUTPUT_PATH,
+                             LABEL_PATH, 
+                             LABEL_OUTPUT_PATH,
+                             mode=mode, 
+                             win_length=960,
+                             hop_length=480,
+                             n_fft=1024)
     # Normalizing Extracted Features
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
 

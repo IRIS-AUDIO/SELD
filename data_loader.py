@@ -146,6 +146,8 @@ def seldnet_data_to_dataloader_gen(features: [list, tuple],
         dataset = dataset.shuffle(shuffle_size)
 
     return dataset.prefetch(AUTOTUNE)
+
+
 def seldnet_data_to_dataloader(features: [list, tuple], 
                                labels: [list, tuple], 
                                train=True, 
@@ -171,8 +173,6 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     dataset = dataset.batch(label_window_size, drop_remainder=drop_remainder)
     dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y),
                           num_parallel_calls=AUTOTUNE)
-    del features, labels
-    
     dataset = data_loader(dataset, batch_size=batch_size, 
             loop_time=loop_time if train else 1, **kwargs)
     
