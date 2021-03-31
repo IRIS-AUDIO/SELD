@@ -44,11 +44,13 @@ def conv_temporal(input_shape, model_config):
     inputs = Input(shape=input_shape[-3:])
     
     x = layers.conv2d_layer(16, 7, strides=1, activation='relu')(inputs)
+    x = MaxPooling2D(5, strides=(5, 2), padding='same')(x)
 
     x = getattr(modules, model_config.FIRST)(model_config.FIRST_ARGS)(x)
     x = getattr(modules, model_config.SECOND)(model_config.SECOND_ARGS)(x)
     x = getattr(modules, model_config.THIRD)(model_config.THIRD_ARGS)(x)
     x = getattr(modules, model_config.FOURTH)(model_config.FOURTH_ARGS)(x)
+    x = getattr(modules, model_config.FIFTH)(model_config.FIFTH_ARGS)(x)
 
     sed = getattr(modules, model_config.SED)(model_config.SED_ARGS)(x)
     doa = getattr(modules, model_config.DOA)(model_config.DOA_ARGS)(x)
