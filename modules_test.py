@@ -153,6 +153,17 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_identity_block(self):
+        model_config = {}
+
+        exp_input_shape = 32, 16, 16, 8
+        exp_output_shape = 32, 16, 16, 8
+
+        self.block_test(identity_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def block_test(self, 
                    block_fn,
                    model_config: dict,
@@ -178,13 +189,5 @@ class ModulesTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-    import argparse, sys
-    args = argparse.ArgumentParser()
-    args.add_argument('--gpus', type=str, default='-1')
-    config = args.parse_args()
-    os.environ['CUDA_VISIBLE_DEVICES'] = config.gpus
-    idx = sys.argv.index('--gpus')
-    for _ in range(2):
-        del sys.argv[idx]
     tf.test.main()
 

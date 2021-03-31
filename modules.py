@@ -29,7 +29,7 @@ def simple_conv_block(model_config: dict):
     def conv_block(inputs):
         x = inputs
         for i in range(len(filters)):
-            x = conv2d_block(filters[i], kernel_size=3, 
+            x = conv2d_layer(filters[i], kernel_size=3, 
                              kernel_regularizer=kernel_regularizer)(x)
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
@@ -65,7 +65,7 @@ def res_bottleneck_block(model_config: dict):
      bottleneck_size = int(filters * bottleneck_ratio)
 
      def bottleneck_block(inputs):
-         out = Conv2D(filters, 1)(inputs)
+         out = Conv2D(bottleneck_size, 1)(inputs)
          out = BatchNormalization()(out)
          out = Activation(activation)(out)
 
@@ -79,6 +79,7 @@ def res_bottleneck_block(model_config: dict):
 
          if strides != (1, 1) or inputs.shape[-1] != filters:
              inputs = Conv2D(filters, 1, strides)(inputs)
+             inputs = BatchNormalization()(inputs)
 
          out = Activation(activation)(out + inputs)
 
@@ -97,7 +98,7 @@ def dense_net_block(model_config: dict):
     def conv_block(x, growth_rate):
         x1 = BatchNormalization(epsilon=1.001e-5)(x)
         x1 = Activation('relu')(x1)
-        x1 = conv2d_block(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x1)
+        x1 = conv2d_layer(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x1)
         x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
         x = Concatenate()([x, x1])
         return x
@@ -115,7 +116,7 @@ def dense_net_block(model_config: dict):
         return x
 
     def _dense_block(inputs):
-        x = conv2d_block(filters, 7, strides=(1,2), use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
+        x = conv2d_layer(filters, 7, strides=(1,2), use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
         x = MaxPooling2D(pool_size=(5,2))(x)
 
         for i in range(len(block_num)):
@@ -149,7 +150,7 @@ def xception_block(model_config: dict):
         else:
             filters1, filters2 = filters
 
-        residual = conv2d_block(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer, activation=None)(inputs)
+        residual = conv2d_layer(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer, activation=None)(inputs)
 
         x = _sepconv_block(inputs, filters1, 'relu')
         x = _sepconv_block(x, filters2, None)
@@ -159,9 +160,9 @@ def xception_block(model_config: dict):
         return x
 
     def _xception_net_block(inputs):
-        x = conv2d_block(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = conv2d_layer(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
         x = MaxPooling2D(pool_size=(5,1))(x)
-        x = conv2d_block(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
+        x = conv2d_layer(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
 
         x = _residual_block(x, filters * 4)
         x = _residual_block(x, filters * 8)
@@ -186,6 +187,7 @@ def xception_block(model_config: dict):
     return _xception_net_block
     
 
+# can be replaced by res_bottleneck_block
 def resnet50_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
@@ -195,15 +197,15 @@ def resnet50_block(model_config: dict):
 
     def block1(x, filters, kernel_size=3, strides=1, conv_shortcut=True):
         if conv_shortcut:
-            shortcut = conv2d_block(4 * filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, activation=None)(x)
+            shortcut = conv2d_layer(4 * filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, activation=None)(x)
         else:
             shortcut = x
 
-        x = conv2d_block(filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
+        x = conv2d_layer(filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
 
-        x = conv2d_block(filters, kernel_size, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
+        x = conv2d_layer(filters, kernel_size, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
 
-        x = conv2d_block(4 * filters, 1, kernel_regularizer=kernel_regularizer, activation=None, norm_eps=1.001e-5)(x)
+        x = conv2d_layer(4 * filters, 1, kernel_regularizer=kernel_regularizer, activation=None, norm_eps=1.001e-5)(x)
 
         x = Add()([shortcut, x])
         x = Activation('relu')(x)
@@ -222,7 +224,7 @@ def resnet50_block(model_config: dict):
         return stack(x, filters * 8, block_num[3])
 
     def _resnet50_block(inputs):
-        x = conv2d_block(filters, 7, strides=(1, 2), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
+        x = conv2d_layer(filters, 7, strides=(1, 2), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
 
         x = MaxPooling2D(3, strides=(5, 2), padding='same')(x)
         x = stack_fn(x)
@@ -307,4 +309,10 @@ def simple_dense_block(model_config: dict):
         return x
 
     return dense_block
-    
+
+
+def identity_block(model_config: dict):
+    def identity(inputs):
+        return inputs
+    return identity
+
