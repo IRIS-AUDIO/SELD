@@ -188,52 +188,6 @@ def xception_block(model_config: dict):
     return _xception_net_block
     
 
-# can be replaced by res_bottleneck_block
-def resnet50_block(model_config: dict):
-    filters = model_config['filters']
-    block_num = model_config['block_num']
-
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def block1(x, filters, kernel_size=3, strides=1, conv_shortcut=True):
-        if conv_shortcut:
-            shortcut = conv2d_layer(4 * filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, activation=None)(x)
-        else:
-            shortcut = x
-
-        x = conv2d_layer(filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
-
-        x = conv2d_layer(filters, kernel_size, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
-
-        x = conv2d_layer(4 * filters, 1, kernel_regularizer=kernel_regularizer, activation=None, norm_eps=1.001e-5)(x)
-
-        x = Add()([shortcut, x])
-        x = Activation('relu')(x)
-        return x
-
-    def stack(x, filters, blocks, strides=2):
-        x = block1(x, filters, strides=strides)
-        for _ in range(blocks - 1):
-            x = block1(x, filters, conv_shortcut=False)
-        return x
-
-    def stack_fn(x):
-        x = stack(x, filters, block_num[0], strides=1)
-        x = stack(x, filters * 2, block_num[1])
-        x = stack(x, filters * 4, block_num[2])
-        return stack(x, filters * 8, block_num[3])
-
-    def _resnet50_block(inputs):
-        x = conv2d_layer(filters, 7, strides=(1, 2), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
-
-        x = MaxPooling2D(3, strides=(5, 2), padding='same')(x)
-        x = stack_fn(x)
-        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
-        return x
-    return _resnet50_block
-
-
 """      sequential blocks      """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters

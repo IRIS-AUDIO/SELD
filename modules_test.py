@@ -86,25 +86,6 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_resnet50_block(self):
-        model_config = {
-            'filters': 32,
-            'name': 'resnet50_block',
-            'block_num': [3, 4, 6, 3],
-            'kernel_regularizer': {
-                'l1': 0,
-                'l2': 1e-3
-            }
-        }
-
-        exp_input_shape = 2, 300, 64, 3
-        exp_output_shape = 2, 60, 2048
-
-        self.block_test(resnet50_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
     def test_bidirectional_GRU_block(self):
         model_config = {
             'units': [128, 128], # mandatory
