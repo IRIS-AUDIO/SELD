@@ -9,15 +9,15 @@ You should not import class or functions from modules or models
 """
 
 
-def conv2d_layer(filters,
-                 kernel_size, 
-                 strides=(1, 1), 
-                 padding='same', 
-                 groups=1,
-                 use_bias=True, 
-                 kernel_regularizer=None, 
-                 activation=None, 
-                 bn_args=None):
+def conv2d_bn(filters,
+              kernel_size, 
+              strides=(1, 1), 
+              padding='same', 
+              groups=1,
+              use_bias=True, 
+              kernel_regularizer=None, 
+              activation=None, 
+              bn_args=None):
     if bn_args is None:
         bn_args = {} # you can put axis, momentum, epsilon in bn_args
 

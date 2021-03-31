@@ -5,7 +5,7 @@ from layers import *
 
 
 class LayersTest(tf.test.TestCase):
-    def test_conv2d_layer(self):
+    def test_conv2d_bn(self):
         layer_args = dict(
             filters=8,
             kernel_size=3,
@@ -16,7 +16,7 @@ class LayersTest(tf.test.TestCase):
         exp_input_shape = 32, 16, 16, 3 
         exp_output_shape = 32, 16, 16, 8
 
-        self.layer_test(conv2d_layer, 
+        self.layer_test(conv2d_bn, 
                         layer_args, 
                         exp_input_shape,
                         exp_output_shape)
