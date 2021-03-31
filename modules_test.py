@@ -54,6 +54,23 @@ class ModulesTest(tf.test.TestCase):
                          exp_input_shape,
                          exp_output_shape)
 
+    def test_dense_net_block(self):
+        model_config = {
+            'growth_rate' : 6, # mandatory
+            'depth': 4, # mandatory
+            'strides': [2, 2], # mandatory
+            'bottleneck_ratio': 4,
+            'reduction_ratio': 0.5,
+        }
+
+        exp_input_shape = 2, 32, 32, 6
+        exp_output_shape = 2, 16, 16, 15
+
+        self.block_test(dense_net_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_xception_block(self):
         model_config = {
             'filters' : 32,
@@ -66,22 +83,6 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 60, 8192
 
         self.block_test(xception_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
-    def test_dense_net_block(self):
-        model_config = {
-            'filters' : 32,
-            'name': 'dense_net_block',
-            'block_num': [6,12,24,16],
-            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
-        }
-
-        exp_input_shape = 2, 300, 64, 3
-        exp_output_shape = 2, 60, 2040
-
-        self.block_test(dense_net_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)

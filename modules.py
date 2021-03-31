@@ -53,83 +53,78 @@ def res_bottleneck_stage(model_config: dict):
 
 
 def res_bottleneck_block(model_config: dict):
-     # mandatory parameters
-     filters = model_config['filters']
-     strides = model_config['strides']
-
-     groups = model_config.get('groups', 1)
-     bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
-     activation = model_config.get('activation', 'relu')
-
-     if isinstance(strides, int):
-         strides = (strides, strides)
-     bottleneck_size = int(filters * bottleneck_ratio)
-
-     def bottleneck_block(inputs):
-         out = Conv2D(bottleneck_size, 1)(inputs)
-         out = BatchNormalization()(out)
-         out = Activation(activation)(out)
-
-         out = Conv2D(bottleneck_size, 3, strides, 
-                      padding='same', groups=groups)(out)
-         out = BatchNormalization()(out)
-         out = Activation(activation)(out)
-
-         out = Conv2D(filters, 1)(out)
-         out = BatchNormalization()(out)
-
-         if strides != (1, 1) or inputs.shape[-1] != filters:
-             inputs = Conv2D(filters, 1, strides)(inputs)
-             inputs = BatchNormalization()(inputs)
-
-         out = Activation(activation)(out + inputs)
-
-         return out
-
-     return bottleneck_block
-
-
-def dense_net_block(model_config: dict):
+    # mandatory parameters
     filters = model_config['filters']
-    block_num = model_config['block_num']
+    strides = model_config['strides']
+
+    groups = model_config.get('groups', 1)
+    bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
+    activation = model_config.get('activation', 'relu')
+
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    bottleneck_size = int(filters * bottleneck_ratio)
+
+    def bottleneck_block(inputs):
+        out = Conv2D(bottleneck_size, 1)(inputs)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(bottleneck_size, 3, strides, 
+                     padding='same', groups=groups)(out)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(filters, 1)(out)
+        out = BatchNormalization()(out)
+
+        if strides not in [1, (1, 1), [1, 1]] or inputs.shape[-1] != filters:
+            inputs = Conv2D(filters, 1, strides)(inputs)
+            inputs = BatchNormalization()(inputs)
+
+        out = Activation(activation)(out + inputs)
+
+        return out
+
+    return bottleneck_block
 
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
-    def conv_block(x, growth_rate):
-        x1 = BatchNormalization(epsilon=1.001e-5)(x)
-        x1 = Activation('relu')(x1)
-        x1 = conv2d_layer(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x1)
-        x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
-        x = Concatenate()([x, x1])
+
+def dense_net_block(model_config: dict):
+    # mandatory
+    growth_rate = model_config['growth_rate']
+    depth = model_config['depth']
+    strides = model_config['strides']
+
+    bottleneck_ratio = model_config.get('bottleneck_ratio', 4)
+    reduction_ratio = model_config.get('reduction_ratio', 0.5)
+    bn_args = model_config.get('bn_args', {})
+
+    transition = strides not in [1, (1, 1), [1, 1]]
+
+    def _dense_net_block(inputs):
+        x = inputs
+
+        for i in range(depth):
+            out = BatchNormalization(**bn_args)(x)
+            out = Activation('relu')(out)
+            out = Conv2D(bottleneck_ratio * growth_rate, 1, use_bias=False)(out)
+            out = BatchNormalization(**bn_args)(out)
+            out = Activation('relu')(out)
+            out = Conv2D(growth_rate, 3, padding='same', use_bias=True)(out)
+            x = Concatenate(axis=-1)([x, out])
+
+        if transition:
+            x = BatchNormalization(**bn_args)(x)
+            x = Activation('relu')(x)
+            x = Conv2D(int(x.shape[-1] * reduction_ratio), 1, use_bias=False)(x)
+            x = AveragePooling2D(strides, strides)(x)
+
         return x
 
-    def transition_block(x, reduction):
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
-        x = Conv2D(x.shape[-1] * reduction, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
-        x = AveragePooling2D(2, strides=(1,2), padding='same')(x)
-        return x
-    
-    def dense_blocks(x, block_num):
-        for i in range(block_num):
-            x = conv_block(x, 32)
-        return x
-
-    def _dense_block(inputs):
-        x = conv2d_layer(filters, 7, strides=(1,2), use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
-        x = MaxPooling2D(pool_size=(5,2))(x)
-
-        for i in range(len(block_num)):
-            x = dense_blocks(x, block_num[i])
-            x = transition_block(x, 0.5) if i != len(block_num) - 1 else x
-
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
-
-        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
-        return x
-    return _dense_block
+    return _dense_net_block
 
 
 def xception_block(model_config: dict):
