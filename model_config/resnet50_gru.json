@@ -1,9 +1,9 @@
 {
-    "FIRST": "xception_1d_block",
+    "FIRST": "resnet50_block",
     "FIRST_ARGS":
     {
         "filters": 32,
-        "block_num": 2,
+        "block_num": [3, 4, 6, 3],
         "kernel_regularizer": {
             "l1": 0,
             "l2": 1e-3

@@ -1,18 +1,20 @@
 {
     "abspath": "/root/datasets",
+    "agc": false,
     "batch": 256,
     "decay": 0.9,
     "doa_loss": "MSE",
     "epoch": 1000,
-    "freq_mask_size": 8,
+    "freq_mask_size": 16,
     "lad_doa_thresh": 20,
     "loop_time": 5,
     "loss_weight": "1,1000",
     "lr": 0.001,
+    "lr_patience": 5,
     "model": "seldnet",
     "model_config": "seldnet",
     "name": "seldnet_seldnet_MSE_mask_v_0",
-    "patience": 100,
+    "patience": 50,
     "resume": false,
     "time_mask_size": 24
 }

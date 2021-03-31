@@ -272,22 +272,30 @@ def polar_to_cartesian(coordinates):
 
 
 if __name__ == '__main__':
+    import argparse
+    import os
+    arg = argparse.ArgumentParser()
+    arg.add_argument('--mode', default='foa', type=str, choices=['foa', 'mic'])
+    arg.add_argument('--gpus', default='-1', type=str)
+    config = arg.parse_args()
+    os.environ['CUDA_VISIBLE_DEVICES'] = config.gpus
     # How to use
     # Extracting Features and Labels
+    mode = config.mode
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
-    FEATURE_PATH = os.path.join(abspath, 'foa_dev')
+    FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
 
     # should 
-    FEATURE_OUTPUT_PATH = 'foa_dev'
-    LABEL_OUTPUT_PATH = 'foa_dev_label'
-    NORM_FEATURE_PATH = 'foa_dev_norm'
+    FEATURE_OUTPUT_PATH = f'{mode}_dev'
+    LABEL_OUTPUT_PATH = f'{mode}_dev_label'
+    NORM_FEATURE_PATH = f'{mode}_dev_norm'
 
     extract_seldnet_data(FEATURE_PATH, 
                          FEATURE_OUTPUT_PATH,
                          LABEL_PATH, 
                          LABEL_OUTPUT_PATH,
-                         mode='foa', 
+                         mode=mode, 
                          win_length=960,
                          hop_length=480,
                          n_fft=1024)
