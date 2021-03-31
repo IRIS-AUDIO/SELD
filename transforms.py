@@ -60,3 +60,22 @@ def split_total_labels_to_sed_doa(x, y):
     n_classes = tf.shape(y)[-1] // 4
     return x, (y[..., :n_classes], y[..., n_classes:])
 
+
+''' For FOA Channel Swapping '''
+T_XYZ_TO_YZX = tf.convert_to_tensor(
+    [[0., 1., 0.],
+     [0., 0., 1.],
+     [1., 0., 0.]])
+
+T_XYZ_TO_YZX_INV = tf.convert_to_tensor(
+    [[0., 0., 1.],
+     [1., 0., 0.],
+     [0., 1., 0.]])
+
+I3 = tf.eye(3, dtype='float32')
+
+def get_xyz_swap(yzx_swap):
+    B = tf.gather(I3, yzx_swap)
+    A = tf.matmul(tf.matmul(T_XYZ_TO_YZX_INV, B), T_XYZ_TO_YZX)
+    return tf.argmax(A, -1)
+
