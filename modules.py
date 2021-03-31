@@ -29,8 +29,8 @@ def simple_conv_block(model_config: dict):
     def conv_block(inputs):
         x = inputs
         for i in range(len(filters)):
-            x = conv2d_block(filters[i], kernel_size=3, 
-                             kernel_regularizer=kernel_regularizer)(x)
+            x = conv2d_bn(filters[i], kernel_size=3, 
+                          kernel_regularizer=kernel_regularizer)(x)
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
         return x
