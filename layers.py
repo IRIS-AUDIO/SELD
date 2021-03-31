@@ -9,20 +9,29 @@ You should not import class or functions from modules or models
 """
 
 
-def conv2d_block(filters,
+def conv2d_layer(filters,
                  kernel_size, 
                  strides=(1, 1), 
                  padding='same', 
-                 activation='relu', 
+                 groups=1,
                  use_bias=True, 
                  kernel_regularizer=None, 
-                 groups=1,
-                 norm_axis=-1,
-                 norm_eps=1e-3):
-    def _conv2d_block(inputs):
-        x = Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=use_bias, kernel_regularizer=kernel_regularizer, groups=groups)(inputs)
-        x = BatchNormalization(norm_axis, epsilon=norm_eps)(x)
-        x = Activation(activation)(x) if activation else x
+                 activation=None, 
+                 bn_args=None):
+    if bn_args is None:
+        bn_args = {} # you can put axis, momentum, epsilon in bn_args
+
+    def _conv2d_layer(inputs):
+        x = Conv2D(filters, kernel_size, 
+                   strides=strides, 
+                   padding=padding, 
+                   groups=groups,
+                   use_bias=use_bias, 
+                   kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization(**bn_args)(x)
+        if activation:
+            x = Activation(activation)(x)
         return x
-    return _conv2d_block
+
+    return _conv2d_layer
 
