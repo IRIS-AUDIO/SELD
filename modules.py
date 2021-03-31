@@ -28,38 +28,62 @@ def simple_conv_block(model_config: dict):
     def conv_block(inputs):
         x = inputs
         for i in range(len(filters)):
-            x = conv2d_block(filters[i], kernel_size=3, kernel_regularizer=kernel_regularizer)(x)
+            x = conv2d_block(filters[i], kernel_size=3, 
+                             kernel_regularizer=kernel_regularizer)(x)
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
         return x
     return conv_block
 
 
-def cond_conv_block(model_config: dict):
+def res_bottleneck_stage(model_config: dict):
     # mandatory parameters
-    filters = model_config['filters']
-    pool_size = model_config['pool_size']
-    
-    dropout_rate = model_config.get('dropout_rate', 0.)  
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    if len(filters) == 0:
-        filters = filters * len(pool_size)
-    elif len(filters) != len(pool_size):
-        raise ValueError("len of filters and pool_size do not match")
-    
-    def conv_block(inputs):
+    depth = model_config['depth']
+    strides = model_config['strides']
+    model_config = copy.deepcopy(model_config)
+    def stage(inputs):
         x = inputs
-        for i in range(len(filters)):
-            x = CondConv2D(filters[i], kernel_size=3, padding='same')(x)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
-            x = MaxPooling2D(pool_size=pool_size[i])(x)
-            x = Dropout(dropout_rate)(x)
+        for i in range(depth):
+            x = res_bottleneck_block(model_config)(x)
+            model_config['strides'] = 1
         return x
+     return stage
 
-    return conv_block
+
+def res_bottleneck_block(model_config: dict):
+     # mandatory parameters
+     filters = model_config['filters']
+     strides = model_config['strides']
+     groups = model_config['groups']
+     bottleneck_ratio = model_config['bottleneck_ratio']
+
+     activation = model_config.get('activation', 'relu')
+
+     if isinstance(strides, int):
+         strides = (strides, strides)
+     bottleneck_size = int(filters * bottleneck_ratio)
+
+     def bottleneck_block(inputs):
+         out = Conv2D(filters, 1)(inputs)
+         out = BatchNormalization()(out)
+         out = Activation(activation)(out)
+
+         out = Conv2D(bottleneck_size, 3, strides, 
+                      padding='same', groups=groups)(out)
+         out = BatchNormalization()(out)
+         out = Activation(activation)(out)
+
+         out = Conv2D(filters, 1)(out)
+         out = BatchNormalization()(out)
+
+         if strides != (1, 1) or inputs.shape[-1] != filters:
+             inputs = Conv2D(filters, 1, strides)(inputs)
+
+         out = Activation(activation)(out + inputs)
+
+         return out
+
+     return bottleneck_block
 
 
 """      sequential blocks      """
@@ -300,3 +324,4 @@ def conv2d_block(filters,
         x = Activation(activation)(x) if activation else x
         return x
     return _conv2d_block
+
