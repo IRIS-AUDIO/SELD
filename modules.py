@@ -29,7 +29,7 @@ def simple_conv_block(model_config: dict):
     def conv_block(inputs):
         x = inputs
         for i in range(len(filters)):
-            x = conv2d_layer(filters[i], kernel_size=3, 
+            x = conv2d_block(filters[i], kernel_size=3, 
                              kernel_regularizer=kernel_regularizer)(x)
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
@@ -88,9 +88,6 @@ def res_bottleneck_block(model_config: dict):
 
     return bottleneck_block
 
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
 
 def dense_net_block(model_config: dict):
     # mandatory
@@ -101,8 +98,6 @@ def dense_net_block(model_config: dict):
     bottleneck_ratio = model_config.get('bottleneck_ratio', 4)
     reduction_ratio = model_config.get('reduction_ratio', 0.5)
     bn_args = model_config.get('bn_args', {})
-
-    transition = strides not in [1, (1, 1), [1, 1]]
 
     def _dense_net_block(inputs):
         x = inputs
@@ -116,7 +111,7 @@ def dense_net_block(model_config: dict):
             out = Conv2D(growth_rate, 3, padding='same', use_bias=True)(out)
             x = Concatenate(axis=-1)([x, out])
 
-        if transition:
+        if strides not in [1, (1, 1), [1, 1]]:
             x = BatchNormalization(**bn_args)(x)
             x = Activation('relu')(x)
             x = Conv2D(int(x.shape[-1] * reduction_ratio), 1, use_bias=False)(x)
@@ -135,7 +130,8 @@ def xception_block(model_config: dict):
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
     def _sepconv_block(inputs, filters, activation):
-        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
+                            kernel_regularizer=kernel_regularizer)(inputs)
         x = BatchNormalization()(x)
         x = Activation(activation)(x) if activation else x
         return x
@@ -146,7 +142,10 @@ def xception_block(model_config: dict):
         else:
             filters1, filters2 = filters
 
-        residual = conv2d_layer(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer, activation=None)(inputs)
+        residual = conv2d_bn(filters2, 1, strides=(1,2), padding='same', 
+                             use_bias=False, 
+                             kernel_regularizer=kernel_regularizer, 
+                             activation=None)(inputs)
 
         x = _sepconv_block(inputs, filters1, 'relu')
         x = _sepconv_block(x, filters2, None)
@@ -156,9 +155,11 @@ def xception_block(model_config: dict):
         return x
 
     def _xception_net_block(inputs):
-        x = conv2d_layer(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = conv2d_bn(filters, 3, use_bias=False, 
+                      kernel_regularizer=kernel_regularizer)(inputs)
         x = MaxPooling2D(pool_size=(5,1))(x)
-        x = conv2d_layer(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
+        x = conv2d_bn(filters * 2, 3, use_bias=False, 
+                      kernel_regularizer=kernel_regularizer)(x)
 
         x = _residual_block(x, filters * 4)
         x = _residual_block(x, filters * 8)

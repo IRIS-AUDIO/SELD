@@ -43,7 +43,7 @@ def seldnet_v1(input_shape, model_config):
 def conv_temporal(input_shape, model_config):
     inputs = Input(shape=input_shape[-3:])
     
-    x = layers.conv2d_layer(16, 7, strides=1, activation='relu')(inputs)
+    x = layers.conv2d_bn(16, 7, strides=1, activation='relu')(inputs)
     x = MaxPooling2D(5, strides=(5, 2), padding='same')(x)
 
     x = getattr(modules, model_config.FIRST)(model_config.FIRST_ARGS)(x)
