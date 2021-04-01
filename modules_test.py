@@ -139,8 +139,18 @@ class ModulesTest(tf.test.TestCase):
             'dropout_rate': 0.3,
         }
 
-        exp_input_shape = 32, 10, 32, 8
+        # 1D inputs
+        exp_input_shape = 32, 10, 32
         exp_output_shape = 32, 10, 128
+
+        self.block_test(bidirectional_GRU_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+        # 2D inputs
+        exp_input_shape = 32, 10, 32, 8
+        exp_output_shape = 32, 10, 32, 4
 
         self.block_test(bidirectional_GRU_block, 
                         model_config, 

@@ -273,8 +273,9 @@ def bidirectional_GRU_block(model_config: dict):
 
     def GRU_block(inputs):
         x = inputs
-        if len(x.shape) == 4: # [batch, time, freq, chan]
-            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        x_shape = x.shape
+        if len(x_shape) == 4: # [batch, time, freq, chan]
+            x = Reshape((-1, x_shape[-2]*x_shape[-1]))(x)
 
         for units in units_per_layer:
             x = Bidirectional(
@@ -282,6 +283,10 @@ def bidirectional_GRU_block(model_config: dict):
                     dropout=dropout_rate, recurrent_dropout=dropout_rate, 
                     return_sequences=True),
                 merge_mode='mul')(x)
+
+        if len(x_shape) == 4:
+            x = Reshape((*x_shape[-3:-1], -1))(x)
+
         return x
 
     return GRU_block
