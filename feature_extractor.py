@@ -27,6 +27,9 @@ def extract_seldnet_data(feature_path: str,
     f_paths = sorted(glob(os.path.join(feature_path, '*.wav')))
     l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
 
+    f_paths = f_paths[:300]
+    l_paths = l_paths[:300]
+
     if len(f_paths) != len(l_paths):
         raise ValueError('# of features and labels are not matched')
 
@@ -42,7 +45,7 @@ def extract_seldnet_data(feature_path: str,
         if name != extract_name(l):
             raise ValueError('feature, label must share the same name')
         wav, r = torchaudio.load(f)
-        f = extract_features(wav, r, mode=mode, **kwargs)
+        f = extract_features_spec(wav, r, **kwargs)
         l = extract_labels(l)
         f, l = preprocess_features_labels(f, l)
         
@@ -56,7 +59,6 @@ def extract_mix_seldnet_data(feature_path: str,
                          label_path: str,
                          label_output_path: str,
                          mode='foa',
-                         use_mix=False,
                          **kwargs):
 
     if feature_output_path == label_output_path:
@@ -90,7 +92,7 @@ def extract_mix_seldnet_data(feature_path: str,
         random_number = rnd.randrange(len(l_paths_train) -1)
         pick_or = rnd.random() > 0.5
         if pick_or:
-            check = use_mix and (f in (f_paths_train))
+            check = f in (f_paths_train)
             if check:
                 removed_f = f_paths_train.copy() 
                 removed_f.remove(f)
@@ -389,10 +391,12 @@ def mix_and_extract(original, mix, original_label, mix_label,
     original_sound, r = torchaudio.load(original)
     mixing_sound, r = torchaudio.load(mix)
     ms = r * 0.1 # ms frame
-    snr = rnd.uniform(-10,10)
+    snr = rnd.uniform(0.3,0.7)
     
     # mix two sound
-    mix, source, noise, _ = adjust_noise(mixing_sound, original_sound, snr)
+    mix, source, _, _ = adjust_noise(mixing_sound, original_sound, snr)
+    mix = original_sound*snr + mixing_sound*(1-snr)
+
     ori_label_list = []
     with open(original_label, 'r') as o: # Original metadata
         for line in o.readlines():
@@ -421,7 +425,7 @@ def mix_and_extract(original, mix, original_label, mix_label,
     new_label = np.delete(new_label, frame_remove, axis = 0)
     for frame in frame_remove:
         mix[:, int(ms*frame):int(ms*(frame+1))] = \
-        source[:, int(ms*frame):int(ms*(frame+1))] 
+        original_sound[:, int(ms*frame):int(ms*(frame+1))]*snr 
     return mix, new_label
 
 
@@ -448,13 +452,13 @@ if __name__ == '__main__':
     NORM_FEATURE_PATH = f'{mode}_dev_norm'
 
     extract_seldnet_data(FEATURE_PATH, 
-                         FEATURE_OUTPUT_PATH,
-                         LABEL_PATH, 
-                         LABEL_OUTPUT_PATH,
-                         mode=mode, 
-                         win_length=960,
-                         hop_length=480,
-                         n_fft=1024)
+                          FEATURE_OUTPUT_PATH,
+                          LABEL_PATH, 
+                          LABEL_OUTPUT_PATH,
+                          mode=mode, 
+                          win_length=960,
+                          hop_length=480,
+                          n_fft=1024)
     if USE_MIX:
         extract_mix_seldnet_data(FEATURE_PATH, 
                              FEATURE_OUTPUT_PATH,
