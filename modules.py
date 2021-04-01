@@ -98,7 +98,7 @@ def res_basic_block(model_config: dict):
     if isinstance(strides, int):
         strides = (strides, strides)
 
-    def bottleneck_block(inputs):
+    def basic_block(inputs):
         out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
         out = BatchNormalization()(out)
         out = Activation(activation)(out)
@@ -114,7 +114,7 @@ def res_basic_block(model_config: dict):
 
         return out
 
-    return bottleneck_block
+    return basic_block
 
 
 def res_bottleneck_stage(model_config: dict):
