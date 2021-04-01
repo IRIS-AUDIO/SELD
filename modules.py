@@ -37,6 +37,40 @@ def simple_conv_block(model_config: dict):
     return conv_block
 
 
+def another_conv_block(model_config: dict):
+    # mandatory parameters
+    filters = model_config['filters']
+    depth = model_config['depth']
+    pool_size = model_config['pool_size']
+
+    activation = model_config.get('activation', 'relu')
+
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+
+    def conv_block(inputs):
+        x = inputs
+
+        for i in range(depth):
+            out = BatchNormalization()(x)
+            out = Activation(activation)(out)
+            out = Conv2D(filters, 3, padding='same')(out)
+
+            out = BatchNormalization()(x)
+            out = Activation(activation)(out)
+            out = Conv2D(filters, 3, padding='same')(out)
+
+            if x.shape[-1] != filters:
+                x = Conv2D(filters, 1)(x)
+            x = x + out
+
+        if pool_size[0] > 1 or pool_size[1] > 1:
+            x = MaxPool2D(pool_size, strides=pool_size)(x)
+
+        return x
+    return conv_block
+
+
 def res_basic_stage(model_config: dict):
     # mandatory parameters
     depth = model_config['depth']

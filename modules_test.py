@@ -21,6 +21,21 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_another_conv_block(self):
+         model_config = {
+             'depth': 2, # mandatory
+             'filters': 32, # mandatory
+             'pool_size': 2, # mandatory 
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(another_conv_block,
+                         model_config,
+                         exp_input_shape,
+                         exp_output_shape)
+
     def test_res_basic_stage(self):
          model_config = {
              'depth': 2, # mandatory
