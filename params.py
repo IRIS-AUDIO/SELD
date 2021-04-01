@@ -43,6 +43,7 @@ def get_param(known=None):
     # model config
     if len(config.model_config) == 0:
         config.model_config = config.model
+        config.model_config = os.path.splitext(config.model_config)[0]
     model_config_name = config.model_config
     model_config = model_config_name + '.json'
     model_config = os.path.join('./model_config', model_config)
