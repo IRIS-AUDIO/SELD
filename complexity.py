@@ -160,10 +160,10 @@ def Attention_complexity(input_shape, num_heads, key_dim, value_dim,
         size *= s
     
     # making Q, K, V
-    params = num_heads*c*((key_dim + use_bias)*2 + value_dim + use_bias)
+    params = num_heads*(c + use_bias)*(key_dim*2 + value_dim)
     
     # Value to output
-    params += num_heads*c*(value_dim + use_bias)
+    params += num_heads*c*value_dim + c*use_bias
 
     # embedding
     flops = size*num_heads*(2*use_bias + 2*key_dim + value_dim)*c

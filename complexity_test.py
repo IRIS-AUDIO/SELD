@@ -106,20 +106,20 @@ class ComplexityTest(tf.test.TestCase):
         
         
     def test_attention(self):
-        target_cx = {'flops': 125542400, 'params': 1052672}
-        target_shape = [1, 100, 256]
+        target_cx = {'flops': 109465600, 'params': 790656}
+        target_shape = [1, 100, 128]
         self.assertEqual(
-            Attention_complexity(input_shape=[1, 100, 256],
+            Attention_complexity(input_shape=[1, 100, 128],
                                  num_heads=4,
                                  key_dim=256,
-                                 value_dim=256,
+                                 value_dim=512,
                                  use_bias=True),
             (target_cx, target_shape))
         self.assertEqual(
-            Attention_complexity(input_shape=[1, 100, 256],
+            Attention_complexity(input_shape=[1, 100, 128],
                                  num_heads=4,
                                  key_dim=256,
-                                 value_dim=256,
+                                 value_dim=512,
                                  use_bias=True,
                                  prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
