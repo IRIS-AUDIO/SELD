@@ -101,6 +101,84 @@ def linear_complexity(input_shape, units, use_bias=True, prev_cx=None):
     return complexity, output_shape
 
 
+def GRU_complexity(input_shape, units, layers, use_bias=True,
+                   bi=True, prev_cx=None):
+    
+    input_chan = input_shape[-1]
+    hidden_size = units
+    layers = layers
+    num_steps = input_shape[-2]
+    params = 3*units*(input_chan + units + 1)
+    if use_bias:
+        params += 3*hidden_size
+    if bi:
+        params *= 2
+    #for flops I refer this part
+    #https://github.com/Lyken17/pytorch-OpCounter/blob/master/thop/rnn_hooks.py
+    flops = 0
+    if bi:
+        flops += _count_gru_cell(input_chan, hidden_size, use_bias) * 2
+    else:
+        flops += _count_gru_cell(input_chan, hidden_size, use_bias)
+    for i in range(layers - 1):
+        if bi:
+            flops += _count_gru_cell(hidden_size * 2, hidden_size,
+                                         use_bias) * 2
+        else:
+            flops += _count_gru_cell(hidden_size, hidden_size, use_bias)
+
+    flops *= num_steps
+    output_shape = input_shape[:-1] + [units]
+    complexity = dict_add(
+        {'flops': flops, 'params': params},
+        prev_cx if prev_cx else {})
+    return complexity, output_shape
+
+
+def _count_gru_cell(input_size, hidden_size, bias=True):
+
+    total_ops = 0
+    state_ops = (hidden_size + input_size) * hidden_size + hidden_size
+    if bias:
+        state_ops += hidden_size * 2
+    total_ops += state_ops * 2
+    total_ops += (hidden_size + input_size) * hidden_size + hidden_size
+    if bias:
+        total_ops += hidden_size * 2
+    total_ops += hidden_size
+    total_ops += hidden_size * 3
+
+    return total_ops
+
+
+def Attention_complexity(input_shape, num_heads, key_dim, value_dim,
+                         use_bias=True, prev_cx=None):
+    
+    c = input_shape[-1]
+    size = 1
+    for s in input_shape[:-1]:
+        size *= s
+    
+    # making Q, K, V
+    params = num_heads*c*((key_dim + use_bias)*2 + value_dim + use_bias)
+    
+    # Value to output
+    params += num_heads*c*(value_dim + use_bias)
+
+    # embedding
+    flops = size*num_heads*(2*use_bias + 2*key_dim + value_dim)*c
+    
+    # scaled dot product attention & context
+    flops += (size*size*key_dim + size*size*value_dim)*num_heads
+
+    # context to output size
+    flops += size*value_dim*c*num_heads
+    
+    output_shape = input_shape
+    complexity = dict_add(
+        {'flops': flops, 'params': params},
+        prev_cx if prev_cx else {})
+    return complexity, output_shape
 # utils
 def safe_tuple(tuple_or_scalar, length=2):
     if isinstance(tuple_or_scalar, (int, float)):
