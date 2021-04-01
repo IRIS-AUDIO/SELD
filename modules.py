@@ -37,6 +37,52 @@ def simple_conv_block(model_config: dict):
     return conv_block
 
 
+def res_basic_stage(model_config: dict):
+    # mandatory parameters
+    depth = model_config['depth']
+    strides = model_config['strides']
+
+    model_config = copy.deepcopy(model_config)
+
+    def stage(inputs):
+        x = inputs
+        for i in range(depth):
+            x = res_basic_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
+def res_basic_block(model_config: dict):
+    # mandatory parameters
+    filters = model_config['filters']
+    strides = model_config['strides']
+
+    groups = model_config.get('groups', 1)
+    activation = model_config.get('activation', 'relu')
+
+    if isinstance(strides, int):
+        strides = (strides, strides)
+
+    def bottleneck_block(inputs):
+        out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(filters, 3, padding='same', groups=groups)(out)
+        out = BatchNormalization()(out)
+
+        if strides not in [(1, 1), [1, 1]] or inputs.shape[-1] != filters:
+            inputs = Conv2D(filters, 1, strides)(inputs)
+            inputs = BatchNormalization()(inputs)
+
+        out = Activation(activation)(out + inputs)
+
+        return out
+
+    return bottleneck_block
+
+
 def res_bottleneck_stage(model_config: dict):
     # mandatory parameters
     depth = model_config['depth']
@@ -78,7 +124,7 @@ def res_bottleneck_block(model_config: dict):
         out = Conv2D(filters, 1)(out)
         out = BatchNormalization()(out)
 
-        if strides not in [1, (1, 1), [1, 1]] or inputs.shape[-1] != filters:
+        if strides not in [(1, 1), [1, 1]] or inputs.shape[-1] != filters:
             inputs = Conv2D(filters, 1, strides)(inputs)
             inputs = BatchNormalization()(inputs)
 
