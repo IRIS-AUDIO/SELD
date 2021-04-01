@@ -5,28 +5,28 @@
     {
         "filters": 32,
         "depth": 3,
-	"strides": [1, 2]
+        "strides": [1, 2]
     },
     "SECOND": "res_bottleneck_stage",
     "SECOND_ARGS":
     {
         "filters": 64,
         "depth": 4,
-	"strides": [1, 2]
+        "strides": [1, 2]
     },
     "THIRD": "res_bottleneck_stage",
     "THIRD_ARGS":
     {
         "filters": 128,
         "depth": 6,
-	"strides": [1, 2]
+        "strides": [1, 2]
     },
     "FOURTH": "res_bottleneck_stage",
     "FOURTH_ARGS":
     {
         "filters": 256,
         "depth": 3,
-	"strides": [1, 2]
+        "strides": [1, 2]
     },
     "FIFTH": "bidirectional_GRU_block",
     "FIFTH_ARGS":
@@ -37,17 +37,17 @@
     "SED": "simple_dense_block",
     "SED_ARGS":
     {
-	"units": [128],
-	"n_classes": 14,
-	"activation": "sigmoid",
-	"name": "sed_out"
+        "units": [128],
+        "n_classes": 14,
+        "activation": "sigmoid",
+        "name": "sed_out"
     },
     "DOA": "simple_dense_block",
     "DOA_ARGS":
     {
-	"units": [128],
-	"n_classes": 42,
-	"activation": "tanh",
-	"name": "doa_out"
+        "units": [128],
+        "n_classes": 42,
+        "activation": "tanh",
+        "name": "doa_out"
     }
 }
