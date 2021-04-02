@@ -177,22 +177,21 @@ def dense_net_block(model_config: dict):
 
     bottleneck_ratio = model_config.get('bottleneck_ratio', 4)
     reduction_ratio = model_config.get('reduction_ratio', 0.5)
-    bn_args = model_config.get('bn_args', {})
 
     def _dense_net_block(inputs):
         x = inputs
 
         for i in range(depth):
-            out = BatchNormalization(**bn_args)(x)
+            out = BatchNormalization()(x)
             out = Activation('relu')(out)
             out = Conv2D(bottleneck_ratio * growth_rate, 1, use_bias=False)(out)
-            out = BatchNormalization(**bn_args)(out)
+            out = BatchNormalization()(out)
             out = Activation('relu')(out)
             out = Conv2D(growth_rate, 3, padding='same', use_bias=True)(out)
             x = Concatenate(axis=-1)([x, out])
 
         if strides not in [1, (1, 1), [1, 1]]:
-            x = BatchNormalization(**bn_args)(x)
+            x = BatchNormalization()(x)
             x = Activation('relu')(x)
             x = Conv2D(int(x.shape[-1] * reduction_ratio), 1, use_bias=False)(x)
             x = AveragePooling2D(strides, strides)(x)
