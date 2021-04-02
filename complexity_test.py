@@ -86,19 +86,17 @@ class ComplexityTest(tf.test.TestCase):
             (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_GRU_complexity(self):
-        target_cx = {'flops': 2676000, 'params': 9360}
+        target_cx = {'flops': 978000, 'params': 9360}
         target_shape = [32, 100, 30]
         self.assertEqual(
             GRU_complexity(input_shape=[32, 100, 20],
                            units=30,
-                           layers=2,
                            use_bias=True,
                            bi=True),
             (target_cx, target_shape))
         self.assertEqual(
             GRU_complexity(input_shape=[32, 100, 20],
                            units=30,
-                           layers=2,
                            use_bias=True,
                            bi=True,
                            prev_cx=self.prev_cx),
@@ -109,14 +107,14 @@ class ComplexityTest(tf.test.TestCase):
         target_cx = {'flops': 109465600, 'params': 790656}
         target_shape = [1, 100, 128]
         self.assertEqual(
-            Attention_complexity(input_shape=[1, 100, 128],
+            attention_complexity(input_shape=[1, 100, 128],
                                  num_heads=4,
                                  key_dim=256,
                                  value_dim=512,
                                  use_bias=True),
             (target_cx, target_shape))
         self.assertEqual(
-            Attention_complexity(input_shape=[1, 100, 128],
+            attention_complexity(input_shape=[1, 100, 128],
                                  num_heads=4,
                                  key_dim=256,
                                  value_dim=512,
