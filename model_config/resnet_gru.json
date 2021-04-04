@@ -1,35 +1,35 @@
 {
     "filters": 32,
-    "FIRST": "res_bottleneck_stage",
-    "FIRST_ARGS":
+    "BLOCK0": "res_bottleneck_stage",
+    "BLOCK0_ARGS":
     {
         "filters": 32,
         "depth": 3,
         "strides": [1, 2]
     },
-    "SECOND": "res_bottleneck_stage",
-    "SECOND_ARGS":
+    "BLOCK1": "res_bottleneck_stage",
+    "BLOCK1_ARGS":
     {
         "filters": 64,
         "depth": 4,
         "strides": [1, 2]
     },
-    "THIRD": "res_bottleneck_stage",
-    "THIRD_ARGS":
+    "BLOCK2": "res_bottleneck_stage",
+    "BLOCK2_ARGS":
     {
         "filters": 128,
         "depth": 6,
         "strides": [1, 2]
     },
-    "FOURTH": "res_bottleneck_stage",
-    "FOURTH_ARGS":
+    "BLOCK3": "res_bottleneck_stage",
+    "BLOCK3_ARGS":
     {
         "filters": 256,
         "depth": 3,
         "strides": [1, 2]
     },
-    "FIFTH": "bidirectional_GRU_block",
-    "FIFTH_ARGS":
+    "BLOCK4": "bidirectional_GRU_block",
+    "BLOCK4_ARGS":
     {
         "units": [128, 128],
         "dropout_rate": 0.0
