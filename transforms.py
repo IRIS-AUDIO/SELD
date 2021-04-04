@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 
 def mask(specs, axis, max_mask_size=None, n_mask=1):
@@ -47,9 +48,23 @@ def foa_intensity_vec_aug(x, y):
     flip = tf.cast(flip, 'float32')
 
     intensity_vectors = (1 - 2*tf.reshape(flip, (-1, 1, 1, 3))) * intensity_vectors 
-    cartesian = (1 - 2*tf.reshape(flip, (-1, 1, 3, 1))) * cartesian 
+    cartesian = (1 - 2*tf.reshape(flip, (-1, 1, 3, 1))) * cartesian
 
-    x = tf.concat([x[..., :-3], intensity_vectors], axis=-1)
+    correct_shape = tf.reshape(tf.tile([0,1,2], [tf.shape(x)[0]]), (tf.shape(x)[0], 3))
+    
+    # x,y축 회전
+    current_shape = tf.reshape(tf.tile([0,2], [tf.shape(x)[0]]), (tf.shape(x)[0], 2))
+    perm = tf.map_fn(tf.random.shuffle, current_shape)
+    perm = tf.gather(tf.concat([perm, tf.ones((tf.shape(x)[0],1), dtype=perm.dtype)],-1), [0,2,1], axis=-1)
+   
+    check = tf.reduce_sum(tf.cast(perm != correct_shape, tf.int32), -1)[..., tf.newaxis]
+    feat_perm = (perm + check) % 3
+    perm = tf.gather(tf.concat([tf.random.shuffle([0,2]), [1]],-1), [0,2,1])
+    intensity_vectors = tf.gather(intensity_vectors, feat_perm, axis=-1, batch_dims=1)
+    cartesian = tf.gather(cartesian, feat_perm, axis=-2, batch_dims=1)
+    
+    x = tf.concat([x[..., :1], tf.gather(x[..., 1:4], perm, axis=-1, batch_dims=1), intensity_vectors], axis=-1)
+    # x = tf.concat([x[..., :4], intensity_vectors], axis=-1)
     y = tf.concat([y[..., :-3, :], cartesian], axis=-2)
     y = tf.reshape(y, [-1] + [*y.shape[1:-2]] + [4*y.shape[-1]])
 
@@ -62,20 +77,13 @@ def split_total_labels_to_sed_doa(x, y):
 
 
 ''' For FOA Channel Swapping '''
-T_XYZ_TO_YZX = tf.convert_to_tensor(
-    [[0., 1., 0.],
-     [0., 0., 1.],
-     [1., 0., 0.]])
-
-T_XYZ_TO_YZX_INV = tf.convert_to_tensor(
-    [[0., 0., 1.],
-     [1., 0., 0.],
-     [0., 1., 0.]])
-
-I3 = tf.eye(3, dtype='float32')
-
 def get_xyz_swap(yzx_swap):
-    B = tf.gather(I3, yzx_swap)
-    A = tf.matmul(tf.matmul(T_XYZ_TO_YZX_INV, B), T_XYZ_TO_YZX)
-    return tf.argmax(A, -1)
+    B = tf.gather(tf.eye(3, dtype='float32'), yzx_swap)
+    A = tf.matmul(tf.matmul([[0., 0., 1.],
+                             [1., 0., 0.],
+                             [0., 1., 0.]], B), 
+                                  [[0., 0., 1.],
+                                  [1., 0., 0.],
+                                  [0., 1., 0.]])
+    return tf.argmax(A, -2)
 
