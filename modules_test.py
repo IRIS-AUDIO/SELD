@@ -150,7 +150,7 @@ class ModulesTest(tf.test.TestCase):
 
         # 2D inputs
         exp_input_shape = 32, 10, 32, 8
-        exp_output_shape = 32, 10, 32, 4
+        exp_output_shape = 32, 10, 128
 
         self.block_test(bidirectional_GRU_block, 
                         model_config, 
