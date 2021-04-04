@@ -61,26 +61,6 @@ class TransformsTest(tf.test.TestCase):
         self.assertAllEqual(doa.shape,
                             [batch, time, n_classes*3])
 
-    def test_xyz_swap(self):
-        xyz = [2, 3, 5]
-        yzx = [3, 5, 2]
-
-        swaps = tf.convert_to_tensor(
-            [[0, 1, 2],
-             [0, 2, 1],
-             [1, 0, 2],
-             [1, 2, 0],
-             [2, 0, 1],
-             [2, 1, 0]])
-
-        for yzx_swap in swaps:
-            xyz_swap = get_xyz_swap(yzx_swap)
-
-            new_xyz = tf.gather(xyz, xyz_swap)
-            new_yzx = tf.gather(yzx, yzx_swap)
-
-            self.assertAllEqual(new_xyz, [new_yzx[-1], *new_yzx[:-1]])
-
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'

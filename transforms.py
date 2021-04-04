@@ -37,27 +37,31 @@ def foa_intensity_vec_aug(x, y):
     # y : [batch, time, 4*n_classes]
     x = tf.identity(x)
     y = tf.identity(y)
+    batch_size = tf.shape(x)[0]
     # [batch, time, 4*n_classes] to [batch, time, 4, n_classes]
     y = tf.reshape(y, [-1] + [*y.shape[1:-1]] + [4, y.shape[-1]//4])
 
     intensity_vectors = x[..., -3:]
     cartesian = y[..., -3:, :]
 
-    flip = tf.random.uniform([tf.shape(x)[0], 3], 0, 2, dtype=tf.int32)
+    flip = tf.random.uniform([batch_size, 3], 0, 2, dtype=tf.int32)
     flip = tf.cast(flip, 'float32')
 
     intensity_vectors = (1 - 2*tf.reshape(flip, (-1, 1, 1, 3))) * intensity_vectors 
     cartesian = (1 - 2*tf.reshape(flip, (-1, 1, 3, 1))) * cartesian
 
+    correct_shape = tf.tile([[0,1,2]], [batch_size, 1])
+    
     # x,y축 회전
-    correct_shape = tf.reshape(tf.tile([0,1,2], [tf.shape(x)[0]]), (tf.shape(x)[0], 3))
-    current_shape = tf.reshape(tf.tile([0,2], [tf.shape(x)[0]]), (tf.shape(x)[0], 2))
-    perm = tf.map_fn(tf.random.shuffle, current_shape)
-    perm = tf.gather(tf.concat([perm, tf.ones((tf.shape(x)[0],1), dtype=perm.dtype)],-1), [0,2,1], axis=-1)
-    check = tf.reduce_sum(tf.cast(perm != correct_shape, tf.int32), -1)[..., tf.newaxis]
+    perm = 2 * tf.random.uniform([batch_size, 1], maxval=2, dtype=tf.int32)
+    perm = tf.concat([perm, tf.ones_like(perm), 2-perm], axis=-1)
+
+    # x,y,z축 회전
+    # perm = tf.map_fn(tf.random.shuffle, correct_shape)
+    
+    check = tf.reduce_sum(tf.cast(perm != correct_shape, tf.int32), -1, keepdims=True)
     feat_perm = (perm + check) % 3
 
-    perm = tf.gather(tf.concat([tf.random.shuffle([0,2]), [1]],-1), [0,2,1])
     intensity_vectors = tf.gather(intensity_vectors, feat_perm, axis=-1, batch_dims=1)
     cartesian = tf.gather(cartesian, feat_perm, axis=-2, batch_dims=1)
     
