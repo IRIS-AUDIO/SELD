@@ -111,7 +111,6 @@ def GRU_complexity(input_shape, units, use_bias=True,
         params *= 2
     #for flops I refer this part
     #https://github.com/Lyken17/pytorch-OpCounter/blob/master/thop/rnn_hooks.py
-    flops = 0
     flops = (units + input_chan + 2 * use_bias +1) * units * 3
     #hadamard product
     flops += units * 4
@@ -125,15 +124,16 @@ def GRU_complexity(input_shape, units, use_bias=True,
     return complexity, output_shape
 
 
-
-def attention_complexity(input_shape, num_heads, key_dim, value_dim,
+# It only assume self attention
+def attention_complexity(input_shape, num_heads, key_dim, value_dim=None,
                          use_bias=True, prev_cx=None):
     
     c = input_shape[-1]
     size = 1
     for s in input_shape[:-1]:
         size *= s
-    
+    if value_dim == None:
+        value_dim = key_dim
     # making Q, K, V
     params = num_heads*(c + use_bias)*(key_dim*2 + value_dim)
     
@@ -141,19 +141,21 @@ def attention_complexity(input_shape, num_heads, key_dim, value_dim,
     params += num_heads*c*value_dim + c*use_bias
 
     # embedding
-    flops = size*num_heads*(2*use_bias + 2*key_dim + value_dim)*c
+    flops = size*num_heads*(2*key_dim*(c + use_bias) + value_dim*(c + use_bias))
     
     # scaled dot product attention & context
     flops += (size*size*key_dim + size*size*value_dim)*num_heads
 
     # context to output size
-    flops += size*value_dim*c*num_heads
+    flops += size*(value_dim * num_heads + use_bias)*c
     
     output_shape = input_shape
     complexity = dict_add(
         {'flops': flops, 'params': params},
         prev_cx if prev_cx else {})
     return complexity, output_shape
+
+
 # utils
 def safe_tuple(tuple_or_scalar, length=2):
     if isinstance(tuple_or_scalar, (int, float)):
