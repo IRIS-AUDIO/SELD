@@ -14,7 +14,7 @@
     "model": "seldnet",
     "model_config": "seldnet",
     "name": "seldnet_seldnet_MSE_mask_v_0",
-    "patience": 50,
+    "patience": 10,
     "resume": false,
     "time_mask_size": 24
 }
