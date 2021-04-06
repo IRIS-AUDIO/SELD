@@ -11,7 +11,6 @@ Use only custom layers or predefined
 """
 
 """      conv based blocks      """
-
 def simple_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
