@@ -30,7 +30,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     cx, output_shape = conv2d_complexity(output_shape, filters, 1, prev_cx=cx)
     cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
 
-    if strides != (1, 1) or inputs.shape[-1] != filters:
+    if strides != (1, 1) or input_shape[-1] != filters:
         cx, output_shape = conv2d_complexity(input_shape, filters, 1, strides, 
                                              prev_cx=cx)
         cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
@@ -101,7 +101,7 @@ def linear_complexity(input_shape, units, use_bias=True, prev_cx=None):
     return complexity, output_shape
 
 
-def GRU_complexity(input_shape, units, use_bias=True,
+def gru_complexity(input_shape, units, use_bias=True,
                    bi=True, prev_cx=None):
     
     input_chan = input_shape[-1]
@@ -125,8 +125,10 @@ def GRU_complexity(input_shape, units, use_bias=True,
 
 
 # It only assume self attention
-def attention_complexity(input_shape, num_heads, key_dim, value_dim=None,
-                         use_bias=True, prev_cx=None):
+def multi_head_attention_complexity(input_shape, num_heads, key_dim, 
+                                   value_dim=None,
+                                   use_bias=True, 
+                                   prev_cx=None):
     
     c = input_shape[-1]
     size = 1
