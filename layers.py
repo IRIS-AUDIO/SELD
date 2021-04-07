@@ -35,3 +35,12 @@ def conv2d_bn(filters,
 
     return _conv2d_layer
 
+
+def force_1d_inputs():
+    def force(inputs):
+        x = inputs
+        if len(x.shape) == 4:
+            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        return x
+    return force
+

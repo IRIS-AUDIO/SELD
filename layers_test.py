@@ -21,6 +21,13 @@ class LayersTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_force_1d_inputs(self):
+        input_shape_2d = 32, 16, 16, 3
+        input_shape_1d = 32, 16, 48
+
+        self.layer_test(force_1d_inputs, {}, input_shape_2d, input_shape_1d)
+        self.layer_test(force_1d_inputs, {}, input_shape_1d, input_shape_1d)
+
     def layer_test(self, 
                    layer_fn,
                    layer_args: dict,
