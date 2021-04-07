@@ -10,7 +10,7 @@ This is only for implementing modules.
 Use only custom layers or predefined 
 """
 
-"""      conv based blocks      """
+"""            BLOCKS WITH 2D OUTPUTS            """
 def simple_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
@@ -200,6 +200,53 @@ def dense_net_block(model_config: dict):
     return _dense_net_block
 
 
+def sepformer_block(model_config: dict):
+    # mandatory parameters (for transformer_encoder_layer)
+    # 'n_head', 'ff_multiplier', 'kernel_size'
+
+    pos_encoding = model_config.get('pos_encoding', None)
+    if pos_encoding == 'basic':
+        pos_encoding = basic_pos_encoding
+    elif pos_encoding == 'rff': # random fourier feature
+        pos_encoding = rff_pos_encoding
+    else:
+        pos_encoding = None
+
+    def _sepformer_block(inputs):
+        # https://github.com/speechbrain/speechbrain/blob/develop/
+        # speechbrain/lobes/models/dual_path.py
+        # 
+        # treat each chan as chunk in Sepformer
+        # [batch, time, freq, chan]
+        assert len(inputs.shape) == 4
+        x = inputs
+
+        batch, time, freq, chan = x.shape
+
+        intra = tf.transpose(x, [0, 3, 1, 2])
+        intra = tf.reshape(intra, [-1, time, freq])
+        if pos_encoding:
+            intra += pos_encoding(intra.shape)(intra)
+        intra = transformer_encoder_layer(model_config)(intra)
+        intra = tf.reshape(intra, [-1, chan, time, freq])
+        intra = tf.transpose(intra, [0, 2, 3, 1])
+        intra = LayerNormalization()(intra) + x
+
+        inter = tf.transpose(x, [0, 1, 3, 2]) 
+        inter = tf.reshape(inter, [-1, chan, freq])
+        if pos_encoding:
+            inter += pos_encoding(inter.shape)(inter)
+        inter = transformer_encoder_layer(model_config)(inter)
+        inter = tf.reshape(inter, [-1, time, chan, freq])
+        inter = tf.transpose(inter, [0, 1, 3, 2])
+        inter = LayerNormalization()(inter) + intra
+
+        return inter
+
+    return _sepformer_block
+    
+
+"""            BLOCKS WITH 1D OUTPUTS            """
 def xception_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
@@ -262,53 +309,6 @@ def xception_block(model_config: dict):
     return _xception_net_block
 
 
-def sepformer_block(model_config: dict):
-    # mandatory parameters (for transformer_encoder_layer)
-    # 'n_head', 'ff_multiplier', 'kernel_size'
-
-    pos_encoding = model_config.get('pos_encoding', None)
-    if pos_encoding == 'basic':
-        pos_encoding = basic_pos_encoding
-    elif pos_encoding == 'rff': # random fourier feature
-        pos_encoding = rff_pos_encoding
-    else:
-        pos_encoding = None
-
-    def _sepformer_block(inputs):
-        # https://github.com/speechbrain/speechbrain/blob/develop/
-        # speechbrain/lobes/models/dual_path.py
-        # 
-        # treat each chan as chunk in Sepformer
-        # [batch, time, freq, chan]
-        assert len(inputs.shape) == 4
-        x = inputs
-
-        batch, time, freq, chan = x.shape
-
-        intra = tf.transpose(x, [0, 3, 1, 2])
-        intra = tf.reshape(intra, [-1, time, freq])
-        if pos_encoding:
-            intra += pos_encoding(intra.shape)(intra)
-        intra = transformer_encoder_layer(model_config)(intra)
-        intra = tf.reshape(intra, [-1, chan, time, freq])
-        intra = tf.transpose(intra, [0, 2, 3, 1])
-        intra = LayerNormalization()(intra) + x
-
-        inter = tf.transpose(x, [0, 1, 3, 2]) 
-        inter = tf.reshape(inter, [-1, chan, freq])
-        if pos_encoding:
-            inter += pos_encoding(inter.shape)(inter)
-        inter = transformer_encoder_layer(model_config)(inter)
-        inter = tf.reshape(inter, [-1, time, chan, freq])
-        inter = tf.transpose(inter, [0, 1, 3, 2])
-        inter = LayerNormalization()(inter) + intra
-
-        return inter
-
-    return _sepformer_block
-    
-
-"""      sequential blocks      """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
     units_per_layer = model_config['units']
@@ -389,7 +389,7 @@ def simple_dense_block(model_config: dict):
     return dense_block
 
 
-"""      other blocks      """
+"""                 OTHER BLOCKS                 """
 def identity_block(model_config: dict):
     def identity(inputs):
         return inputs
