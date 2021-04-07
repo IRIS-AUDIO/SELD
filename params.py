@@ -50,7 +50,7 @@ def get_param(known=None):
     
     if not os.path.exists(model_config):
         raise ValueError('Model config is not exists')
-    model_config = argparse.Namespace(**json.load(open(model_config,'rb')))
+    model_config = json.load(open(model_config,'rb'))
 
     config.name = f'{config.model}_{model_config_name}_{config.doa_loss}_{config.name}'
     config = get_config(config.name, config, mode=config.config_mode)
