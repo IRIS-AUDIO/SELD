@@ -289,6 +289,7 @@ def transformer_encoder_layer(model_config: dict):
     d_model = model_config['d_model']
     n_head = model_config['n_head']
 
+    kernel_size = model_config.get('kernel_size', 1)
     activation = model_config.get('activation', 'relu')
     dim_feedforward = model_config.get('dim_feedforward', d_model*4)
     dropout_rate = model_config.get('dropout_rate', 0.1)
@@ -303,9 +304,10 @@ def transformer_encoder_layer(model_config: dict):
         x = LayerNormalization()(x + attn)
 
         # FFN
-        ffn = Dense(dim_feedforward, activation=activation)(x)
+        ffn = Conv1D(dim_feedforward, kernel_size, padding='same',
+                     activation=activation)(x)
         ffn = Dropout(dropout_rate)(ffn)
-        ffn = Dense(d_model)(ffn)
+        ffn = Conv1D(d_model, kernel_size, padding='same')(ffn)
         ffn = Dropout(dropout_rate)(ffn)
         x = LayerNormalization()(x + ffn)
 
