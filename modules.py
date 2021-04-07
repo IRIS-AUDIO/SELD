@@ -270,9 +270,7 @@ def bidirectional_GRU_block(model_config: dict):
     dropout_rate = model_config.get('dropout_rate', 0.)
 
     def GRU_block(inputs):
-        x = inputs
-        if len(x.shape) == 4: # [batch, time, freq, chan]
-            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        x = force_1d_inputs()(inputs)
 
         for units in units_per_layer:
             x = Bidirectional(
@@ -297,10 +295,7 @@ def transformer_encoder_layer(model_config: dict):
     
     def block(inputs):
         assert inputs.shape[-1] == d_model
-        x = inputs
-
-        if len(x.shape) == 4: # [batch, time, freq, chan]
-            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        x = force_1d_inputs()(inputs)
 
         attn = MultiHeadAttention(
             n_head, d_model//n_head, dropout=dropout_rate)(x, x)
@@ -333,10 +328,7 @@ def simple_dense_block(model_config: dict):
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
     def dense_block(inputs):
-        x = inputs
-
-        if len(x.shape) == 4: # [batch, time, freq, chan]
-            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        x = force_1d_inputs()(inputs)
 
         for units in units_per_layer:
             x = TimeDistributed(
