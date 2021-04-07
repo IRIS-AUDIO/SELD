@@ -77,3 +77,79 @@ def split_total_labels_to_sed_doa(x, y):
     n_classes = tf.shape(y)[-1] // 4
     return x, (y[..., :n_classes], y[..., n_classes:])
 
+
+def mic_gcc_perm(mic_perm):
+    '''
+        notice:
+            This function is only available in [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)] ordered gcc feature
+
+        inputs:
+            mic_perm: [batch_size, 4] perm dimension number
+
+        outputs:
+            gcc_perm: [batch_size, 6] gcc perm dimension number
+    '''
+    batch_size = tf.shape(mic_perm)[0]
+    current_mic_dim = tf.tile([tf.range(4)], [batch_size, 1])
+    current_gcc_dim = tf.tile([[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]], [batch_size, 1, 1])
+    decode_table = tf.constant([[0,0,1,2],[0,0,3,4],[0,0,0,5]], dtype=tf.int32)
+
+    res = tf.gather_nd(mic_perm - current_mic_dim, current_gcc_dim[...,tf.newaxis], batch_dims=1) + current_gcc_dim
+    res = tf.sort(res)
+    gcc_perm = tf.gather_nd(decode_table, res)
+    return gcc_perm
+
+
+channel_list = [
+    [[1,3,0,2], [0,-3,-2,1]],
+    [[3,1,2,0], [0,-3,2,-1]],
+    [[0,1,2,3], [0,1,2,3]],
+    [[1,0,3,2], [0,-1,-2,3]],
+    [[2,0,3,1], [0,3,-2,-1]],
+    [[0,2,1,3], [0,3,2,1]],
+    [[3,2,1,0], [0,-1,2,-3]],
+    [[2,3,0,1], [0,1,-2,-3]]
+]
+
+
+def acs_aug(x, y):
+    '''
+        acs: Audio Channel Swapping
+    '''
+    # x : [batch, time, freq, 17]
+    # y : [batch, time, 4*n_classes]
+    x = tf.identity(x)
+    y = tf.identity(y)
+    batch_size = tf.shape(x)[0]
+    # [batch, time, 4*n_classes] to [batch, time, 4, n_classes]
+    y = tf.reshape(y, [-1] + [*y.shape[1:-1]] + [4, y.shape[-1]//4])
+
+    intensity_vectors = x[..., 4:7]
+    cartesian = y[..., -3:, :]
+
+    correct_shape = tf.tile([[0,1,2]], [batch_size, 1])
+    idx = tf.random.uniform([batch_size, 1], 0, 8, dtype=tf.int32)
+    flip = tf.gather(channel_list, idx)
+    mic_flip, foa_flip = tf.squeeze(flip[...,0,:], -2), tf.squeeze(flip[...,1,1:], -2)
+    foa_minus = - tf.cast(foa_flip < 0, tf.int32) + tf.cast(foa_flip >= 0, tf.int32)
+    foa_perm = foa_minus * foa_flip - 1
+    check = tf.reduce_sum(tf.cast(foa_perm != correct_shape, tf.int32), -1, keepdims=True)
+    foa_feat_perm = (foa_perm + check) % 3
+
+    intensity_vectors = tf.gather(intensity_vectors, foa_feat_perm, axis=-1, batch_dims=1)
+    cartesian = tf.gather(cartesian, foa_feat_perm, axis=-2, batch_dims=1)
+
+    # mic
+    gcc_phat = x[..., 11:]
+    gcc_perm = mic_gcc_perm(mic_flip)
+    gcc_phat = tf.gather(gcc_phat, gcc_perm, axis=-1, batch_dims=1)
+    x = tf.concat([
+                   x[..., :1], tf.gather(x[..., 1:4], foa_perm, axis=-1, batch_dims=1) * tf.cast(tf.reshape(foa_minus, [-1, 1, 1,    foa_minus.shape[-1]]), x.dtype), intensity_vectors, # foa
+                   tf.gather(x[..., 7:11], mic_flip, axis=-1, batch_dims=1), gcc_phat# mic
+                  ], axis=-1)
+    
+    y = tf.concat([y[..., :-3, :], cartesian], axis=-2)
+    y = tf.reshape(y, [-1] + [*y.shape[1:-2]] + [4*y.shape[-1]])
+
+    return x, y
+
