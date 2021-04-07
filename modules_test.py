@@ -21,18 +21,114 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_cond_conv_block(self):
+    def test_another_conv_block(self):
+         model_config = {
+             'depth': 2, # mandatory
+             'filters': 32, # mandatory
+             'pool_size': 2, # mandatory 
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(another_conv_block,
+                         model_config,
+                         exp_input_shape,
+                         exp_output_shape)
+
+    def test_res_basic_stage(self):
+         model_config = {
+             'depth': 2, # mandatory
+             'filters': 32, # mandatory (for res basic block)
+             'strides': 2, # mandatory (for res basic block)
+             'groups': 1, 
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(res_basic_stage,
+                         model_config,
+                         exp_input_shape,
+                         exp_output_shape)
+
+    def test_res_basic_block(self):
+         model_config = {
+             'filters': 32, # mandatory
+             'strides': 2, # mandatory
+             'groups': 1,
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(res_basic_block, 
+                         model_config, 
+                         exp_input_shape,
+                         exp_output_shape)
+
+    def test_res_bottleneck_stage(self):
+         model_config = {
+             'depth': 2, # mandatory
+             'filters': 32, # mandatory (for res bottleneck block)
+             'strides': 2, # mandatory (for res bottleneck block)
+             'groups': 1, 
+             'bottleneck_ratio': 2,
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(res_bottleneck_stage,
+                         model_config,
+                         exp_input_shape,
+                         exp_output_shape)
+
+    def test_res_bottleneck_block(self):
+         model_config = {
+             'filters': 32, # mandatory
+             'strides': 2, # mandatory
+             'groups': 1,
+             'bottleneck_ratio': 2,
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(res_bottleneck_block, 
+                         model_config, 
+                         exp_input_shape,
+                         exp_output_shape)
+
+    def test_dense_net_block(self):
         model_config = {
-            'filters': [128, 128], # mandatory
-            'pool_size': [[4, 4], [1, 1]], # mandatory
-            'dropout_rate': 0.3,
-            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.},
+            'growth_rate' : 6, # mandatory
+            'depth': 4, # mandatory
+            'strides': [2, 2], # mandatory
+            'bottleneck_ratio': 4,
+            'reduction_ratio': 0.5,
         }
 
-        exp_input_shape = 32, 32, 32, 3
-        exp_output_shape = 32, 8, 8, 128
+        exp_input_shape = 2, 32, 32, 6
+        exp_output_shape = 2, 16, 16, 15
 
-        self.block_test(cond_conv_block, 
+        self.block_test(dense_net_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_xception_block(self):
+        model_config = {
+            'filters' : 32,
+            'name': 'xception_block',
+            'block_num': 8,
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
+        }
+
+        exp_input_shape = 32, 300, 64, 3
+        exp_output_shape = 32, 60, 8192
+
+        self.block_test(xception_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
@@ -43,6 +139,16 @@ class ModulesTest(tf.test.TestCase):
             'dropout_rate': 0.3,
         }
 
+        # 1D inputs
+        exp_input_shape = 32, 10, 32
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(bidirectional_GRU_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+        # 2D inputs
         exp_input_shape = 32, 10, 32, 8
         exp_output_shape = 32, 10, 128
 
@@ -85,53 +191,13 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_xception_block(self):
-        model_config = {
-            'filters' : 32,
-            'name': 'xception_block',
-            'block_num': 8,
-            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
-        }
+    def test_identity_block(self):
+        model_config = {}
 
-        exp_input_shape = 32, 300, 64, 3
-        exp_output_shape = 32, 60, 8192
+        exp_input_shape = 32, 16, 16, 8
+        exp_output_shape = 32, 16, 16, 8
 
-        self.block_test(xception_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
-    def test_dense_net_block(self):
-        model_config = {
-            'filters' : 32,
-            'name': 'dense_net_block',
-            'block_num': [6,12,24,16],
-            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
-        }
-
-        exp_input_shape = 2, 300, 64, 3
-        exp_output_shape = 2, 60, 2040
-
-        self.block_test(dense_net_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
-    def test_resnet50_block(self):
-        model_config = {
-            'filters': 32,
-            'name': 'resnet50_block',
-            'block_num': [3, 4, 6, 3],
-            'kernel_regularizer': {
-                'l1': 0,
-                'l2': 1e-3
-            }
-        }
-
-        exp_input_shape = 2, 300, 64, 3
-        exp_output_shape = 2, 60, 2048
-
-        self.block_test(resnet50_block, 
+        self.block_test(identity_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
@@ -161,13 +227,5 @@ class ModulesTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-    import argparse, sys
-    args = argparse.ArgumentParser()
-    args.add_argument('--gpus', type=str, default='-1')
-    config = args.parse_args()
-    os.environ['CUDA_VISIBLE_DEVICES'] = config.gpus
-    idx = sys.argv.index('--gpus')
-    for _ in range(2):
-        del sys.argv[idx]
     tf.test.main()
 

@@ -28,116 +28,176 @@ def simple_conv_block(model_config: dict):
     def conv_block(inputs):
         x = inputs
         for i in range(len(filters)):
-            x = conv2d_block(filters[i], kernel_size=3, kernel_regularizer=kernel_regularizer)(x)
+            x = conv2d_bn(filters[i], kernel_size=3, 
+                          kernel_regularizer=kernel_regularizer)(x)
             x = MaxPooling2D(pool_size=pool_size[i])(x)
             x = Dropout(dropout_rate)(x)
         return x
     return conv_block
 
 
-def cond_conv_block(model_config: dict):
+def another_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
+    depth = model_config['depth']
     pool_size = model_config['pool_size']
-    
-    dropout_rate = model_config.get('dropout_rate', 0.)  
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
-    if len(filters) == 0:
-        filters = filters * len(pool_size)
-    elif len(filters) != len(pool_size):
-        raise ValueError("len of filters and pool_size do not match")
-    
+    activation = model_config.get('activation', 'relu')
+
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+
     def conv_block(inputs):
         x = inputs
-        for i in range(len(filters)):
-            x = CondConv2D(filters[i], kernel_size=3, padding='same')(x)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
-            x = MaxPooling2D(pool_size=pool_size[i])(x)
-            x = Dropout(dropout_rate)(x)
-        return x
 
+        for i in range(depth):
+            out = BatchNormalization()(x)
+            out = Activation(activation)(out)
+            out = Conv2D(filters, 3, padding='same')(out)
+
+            out = BatchNormalization()(x)
+            out = Activation(activation)(out)
+            out = Conv2D(filters, 3, padding='same')(out)
+
+            if x.shape[-1] != filters:
+                x = Conv2D(filters, 1)(x)
+            x = x + out
+
+        if pool_size[0] > 1 or pool_size[1] > 1:
+            x = MaxPool2D(pool_size, strides=pool_size)(x)
+
+        return x
     return conv_block
 
 
-"""      sequential blocks      """
-def bidirectional_GRU_block(model_config: dict):
+def res_basic_stage(model_config: dict):
     # mandatory parameters
-    units_per_layer = model_config['units']
+    depth = model_config['depth']
+    strides = model_config['strides']
 
-    dropout_rate = model_config.get('dropout_rate', 0.)
+    model_config = copy.deepcopy(model_config)
 
-    def GRU_block(inputs):
+    def stage(inputs):
         x = inputs
-        if len(x.shape) == 4: # [batch, time, freq, chan]
-            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
-
-        for units in units_per_layer:
-            x = Bidirectional(
-                GRU(units, activation='tanh', 
-                    dropout=dropout_rate, recurrent_dropout=dropout_rate, 
-                    return_sequences=True),
-                merge_mode='mul')(x)
+        for i in range(depth):
+            x = res_basic_block(model_config)(x)
+            model_config['strides'] = 1
         return x
+    return stage
 
-    return GRU_block
 
-
-def transformer_encoder_layer(model_config: dict):
+def res_basic_block(model_config: dict):
     # mandatory parameters
-    d_model = model_config['d_model']
-    n_head = model_config['n_head']
+    filters = model_config['filters']
+    strides = model_config['strides']
 
+    groups = model_config.get('groups', 1)
     activation = model_config.get('activation', 'relu')
-    dim_feedforward = model_config.get('dim_feedforward', d_model*4)
-    dropout_rate = model_config.get('dropout_rate', 0.1)
-    
-    def block(inputs):
-        assert inputs.shape[-1] == d_model
-        x = inputs
-        attn = MultiHeadAttention(
-            n_head, d_model//n_head, dropout=dropout_rate)(x, x)
-        attn = Dropout(dropout_rate)(attn)
-        x = LayerNormalization()(x + attn)
 
-        # FFN
-        ffn = Dense(dim_feedforward, activation=activation)(x)
-        ffn = Dropout(dropout_rate)(ffn)
-        ffn = Dense(d_model)(ffn)
-        ffn = Dropout(dropout_rate)(ffn)
-        x = LayerNormalization()(x + ffn)
+    if isinstance(strides, int):
+        strides = (strides, strides)
 
-        return x
+    def basic_block(inputs):
+        out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
 
-    return block
+        out = Conv2D(filters, 3, padding='same', groups=groups)(out)
+        out = BatchNormalization()(out)
+
+        if strides not in [(1, 1), [1, 1]] or inputs.shape[-1] != filters:
+            inputs = Conv2D(filters, 1, strides)(inputs)
+            inputs = BatchNormalization()(inputs)
+
+        out = Activation(activation)(out + inputs)
+
+        return out
+
+    return basic_block
 
 
-"""      other blocks      """
-def simple_dense_block(model_config: dict):
+def res_bottleneck_stage(model_config: dict):
     # mandatory parameters
-    units_per_layer = model_config['units']
-    n_classes = model_config['n_classes']
+    depth = model_config['depth']
+    strides = model_config['strides']
+    model_config = copy.deepcopy(model_config)
 
-    name = model_config.get('name', None)
-    activation = model_config.get('activation', None)
-    dropout_rate = model_config.get('dropout_rate', 0)
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def dense_block(inputs):
+    def stage(inputs):
         x = inputs
-        for units in units_per_layer:
-            x = TimeDistributed(
-                Dense(units, kernel_regularizer=kernel_regularizer))(x)
-            x = Dropout(dropout_rate)(x)
-        x = TimeDistributed(
-            Dense(n_classes, activation=activation, name=name,
-                  kernel_regularizer=kernel_regularizer))(x) 
+        for i in range(depth):
+            x = res_bottleneck_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
+def res_bottleneck_block(model_config: dict):
+    # mandatory parameters
+    filters = model_config['filters']
+    strides = model_config['strides']
+
+    groups = model_config.get('groups', 1)
+    bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
+    activation = model_config.get('activation', 'relu')
+
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    bottleneck_size = int(filters * bottleneck_ratio)
+
+    def bottleneck_block(inputs):
+        out = Conv2D(bottleneck_size, 1)(inputs)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(bottleneck_size, 3, strides, 
+                     padding='same', groups=groups)(out)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(filters, 1)(out)
+        out = BatchNormalization()(out)
+
+        if strides not in [(1, 1), [1, 1]] or inputs.shape[-1] != filters:
+            inputs = Conv2D(filters, 1, strides)(inputs)
+            inputs = BatchNormalization()(inputs)
+
+        out = Activation(activation)(out + inputs)
+
+        return out
+
+    return bottleneck_block
+
+
+def dense_net_block(model_config: dict):
+    # mandatory
+    growth_rate = model_config['growth_rate']
+    depth = model_config['depth']
+    strides = model_config['strides']
+
+    bottleneck_ratio = model_config.get('bottleneck_ratio', 4)
+    reduction_ratio = model_config.get('reduction_ratio', 0.5)
+
+    def _dense_net_block(inputs):
+        x = inputs
+
+        for i in range(depth):
+            out = BatchNormalization()(x)
+            out = Activation('relu')(out)
+            out = Conv2D(bottleneck_ratio * growth_rate, 1, use_bias=False)(out)
+            out = BatchNormalization()(out)
+            out = Activation('relu')(out)
+            out = Conv2D(growth_rate, 3, padding='same', use_bias=True)(out)
+            x = Concatenate(axis=-1)([x, out])
+
+        if strides not in [1, (1, 1), [1, 1]]:
+            x = BatchNormalization()(x)
+            x = Activation('relu')(x)
+            x = Conv2D(int(x.shape[-1] * reduction_ratio), 1, use_bias=False)(x)
+            x = AveragePooling2D(strides, strides)(x)
+
         return x
 
-    return dense_block
+    return _dense_net_block
 
 
 def xception_block(model_config: dict):
@@ -148,7 +208,8 @@ def xception_block(model_config: dict):
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
     def _sepconv_block(inputs, filters, activation):
-        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
+                            kernel_regularizer=kernel_regularizer)(inputs)
         x = BatchNormalization()(x)
         x = Activation(activation)(x) if activation else x
         return x
@@ -159,7 +220,10 @@ def xception_block(model_config: dict):
         else:
             filters1, filters2 = filters
 
-        residual = conv2d_block(filters2, 1, strides=(1,2), padding='same', use_bias=False, kernel_regularizer=kernel_regularizer, activation=None)(inputs)
+        residual = conv2d_bn(filters2, 1, strides=(1,2), padding='same', 
+                             use_bias=False, 
+                             kernel_regularizer=kernel_regularizer, 
+                             activation=None)(inputs)
 
         x = _sepconv_block(inputs, filters1, 'relu')
         x = _sepconv_block(x, filters2, None)
@@ -169,9 +233,11 @@ def xception_block(model_config: dict):
         return x
 
     def _xception_net_block(inputs):
-        x = conv2d_block(filters, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(inputs)
+        x = conv2d_bn(filters, 3, use_bias=False, 
+                      kernel_regularizer=kernel_regularizer)(inputs)
         x = MaxPooling2D(pool_size=(5,1))(x)
-        x = conv2d_block(filters * 2, 3, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
+        x = conv2d_bn(filters * 2, 3, use_bias=False, 
+                      kernel_regularizer=kernel_regularizer)(x)
 
         x = _residual_block(x, filters * 4)
         x = _residual_block(x, filters * 8)
@@ -196,107 +262,96 @@ def xception_block(model_config: dict):
     return _xception_net_block
     
 
-def dense_net_block(model_config: dict):
-    filters = model_config['filters']
-    block_num = model_config['block_num']
+"""      sequential blocks      """
+def bidirectional_GRU_block(model_config: dict):
+    # mandatory parameters
+    units_per_layer = model_config['units']
 
+    dropout_rate = model_config.get('dropout_rate', 0.)
+
+    def GRU_block(inputs):
+        x = inputs
+        if len(x.shape) == 4: # [batch, time, freq, chan]
+            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+
+        for units in units_per_layer:
+            x = Bidirectional(
+                GRU(units, activation='tanh', 
+                    dropout=dropout_rate, recurrent_dropout=dropout_rate, 
+                    return_sequences=True),
+                merge_mode='mul')(x)
+
+        return x
+
+    return GRU_block
+
+
+def transformer_encoder_layer(model_config: dict):
+    # mandatory parameters
+    d_model = model_config['d_model']
+    n_head = model_config['n_head']
+
+    activation = model_config.get('activation', 'relu')
+    dim_feedforward = model_config.get('dim_feedforward', d_model*4)
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+    
+    def block(inputs):
+        assert inputs.shape[-1] == d_model
+        x = inputs
+
+        if len(x.shape) == 4: # [batch, time, freq, chan]
+            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+
+        attn = MultiHeadAttention(
+            n_head, d_model//n_head, dropout=dropout_rate)(x, x)
+        attn = Dropout(dropout_rate)(attn)
+        x = LayerNormalization()(x + attn)
+
+        # FFN
+        ffn = Dense(dim_feedforward, activation=activation)(x)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Dense(d_model)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        x = LayerNormalization()(x + ffn)
+
+        return x
+
+    return block
+
+
+"""      other blocks      """
+def simple_dense_block(model_config: dict):
+    # assumes 1D inputs
+    # mandatory parameters
+    units_per_layer = model_config['units']
+    n_classes = model_config['n_classes']
+
+    name = model_config.get('name', None)
+    activation = model_config.get('activation', None)
+    dropout_rate = model_config.get('dropout_rate', 0)
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
 
-    def conv_block(x, growth_rate):
-        x1 = BatchNormalization(epsilon=1.001e-5)(x)
-        x1 = Activation('relu')(x1)
-        x1 = conv2d_block(4 * growth_rate, 1, use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x1)
-        x1 = Conv2D(growth_rate, 3, padding='same', use_bias=False, kernel_regularizer=kernel_regularizer)(x1)
-        x = Concatenate()([x, x1])
+    def dense_block(inputs):
+        x = inputs
+
+        if len(x.shape) == 4: # [batch, time, freq, chan]
+            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+
+        for units in units_per_layer:
+            x = TimeDistributed(
+                Dense(units, kernel_regularizer=kernel_regularizer))(x)
+            x = Dropout(dropout_rate)(x)
+        x = TimeDistributed(
+            Dense(n_classes, activation=activation, name=name,
+                  kernel_regularizer=kernel_regularizer))(x) 
         return x
 
-    def transition_block(x, reduction):
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
-        x = Conv2D(x.shape[-1] * reduction, 1, use_bias=False, kernel_regularizer=kernel_regularizer)(x)
-        x = AveragePooling2D(2, strides=(1,2), padding='same')(x)
-        return x
-    
-    def dense_blocks(x, block_num):
-        for i in range(block_num):
-            x = conv_block(x, 32)
-        return x
+    return dense_block
 
-    def _dense_block(inputs):
-        x = conv2d_block(filters, 7, strides=(1,2), use_bias=False, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
-        x = MaxPooling2D(pool_size=(5,2))(x)
 
-        for i in range(len(block_num)):
-            x = dense_blocks(x, block_num[i])
-            x = transition_block(x, 0.5) if i != len(block_num) - 1 else x
+def identity_block(model_config: dict):
+    def identity(inputs):
+        return inputs
+    return identity
 
-        x = BatchNormalization(epsilon=1.001e-5)(x)
-        x = Activation('relu')(x)
-
-        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
-        return x
-    return _dense_block
-    
-
-def resnet50_block(model_config: dict):
-    filters = model_config['filters']
-    block_num = model_config['block_num']
-
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def block1(x, filters, kernel_size=3, strides=1, conv_shortcut=True):
-        if conv_shortcut:
-            shortcut = conv2d_block(4 * filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, activation=None)(x)
-        else:
-            shortcut = x
-
-        x = conv2d_block(filters, 1, strides=(1, strides), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
-
-        x = conv2d_block(filters, kernel_size, kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(x)
-
-        x = conv2d_block(4 * filters, 1, kernel_regularizer=kernel_regularizer, activation=None, norm_eps=1.001e-5)(x)
-
-        x = Add()([shortcut, x])
-        x = Activation('relu')(x)
-        return x
-
-    def stack(x, filters, blocks, strides=2):
-        x = block1(x, filters, strides=strides)
-        for _ in range(blocks - 1):
-            x = block1(x, filters, conv_shortcut=False)
-        return x
-
-    def stack_fn(x):
-        x = stack(x, filters, block_num[0], strides=1)
-        x = stack(x, filters * 2, block_num[1])
-        x = stack(x, filters * 4, block_num[2])
-        return stack(x, filters * 8, block_num[3])
-
-    def _resnet50_block(inputs):
-        x = conv2d_block(filters, 7, strides=(1, 2), kernel_regularizer=kernel_regularizer, norm_eps=1.001e-5)(inputs)
-
-        x = MaxPooling2D(3, strides=(5, 2), padding='same')(x)
-        x = stack_fn(x)
-        x = Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
-        return x
-    return _resnet50_block
-    
-
-def conv2d_block(filters,
-                 kernel_size, 
-                 strides=(1, 1), 
-                 padding='same', 
-                 activation='relu', 
-                 use_bias=True, 
-                 kernel_regularizer=None, 
-                 groups=1,
-                 norm_axis=-1,
-                 norm_eps=1e-3):
-    def _conv2d_block(inputs):
-        x = Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=use_bias, kernel_regularizer=kernel_regularizer, groups=groups)(inputs)
-        x = BatchNormalization(norm_axis, epsilon=norm_eps)(x)
-        x = Activation(activation)(x) if activation else x
-        return x
-    return _conv2d_block
