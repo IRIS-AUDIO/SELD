@@ -36,6 +36,14 @@ class LayersTest(tf.test.TestCase):
         self.layer_test(basic_pos_encoding, layer_args, 
                         exp_input_shape, exp_output_shape)
 
+    def test_rff_pos_encoding(self):
+        exp_input_shape = [32, 60, 40]
+        exp_output_shape = [1, 60, 40]
+        layer_args = dict(input_shape=exp_input_shape)
+
+        self.layer_test(rff_pos_encoding, layer_args, 
+                        exp_input_shape, exp_output_shape)
+
     def layer_test(self, 
                    layer_fn,
                    layer_args: dict,
