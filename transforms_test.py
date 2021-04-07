@@ -74,7 +74,7 @@ class TransformsTest(tf.test.TestCase):
 
     def test_acs_aug(self):
         tf.random.set_seed(2022)
-        x_size = (2, 10, 32, 17) # [batch, time, freq, 7]
+        x_size = (2, 10, 32, 17) # [batch, time, freq, 17]
         y_size = (2, 2, 12) # [batch, time, n_classes*4]
         x = tf.random.uniform(x_size)
         y = tf.random.uniform(y_size) 
