@@ -59,7 +59,8 @@ def basic_pos_encoding(input_shape):
 
         time = tf.shape(inputs)[-2]
         encoding = tf.reshape(tf.range(time, dtype=inputs.dtype), (1, -1, 1))
-        encoding = tf.concat([tf.cos(w * encoding), tf.sin(w * encoding)], -1)
+        encoding = tf.stack([tf.cos(w * encoding), tf.sin(w * encoding)], -1)
+        encoding = tf.reshape(encoding, [1, *tf.shape(encoding)[1:-2], k*2])
         return encoding
     return pos_encoding
 
