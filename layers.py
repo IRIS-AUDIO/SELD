@@ -16,7 +16,7 @@ def conv2d_bn(filters,
               groups=1,
               use_bias=True, 
               kernel_regularizer=None, 
-              activation=None, 
+              activation='relu', 
               bn_args=None):
     if bn_args is None:
         bn_args = {} # you can put axis, momentum, epsilon in bn_args
