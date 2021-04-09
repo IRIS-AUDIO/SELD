@@ -142,7 +142,7 @@ class ModulesTest(tf.test.TestCase):
         }
 
         exp_input_shape = 32, 300, 64, 3
-        exp_output_shape = 32, 60, 8192
+        exp_output_shape = 32, 60, 4, 2048
 
         self.block_test(xception_block, 
                         model_config, 
