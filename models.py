@@ -24,11 +24,11 @@ def seldnet(input_shape, model_config):
     x = getattr(modules, model_config['SECOND'])(model_config['SECOND_ARGS'])(x)
 
     sed = getattr(modules, model_config['SED'])(model_config['SED_ARGS'])(x)
-    sed = force_1d_inputs()(sed)
+    sed = layers.force_1d_inputs()(sed)
     sed = Dense(n_classes, activation='sigmoid', name='sed_out')(sed)
 
     doa = getattr(modules, model_config['DOA'])(model_config['DOA_ARGS'])(x)
-    doa = force_1d_inputs()(doa)
+    doa = layers.force_1d_inputs()(doa)
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     return tf.keras.Model(inputs=inputs, outputs=[sed, doa])
@@ -44,11 +44,11 @@ def seldnet_v1(input_shape, model_config):
     x = getattr(modules, model_config['SECOND'])(model_config['SECOND_ARGS'])(x)
 
     sed = getattr(modules, model_config['SED'])(model_config['SED_ARGS'])(x)
-    sed = force_1d_inputs()(sed)
+    sed = layers.force_1d_inputs()(sed)
     sed = Dense(n_classes, activation='sigmoid', name='sed_out')(sed)
 
     doa = getattr(modules, model_config['DOA'])(model_config['DOA_ARGS'])(x)
-    doa = force_1d_inputs()(doa)
+    doa = layers.force_1d_inputs()(doa)
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     doa *= Concatenate()([sed] * 3)
@@ -76,11 +76,11 @@ def conv_temporal(input_shape, model_config):
         x = getattr(modules, model_config[block])(model_config[f'{block}_ARGS'])(x)
 
     sed = getattr(modules, model_config['SED'])(model_config['SED_ARGS'])(x)
-    sed = force_1d_inputs()(sed)
+    sed = layers.force_1d_inputs()(sed)
     sed = Dense(n_classes, activation='sigmoid', name='sed_out')(sed)
 
     doa = getattr(modules, model_config['DOA'])(model_config['DOA_ARGS'])(x)
-    doa = force_1d_inputs()(doa)
+    doa = layers.force_1d_inputs()(doa)
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     return tf.keras.Model(inputs=inputs, outputs=[sed, doa])
