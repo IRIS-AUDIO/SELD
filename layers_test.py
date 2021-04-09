@@ -21,6 +21,29 @@ class LayersTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_force_1d_inputs(self):
+        input_shape_2d = 32, 16, 16, 3
+        input_shape_1d = 32, 16, 48
+
+        self.layer_test(force_1d_inputs, {}, input_shape_2d, input_shape_1d)
+        self.layer_test(force_1d_inputs, {}, input_shape_1d, input_shape_1d)
+
+    def test_basic_pos_encoding(self):
+        exp_input_shape = [32, 60, 40]
+        exp_output_shape = [1, 60, 40]
+        layer_args = dict(input_shape=exp_input_shape)
+
+        self.layer_test(basic_pos_encoding, layer_args, 
+                        exp_input_shape, exp_output_shape)
+
+    def test_rff_pos_encoding(self):
+        exp_input_shape = [32, 60, 40]
+        exp_output_shape = [1, 60, 40]
+        layer_args = dict(input_shape=exp_input_shape)
+
+        self.layer_test(rff_pos_encoding, layer_args, 
+                        exp_input_shape, exp_output_shape)
+
     def layer_test(self, 
                    layer_fn,
                    layer_args: dict,
