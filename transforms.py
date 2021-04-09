@@ -128,13 +128,14 @@ def acs_aug(x, y):
     intensity_vectors = x[..., 4:7]
     cartesian = y[..., -3:, :]
 
-    correct_shape = tf.tile([[0,1,2]], [batch_size, 1])
+    correct_shape = [0,1,2]
     idx = tf.random.uniform([batch_size], 0, 8, dtype=tf.int32)
     flip = tf.gather(channel_list, idx)
-    mic_flip, foa_flip = flip[...,0,:], flip[...,1,1:]
+    foa_flip = flip[...,1,1:]
 
-    foa_sign = tf.cast(tf.sign(foa_flip), intensity_vectors.dtype)
-    foa_perm = tf.sign(foa_flip) * foa_flip - 1
+    foa_sign = tf.sign(foa_flip)
+    foa_perm = foa_sign * foa_flip - 1
+    foa_sign = tf.cast(foa_sign, intensity_vectors.dtype)
     check = tf.reduce_sum(tf.cast(foa_perm != correct_shape, tf.int32), -1, keepdims=True)
     foa_feat_perm = (foa_perm + check) % 3
     foa_x = tf.gather(x[..., 1:4], foa_perm, axis=-1, batch_dims=1)
@@ -143,6 +144,7 @@ def acs_aug(x, y):
     cartesian = tf.gather(cartesian, foa_feat_perm, axis=-2, batch_dims=1) * foa_sign[:,tf.newaxis,:,tf.newaxis]
 
     # mic
+    mic_flip = flip[...,0,:]
     gcc_phat = x[..., 11:]
     gcc_perm = mic_gcc_perm(mic_flip)
     gcc_phat = tf.gather(gcc_phat, gcc_perm, axis=-1, batch_dims=1)
