@@ -35,3 +35,48 @@ def conv2d_bn(filters,
 
     return _conv2d_layer
 
+
+def force_1d_inputs():
+    def force(inputs):
+        x = inputs
+        if len(x.shape) == 4:
+            x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
+        return x
+    return force
+
+
+'''
+POSITIONAL ENCODINGS
+'''
+def basic_pos_encoding(input_shape):
+    # basic positional encoding from transformer
+    k = input_shape[-1] // 2
+    w = tf.reshape(tf.pow(10000, -tf.range(k)/k), (1, 1, -1))
+    w = tf.constant(tf.cast(w, tf.float32))
+
+    def pos_encoding(inputs):
+        assert len(inputs.shape) == 3
+
+        time = tf.shape(inputs)[-2]
+        encoding = tf.reshape(tf.range(time, dtype=inputs.dtype), (1, -1, 1))
+        encoding = tf.stack([tf.cos(w * encoding), tf.sin(w * encoding)], -1)
+        encoding = tf.reshape(encoding, [1, *tf.shape(encoding)[1:-2], k*2])
+        return encoding
+    return pos_encoding
+
+
+def rff_pos_encoding(input_shape):
+    # pos encoding based on Random Fourier Features
+    # RFF for 1D inputs (only time)
+    k = input_shape[-1] // 2
+    w = tf.constant(tf.random.normal([1, 1, k]))
+
+    def pos_encoding(inputs):
+        assert len(inputs.shape) == 3
+
+        time = tf.shape(inputs)[-2]
+        encoding = tf.reshape(tf.range(time, dtype=inputs.dtype), (1, -1, 1))
+        encoding = tf.concat([tf.cos(w * encoding), tf.sin(w * encoding)], -1)
+        return encoding
+    return pos_encoding
+
