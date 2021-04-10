@@ -201,7 +201,7 @@ def dense_net_block(model_config: dict):
 
 
 def sepformer_block(model_config: dict):
-    # mandatory parameters (for transformer_encoder_layer)
+    # mandatory parameters (for transformer_encoder_block)
     # 'n_head', 'ff_multiplier', 'kernel_size'
 
     pos_encoding = model_config.get('pos_encoding', None)
@@ -227,7 +227,7 @@ def sepformer_block(model_config: dict):
         intra = tf.reshape(intra, [-1, time, freq])
         if pos_encoding:
             intra += pos_encoding(intra.shape)(intra)
-        intra = transformer_encoder_layer(model_config)(intra)
+        intra = transformer_encoder_block(model_config)(intra)
         intra = tf.reshape(intra, [-1, chan, time, freq])
         intra = tf.transpose(intra, [0, 2, 3, 1])
         intra = LayerNormalization()(intra) + x
@@ -236,7 +236,7 @@ def sepformer_block(model_config: dict):
         inter = tf.reshape(inter, [-1, chan, freq])
         if pos_encoding:
             inter += pos_encoding(inter.shape)(inter)
-        inter = transformer_encoder_layer(model_config)(inter)
+        inter = transformer_encoder_block(model_config)(inter)
         inter = tf.reshape(inter, [-1, time, chan, freq])
         inter = tf.transpose(inter, [0, 1, 3, 2])
         inter = LayerNormalization()(inter) + intra
@@ -330,7 +330,7 @@ def bidirectional_GRU_block(model_config: dict):
     return GRU_block
 
 
-def transformer_encoder_layer(model_config: dict):
+def transformer_encoder_block(model_config: dict):
     # mandatory parameters
     n_head = model_config['n_head']
     # multiplier for feed forward layer
@@ -395,3 +395,90 @@ def identity_block(model_config: dict):
         return inputs
     return identity
 
+
+def conformer_encoder_block(model_config: dict):
+    # mandatory parameters
+    key_dim = model_config.get('key_dim', 36)
+    n_head = model_config.get('n_head', 4)
+    kernel_size = model_config.get('kernel_size', 32) # 32 
+    activation = model_config.get('activation', 'swish')
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+    pos_encoding = model_config.get('pos_encoding', 'basic')
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    if pos_encoding == 'basic':
+        pos_encoding = basic_pos_encoding
+    elif pos_encoding == 'rff': # random fourier feature
+        pos_encoding = rff_pos_encoding
+    else:
+        pos_encoding = None
+    
+    def conformer_block(inputs):
+        
+        if len(inputs.shape) == 4:
+            inputs =  force_1d_inputs()(inputs)
+        x = inputs
+        batch, time, emb = x.shape
+
+        # FFN Modules
+        ffn = LayerNormalization()(x)
+        ffn = Dense(4*emb, activation=activation)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Dense(emb)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        x = x + 0.5*ffn
+
+        
+        # Positional Encoding
+        if pos_encoding:
+            x += pos_encoding(x.shape)(x)
+            
+        # Multi Head Self Attention module
+        attn = LayerNormalization()(x)
+        attn = MultiHeadAttention(n_head,
+                                  key_dim,
+                                  dropout=dropout_rate)(attn, attn)
+        attn = Dropout(dropout_rate)(attn)
+        x = attn + x
+
+
+        # Conv Block
+        conv = tf.reshape(x, [-1, time, 1, emb])
+        
+        conv = LayerNormalization()(conv)
+        conv = Conv2D(filters=2 * emb, 
+                      kernel_size=1, strides=1, padding='valid',
+                      kernel_regularizer=kernel_regularizer,)(conv)
+        
+        # GLU Part
+        conv_1, conv_2 = tf.split(conv, 2, axis=-1)
+        conv_2 = tf.keras.activations.sigmoid(conv_2)
+        conv = tf.multiply(conv_1, conv_2)        
+        conv = DepthwiseConv2D(kernel_size=(kernel_size, 1), 
+                               strides=1, padding="same", 
+                               kernel_regularizer=kernel_regularizer)(conv)
+
+        
+        conv = BatchNormalization()(conv)
+        conv = tf.keras.activations.swish(conv) 
+        conv = Conv2D(filters=emb, 
+            kernel_size=1, strides=1, padding="valid",
+            kernel_regularizer=kernel_regularizer)(conv)
+
+        conv = tf.reshape(conv, [-1, time, emb])
+        conv = Dropout(dropout_rate)(conv)
+        conv = conv + x
+
+        # FFN
+        ffn = LayerNormalization()(x)
+        ffn = Dense(4*emb, activation=activation)(x)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Dense(emb)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        
+        x = LayerNormalization()(x + 0.5*ffn)
+
+        return x
+
+    return conformer_block

@@ -173,7 +173,7 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_transformer_encoder_layer(self):
+    def test_transformer_encoder_block(self):
         model_config = {
             'n_head': 8, # mandatory
             'ff_multiplier': 128, # mandatory
@@ -184,7 +184,7 @@ class ModulesTest(tf.test.TestCase):
         exp_input_shape = 32, 20, 64
         exp_output_shape = 32, 20, 64
 
-        self.block_test(transformer_encoder_layer, 
+        self.block_test(transformer_encoder_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
@@ -214,6 +214,25 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 16, 16, 8
 
         self.block_test(identity_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+    
+    def test_conformer_block(self):
+        model_config = {
+            'key_dim': 36, # mandatory
+            'n_head' : 4,
+            'kernel_size' : 32,
+            'activation': 'swish',
+            'dropout_rate': 0,
+        }
+    
+        dropout_rate = model_config.get('dropout_rate', 0.1)
+    
+        exp_input_shape = 32, 100, 64 # batch, time, feat
+        exp_output_shape = 32, 100, 64 # batch, time, feat
+    
+        self.block_test(conformer_encoder_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
