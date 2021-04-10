@@ -60,12 +60,14 @@ def seldnet_v1(input_shape, model_config):
 def conv_temporal(input_shape, model_config):
     # hyperparameters for the model
     filters = model_config.get('filters', 32)
+    first_kernel_size = model_config.get('first_kernel_size', 7)
     n_classes = model_config.get('n_classes', 14)
     first_pool_size = model_config.get('first_pool_size', [5, 2])
 
     inputs = Input(shape=input_shape[-3:])
     
-    x = layers.conv2d_bn(filters, 7, padding='same', activation='relu')(inputs)
+    x = layers.conv2d_bn(filters, first_kernel_size, padding='same', 
+                         activation='relu')(inputs)
     x = MaxPooling2D(first_pool_size, padding='same')(x)
 
     blocks = [key for key in model_config.keys()
