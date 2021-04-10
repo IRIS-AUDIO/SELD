@@ -55,7 +55,7 @@ def another_conv_block(model_config: dict):
             out = Activation(activation)(out)
             out = Conv2D(filters, 3, padding='same')(out)
 
-            out = BatchNormalization()(x)
+            out = BatchNormalization()(out)
             out = Activation(activation)(out)
             out = Conv2D(filters, 3, padding='same')(out)
 
