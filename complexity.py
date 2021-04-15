@@ -27,6 +27,25 @@ def simple_conv_block_complexity(model_config, input_shape):
     return cx, shape
 
 
+def another_conv_block_complexity(model_config, input_shape):
+    filters = model_config['filters']
+    depth = model_config['depth']
+    pool_size = safe_tuple(model_config['pool_size'])
+
+    shape = input_shape
+    cx = {}
+
+    for i in range(depth):
+        cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
+        cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
+
+        if shape[-1] != filters:
+            cx, _ = conv2d_complexity(shape, filters, 1, prev_cx=cx)
+
+    cx, shape = pool2d_complexity(shape, pool_size, prev_cx=cx)
+    return cx, shape
+
+
 def res_bottleneck_block_complexity(model_config, input_shape):
     # mandatory parameters
     filters = model_config['filters']
@@ -58,7 +77,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     return cx, output_shape
 
 
-''' basic complexities '''
+'''            basic complexities            '''
 def conv2d_complexity(input_shape: list, 
                       filters,
                       kernel_size,
