@@ -6,6 +6,7 @@
 # 
 # references
 # https://github.com/facebookresearch/pycls/blob/master/pycls/models/blocks.py
+import copy
 from utils import dict_add
 
 
@@ -39,10 +40,46 @@ def another_conv_block_complexity(model_config, input_shape):
         cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
         cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
 
-        if shape[-1] != filters:
+        if input_shape[-1] != filters:
             cx, _ = conv2d_complexity(shape, filters, 1, prev_cx=cx)
 
     cx, shape = pool2d_complexity(shape, pool_size, prev_cx=cx)
+    return cx, shape
+
+
+def res_basic_stage_complexity(model_config, input_shape):
+    # mandatory parameters
+    depth = model_config['depth']
+    strides = model_config['strides']
+
+    model_config = copy.deepcopy(model_config)
+    shape = input_shape
+    total_cx = {}
+
+    for i in range(depth):
+        cx, shape = res_basic_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+        model_config['strides'] = 1
+    return total_cx, shape
+
+
+def res_basic_block_complexity(model_config, input_shape):
+    # mandatory parameters
+    filters = model_config['filters']
+    strides = safe_tuple(model_config['strides'])
+
+    groups = model_config.get('groups', 1)
+
+    shape = input_shape
+    cx = {}
+
+    cx, shape = conv2d_complexity(shape, filters, 3, strides=strides,
+                                  groups=groups, prev_cx=cx)
+    cx, shape = conv2d_complexity(shape, filters, 3, 
+                                  groups=groups, prev_cx=cx)
+
+    if input_shape[-1] != filters:
+        cx, _ = conv2d_complexity(shape, filters, 1, strides=strides, prev_cx=cx)
     return cx, shape
 
 

@@ -26,7 +26,30 @@ class ComplexityTest(tf.test.TestCase):
         input_shape = [32, 32, 16]
         self.assertEqual(
             another_conv_block_complexity(model_config, input_shape),
-            ({'flops': 51904704, 'params': 50880}, [16, 32, 32]))
+            ({'flops': 55050528, 'params': 54048}, [16, 32, 32]))
+
+    def test_res_basic_stage_complexity(self):
+        model_config = {
+            'depth': 4,
+            'strides': 2,
+            'filters': 24,
+            'groups': 2,
+        }
+        input_shape = [32, 32, 16]
+        self.assertEqual(
+            res_basic_stage_complexity(model_config, input_shape),
+            ({'flops': 5124312, 'params': 20664}, [16, 16, 24]))
+
+    def test_res_basic_block_complexity(self):
+        model_config = {
+            'strides': 2,
+            'filters': 24,
+            'groups': 2,
+        }
+        input_shape = [32, 32, 16]
+        self.assertEqual(
+            res_basic_block_complexity(model_config, input_shape),
+            ({'flops': 1142856, 'params': 4968}, [16, 16, 24]))
 
     def test_res_bottleneck_block_complexity(self):
         model_config = {
