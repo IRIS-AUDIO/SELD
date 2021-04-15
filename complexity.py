@@ -170,7 +170,7 @@ def dense_net_block_complexity(model_config, input_shape):
 
 
 # TODO: Sepformer
-# TODO: Xception
+# TODO: Xception - separableconv
 
 
 def bidirectional_GRU_block_complexity(model_config, input_shape):
@@ -209,6 +209,12 @@ def transformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
     return cx, shape
+
+
+# TODO: simple_dense_block - n_classes issue must be fixed
+
+def identity_block_complexity(model_config, input_shape):
+    return {'flops': 0, 'params': 0}, input_shape
 
 
 '''            basic complexities            '''

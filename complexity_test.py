@@ -109,6 +109,13 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 48])
 
+    def test_identity_block_complexity(self):
+        model_config = {}
+        self.complexity_test(identity_block_complexity,
+                             identity_block,
+                             model_config,
+                             [32, 32, 48])
+
     def test_conv2d_complexity(self):
         target_cx = {'flops': 442384, 'params': 448}
         target_shape = [32, 32, 16]
