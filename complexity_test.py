@@ -7,6 +7,16 @@ class ComplexityTest(tf.test.TestCase):
     def setUp(self):
         self.prev_cx = {'flops': 456, 'params': 123}
 
+    def test_simple_conv_block_complexity(self):
+        model_config = {
+            'filters': [32, 32],
+            'pool_size': [2, 2],
+        }
+        input_shape = [32, 32, 16]
+        self.assertEqual(
+            simple_conv_block_complexity(model_config, input_shape),
+            ({'flops': 7077952, 'params': 13888}, [8, 8, 32]))
+
     def test_res_bottleneck_block_complexity(self):
         model_config = {
             'filters': 32,

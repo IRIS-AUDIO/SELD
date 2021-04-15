@@ -9,6 +9,24 @@
 from utils import dict_add
 
 
+def simple_conv_block_complexity(model_config, input_shape):
+    filters = model_config['filters']
+    pool_size = model_config['pool_size']
+
+    if len(filters) == 0:
+        filters = filters * len(pool_size)
+    elif len(filters) != len(pool_size):
+        raise ValueError("len of filters and pool_size do not match")
+    
+    shape = input_shape
+    cx = {}
+    for i in range(len(filters)):
+        cx, shape = conv2d_complexity(shape, filters[i], kernel_size=3, 
+                                      prev_cx=cx)
+        cx, shape = pool2d_complexity(shape, pool_size[i], prev_cx=cx)
+    return cx, shape
+
+
 def res_bottleneck_block_complexity(model_config, input_shape):
     # mandatory parameters
     filters = model_config['filters']
@@ -76,7 +94,9 @@ def norm_complexity(input_shape, center=True, scale=True, prev_cx=None):
     return complexity, input_shape
 
 
-def pool2d_complexity(input_shape, pool_size, strides=1, prev_cx=None):
+def pool2d_complexity(input_shape, pool_size, strides=None, prev_cx=None):
+    if strides is None:
+        strides = pool_size
     strides = safe_tuple(strides, 2)
 
     h, w, c = input_shape[-3:]
