@@ -8,14 +8,16 @@
 # https://github.com/facebookresearch/pycls/blob/master/pycls/models/blocks.py
 from utils import dict_add
 
+
 def res_bottleneck_block_complexity(model_config, input_shape):
     # mandatory parameters
     filters = model_config['filters']
     strides = model_config['strides']
-    groups = model_config['groups']
-    bottleneck_ratio = model_config['bottleneck_ratio']
 
-    stries = safe_tuple(strides, 2)
+    groups = model_config.get('groups', 1)
+    bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
+
+    strides = safe_tuple(strides, 2)
     btn_size = int(filters * bottleneck_ratio)
 
     # calculate
@@ -124,12 +126,11 @@ def gru_complexity(input_shape, units, use_bias=True,
     return complexity, output_shape
 
 
-# It only assume self attention
 def multi_head_attention_complexity(input_shape, num_heads, key_dim, 
-                                   value_dim=None,
-                                   use_bias=True, 
-                                   prev_cx=None):
-    
+                                    value_dim=None,
+                                    use_bias=True, 
+                                    prev_cx=None):
+    # It only assume self attention
     c = input_shape[-1]
     size = 1
     for s in input_shape[:-1]:
