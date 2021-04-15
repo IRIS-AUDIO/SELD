@@ -76,6 +76,19 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_dense_net_block_complexity(self):
+        model_config = {
+            'growth_rate': 8,
+            'depth': 3,
+            'strides': 2,
+            'bottleneck_ratio': 2,
+            'reduction_ratio': 0.5,
+        }
+        self.complexity_test(dense_net_block_complexity,
+                             dense_net_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_conv2d_complexity(self):
         target_cx = {'flops': 442384, 'params': 448}
         target_shape = [32, 32, 16]

@@ -137,6 +137,38 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     return cx, shape
 
 
+def dense_net_block_complexity(model_config, input_shape):
+    # mandatory
+    growth_rate = model_config['growth_rate']
+    depth = model_config['depth']
+    strides = safe_tuple(model_config['strides'])
+
+    bottleneck_ratio = model_config.get('bottleneck_ratio', 4)
+    reduction_ratio = model_config.get('reduction_ratio', 0.5)
+
+    bottleneck_size = int(bottleneck_ratio * growth_rate)
+
+    cx = {}
+    for i in range(depth):
+        shape = input_shape
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv2d_complexity(shape, bottleneck_size, 1, use_bias=False,
+                                      prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv2d_complexity(shape, growth_rate, 3, prev_cx=cx)
+        shape[-1] = shape[-1] + input_shape[-1] # concat
+
+        input_shape = shape
+
+    if strides[0] != 1 or strides[1] != 1:
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv2d_complexity(shape, int(shape[-1] * reduction_ratio),
+                                      1, use_bias=False, prev_cx=cx)
+        cx, shape = pool2d_complexity(shape, strides, prev_cx=cx)
+
+    return cx, shape
+
+
 '''            basic complexities            '''
 def conv2d_complexity(input_shape: list, 
                       filters,
@@ -262,11 +294,12 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
 def safe_tuple(tuple_or_scalar, length=2):
     if isinstance(tuple_or_scalar, (int, float)):
         tuple_or_scalar = (tuple_or_scalar, ) * length
-    elif isinstance(tuple_or_scalar, (list, tuple)):
-        count = len(tuple_or_scalar)
-        if count == 1:
-            tuple_or_scalar = tuple_or_scalar * length
-        elif count != length:
-            raise ValueError("length of input must be one or required length")
+
+    tuple_or_scalar = tuple(tuple_or_scalar)
+    count = len(tuple_or_scalar)
+    if count == 1:
+        tuple_or_scalar = tuple_or_scalar * length
+    elif count != length:
+        raise ValueError("length of input must be one or required length")
     return tuple_or_scalar
 
