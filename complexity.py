@@ -33,15 +33,16 @@ def another_conv_block_complexity(model_config, input_shape):
     depth = model_config['depth']
     pool_size = safe_tuple(model_config['pool_size'])
 
-    shape = input_shape
     cx = {}
 
     for i in range(depth):
+        shape = input_shape
         cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
         cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
 
         if input_shape[-1] != filters:
-            cx, _ = conv2d_complexity(shape, filters, 1, prev_cx=cx)
+            cx, _ = conv2d_complexity(input_shape, filters, 1, prev_cx=cx)
+        input_shape = shape
 
     cx, shape = pool2d_complexity(shape, pool_size, prev_cx=cx)
     return cx, shape
@@ -79,7 +80,7 @@ def res_basic_block_complexity(model_config, input_shape):
                                   groups=groups, prev_cx=cx)
 
     if input_shape[-1] != filters:
-        cx, _ = conv2d_complexity(shape, filters, 1, strides=strides, prev_cx=cx)
+        cx, _ = conv2d_complexity(input_shape, filters, 1, strides=strides, prev_cx=cx)
     return cx, shape
 
 
@@ -96,22 +97,22 @@ def res_bottleneck_block_complexity(model_config, input_shape):
 
     # calculate
     cx = {}
-    cx, output_shape = conv2d_complexity(input_shape, btn_size, 1, prev_cx=cx)
-    cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
+    cx, shape = conv2d_complexity(input_shape, btn_size, 1, prev_cx=cx)
+    # cx, shape = norm_complexity(shape, prev_cx=cx)
 
-    cx, output_shape = conv2d_complexity(
-        output_shape, btn_size, 3, strides, groups, prev_cx=cx)
-    cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
+    cx, shape = conv2d_complexity(
+        shape, btn_size, 3, strides, groups, prev_cx=cx)
+    # cx, shape = norm_complexity(shape, prev_cx=cx)
 
-    cx, output_shape = conv2d_complexity(output_shape, filters, 1, prev_cx=cx)
-    cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
+    cx, shape = conv2d_complexity(shape, filters, 1, prev_cx=cx)
+    # cx, shape = norm_complexity(shape, prev_cx=cx)
 
     if strides != (1, 1) or input_shape[-1] != filters:
-        cx, output_shape = conv2d_complexity(input_shape, filters, 1, strides, 
+        cx, shape = conv2d_complexity(input_shape, filters, 1, strides, 
                                              prev_cx=cx)
-        cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
+        # cx, shape = norm_complexity(shape, prev_cx=cx)
 
-    return cx, output_shape
+    return cx, shape
 
 
 '''            basic complexities            '''
