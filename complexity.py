@@ -123,7 +123,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
     cx, shape = conv2d_complexity(
-        shape, btn_size, 3, strides, groups, prev_cx=cx)
+        shape, btn_size, 3, strides, groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
     cx, shape = conv2d_complexity(shape, filters, 1, prev_cx=cx)
@@ -131,7 +131,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
 
     if strides != (1, 1) or input_shape[-1] != filters:
         cx, shape = conv2d_complexity(input_shape, filters, 1, strides, 
-                                             prev_cx=cx)
+                                      prev_cx=cx)
         cx, shape = norm_complexity(shape, prev_cx=cx)
 
     return cx, shape
@@ -170,7 +170,57 @@ def dense_net_block_complexity(model_config, input_shape):
 
 
 # TODO: Sepformer
-# TODO: Xception - separableconv
+
+def xception_block_complexity(model_config, input_shape):
+    filters = model_config['filters']
+    block_num = model_config['block_num']
+
+    def _sepconv_block(shape, filters, prev_cx):
+        cx, shape = separable_conv2d_complexity(
+            shape, filters, 3, padding='same', use_bias=False, prev_cx=prev_cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        return cx, shape
+    
+    def _residual_block(shape, filters, prev_cx, second_filters=None):
+        if second_filters is None:
+            second_filters = filters
+
+        cx, output_shape = conv2d_complexity(
+            shape, second_filters, 1, strides=(1,2), 
+            padding='same', use_bias=False, prev_cx=prev_cx)
+        cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
+        cx, shape = _sepconv_block(shape, filters, prev_cx=cx)
+        cx, shape = _sepconv_block(shape, second_filters, prev_cx=cx)
+
+        return cx, output_shape
+
+    cx = {}
+    cx, shape = conv2d_complexity(input_shape, filters, 3, use_bias=False,
+                                  prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = pool2d_complexity(shape, pool_size=(5, 1), prev_cx=cx)
+
+    cx, shape = conv2d_complexity(shape, filters*2, 3, use_bias=False,
+                                  prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+
+    new_filters = int(filters * 22.75)
+
+    cx, shape = _residual_block(shape, filters*4, prev_cx=cx)
+    cx, shape = _residual_block(shape, filters*8, prev_cx=cx)
+    cx, shape = _residual_block(shape, new_filters, prev_cx=cx)
+
+    for i in range(block_num):
+        cx, shape = _sepconv_block(shape, new_filters, prev_cx=cx)
+        cx, shape = _sepconv_block(shape, new_filters, prev_cx=cx)
+        cx, shape = _sepconv_block(shape, new_filters, prev_cx=cx)
+
+    cx, shape = _residual_block(shape, new_filters, prev_cx=cx,
+                                second_filters=filters*32)
+
+    cx, shape = _sepconv_block(shape, filters*48, prev_cx=cx)
+    cx, shape = _sepconv_block(shape, filters*64, prev_cx=cx)
+    return cx, shape
 
 
 def bidirectional_GRU_block_complexity(model_config, input_shape):
@@ -228,10 +278,12 @@ def conv1d_complexity(input_shape: list,
                       filters,
                       kernel_size,
                       strides=1,
+                      padding='same',
                       use_bias=True,
                       prev_cx=None):
     t, c = input_shape
-    t = (t-1) // strides + 1
+    not_same = padding != 'same'
+    t = (t - 1 - not_same*(kernel_size-1)) // strides + 1
     shape = [t, filters]
 
     flops = kernel_size * c * filters * t
@@ -251,14 +303,17 @@ def conv2d_complexity(input_shape: list,
                       filters,
                       kernel_size,
                       strides=(1, 1),
+                      padding='same',
                       groups=1,
                       use_bias=True,
                       prev_cx=None):
     kernel_size = safe_tuple(kernel_size, 2)
     strides = safe_tuple(strides, 2)
+    not_same = padding != 'same'
 
     h, w, c = input_shape
-    h, w = (h-1)//strides[0] + 1, (w-1)//strides[1] + 1
+    h = (h - 1 - not_same*(kernel_size[0]-1)) // strides[0] + 1
+    w = (w - 1 - not_same*(kernel_size[1]-1)) // strides[1] + 1
     output_shape = [h, w, filters]
 
     kernel = kernel_size[0] * kernel_size[1]
@@ -275,6 +330,30 @@ def conv2d_complexity(input_shape: list,
     return complexity, output_shape
 
 
+def separable_conv2d_complexity(input_shape: list, 
+                                filters,
+                                kernel_size,
+                                strides=(1, 1),
+                                padding='same',
+                                depth_multiplier=1,
+                                use_bias=True,
+                                prev_cx=None):
+    cx = prev_cx if prev_cx else {}
+    chan = input_shape[-1]
+    cx, shape = conv2d_complexity(input_shape,
+                                  int(chan*depth_multiplier),
+                                  kernel_size,
+                                  strides,
+                                  padding=padding,
+                                  groups=chan,
+                                  use_bias=False,
+                                  prev_cx=cx)                                  
+    cx, shape = conv2d_complexity(shape, filters, 1, use_bias=use_bias,
+                                  prev_cx=cx)                                  
+
+    return cx, shape
+
+
 def norm_complexity(input_shape, center=True, scale=True, prev_cx=None):
     complexity = dict_add(
         {'params': input_shape[-1] * (center + scale)},
@@ -282,13 +361,16 @@ def norm_complexity(input_shape, center=True, scale=True, prev_cx=None):
     return complexity, input_shape
 
 
-def pool2d_complexity(input_shape, pool_size, strides=None, prev_cx=None):
+def pool2d_complexity(input_shape, pool_size, strides=None, 
+                      padding='valid', prev_cx=None):
     if strides is None:
         strides = pool_size
     strides = safe_tuple(strides, 2)
+    not_same = padding != 'same'
 
-    h, w, c = input_shape[-3:]
-    h, w = (h-1)//strides[0] + 1, (w-1)//strides[1] + 1
+    h, w, c = input_shape
+    h = (h - 1 - not_same*(strides[0]-1)) // strides[0] + 1
+    w = (w - 1 - not_same*(strides[1]-1)) // strides[1] + 1
     output_shape = input_shape[:-3] + [h, w, c]
 
     complexity = prev_cx if prev_cx else {}

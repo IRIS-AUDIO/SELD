@@ -89,6 +89,16 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_xception_block_complexity(self):
+        model_config = {
+            'filters': 32,
+            'block_num': 1,
+        }
+        self.complexity_test(xception_block_complexity,
+                             xception_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_bidirectional_GRU_block_complexity(self):
         model_config = {
             'units': [128, 128],
@@ -125,6 +135,24 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 48])
 
+    def test_conv1d_complexity(self):
+        target_cx = {'flops': 4624, 'params': 160}
+        target_shape = [32, 16]
+
+        self.assertEqual(
+            conv1d_complexity(input_shape=[32, 3],
+                              filters=16,
+                              kernel_size=3,
+                              strides=1),
+            (target_cx, target_shape))
+        self.assertEqual(
+            conv1d_complexity(input_shape=[32, 3],
+                              filters=16,
+                              kernel_size=3,
+                              strides=1,
+                              prev_cx=self.prev_cx),
+            (dict_add(target_cx, self.prev_cx), target_shape))
+
     def test_conv2d_complexity(self):
         target_cx = {'flops': 442384, 'params': 448}
         target_shape = [32, 32, 16]
@@ -142,6 +170,27 @@ class ComplexityTest(tf.test.TestCase):
                               strides=1,
                               prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
+
+    def test_separable_conv2d_complexity(self):
+        args = {
+            'filters': 128,
+            'kernel_size': 3,
+            'strides': (1, 2),
+            'padding': 'valid',
+            'use_bias': True,
+            'depth_multiplier': 2,
+        }
+        input_shape = [6, 32, 64]
+
+        inputs = tf.keras.layers.Input(input_shape)
+        outputs = tf.keras.layers.SeparableConv2D(**args)(inputs)
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+        cx, shape = separable_conv2d_complexity(input_shape, **args)
+        self.assertEqual(
+            cx['params'], 
+            sum([K.count_params(p) for p in model.trainable_weights]))
+        self.assertEqual(tuple(shape), model.output_shape[1:])
 
     def test_norm_complexity(self):
         target_cx = {'params': 6}

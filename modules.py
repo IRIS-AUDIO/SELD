@@ -246,7 +246,6 @@ def sepformer_block(model_config: dict):
     return _sepformer_block
     
 
-"""            BLOCKS WITH 1D OUTPUTS            """
 def xception_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
@@ -304,11 +303,11 @@ def xception_block(model_config: dict):
 
         x = _sepconv_block(x, filters * 48, 'relu')
         x = _sepconv_block(x, filters * 64, 'relu')
-        x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
         return x
     return _xception_net_block
 
 
+"""            BLOCKS WITH 1D OUTPUTS            """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
     units_per_layer = model_config['units']
