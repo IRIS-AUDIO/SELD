@@ -51,6 +51,19 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_res_bottleneck_stage_complexity(self):
+        model_config = {
+            'depth': 4,
+            'strides': 2,
+            'filters': 24,
+            'groups': 2,
+            'bottleneck_ratio': 2
+        }
+        self.complexity_test(res_bottleneck_stage_complexity,
+                             res_bottleneck_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def test_res_bottleneck_block_complexity(self):
         model_config = {
             'filters': 32,
