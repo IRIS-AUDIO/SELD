@@ -23,11 +23,13 @@ def config_sampling(search_space: OrderedDict):
 def conv_temporal_sampler(search_space_2d: dict, 
                           search_space_1d: dict,
                           n_blocks: int,
+                          input_shape,
                           default_config=None,
                           constraint=None):
     '''
     search_space_2d: modules with 2D outputs
     search_space_1d: modules with 1D outputs
+    input_shape: (without batch dimension)
     default_config: the process will sample model config
                     starting from default_config
                     if not given, it will start from an
@@ -68,7 +70,7 @@ def conv_temporal_sampler(search_space_2d: dict,
                 k: random.sample(v, 1)[0]
                 for k, v in search_space_total[module].items()}
 
-        if constraint is None or constraint(model_config):
+        if constraint is None or constraint(model_config, input_shape):
             return model_config
 
         i += 1
@@ -139,6 +141,8 @@ if __name__ == '__main__':
         'xception_block':
             {'filters': [8, 16, 32, 48, 64, 96],
              'block_num': [1, 2, 3, 4, 5, 6, 7]},
+        'identity_block': 
+            {},
     }
     search_space_1d = {
         'bidirectional_GRU_block':
@@ -149,15 +153,13 @@ if __name__ == '__main__':
              'kernel_size': [1, 3, 5]},
         'simple_dense_block':
             {'units': [[8], [16], [32], [64], [128], [256]]},
-        'identity_block': 
-            {},
     }
     default_config = {
         'filters': 32,
         'first_pool_size': [5, 2],
         'n_classes': 14}
 
-    def sample_constraint(model_config):
+    def sample_constraint(model_config, input_shape):
         # if previous module outputs 1D, current module cannot be
         # a module with 2D inputs, outputs
         prev_2d = True
@@ -177,23 +179,20 @@ if __name__ == '__main__':
                 if args['groups'] > args['filters']:
                     return False
 
-        if not prev_2d:
-            # assert 1D modules 
-            if model_config['SED'] not in search_space_1d:
-                return False
-            if model_config['DOA'] not in search_space_1d:
-                return False
-
         return True
 
+    input_shape = [300, 64, 4]
     model_config = conv_temporal_sampler(search_space_2d,
                                          search_space_1d,
                                          n_blocks=4,
+                                         input_shape=input_shape,
                                          default_config=default_config,
                                          constraint=sample_constraint)
     print(model_config)
 
     import models
-    input_shape = [300, 64, 4]
+    '''
     model = models.conv_temporal(input_shape, model_config)
+    model.summary()
+    '''
 
