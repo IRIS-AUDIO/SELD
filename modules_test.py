@@ -173,7 +173,7 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_transformer_encoder_layer(self):
+    def test_transformer_encoder_block(self):
         model_config = {
             'n_head': 8, # mandatory
             'ff_multiplier': 128, # mandatory
@@ -184,7 +184,7 @@ class ModulesTest(tf.test.TestCase):
         exp_input_shape = 32, 20, 64
         exp_output_shape = 32, 20, 64
 
-        self.block_test(transformer_encoder_layer, 
+        self.block_test(transformer_encoder_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
@@ -192,15 +192,12 @@ class ModulesTest(tf.test.TestCase):
     def test_simple_dense_block(self):
         model_config = {
             'units': [128, 128], # mandatory
-            'n_classes': 10, # mandatory 
-            'name': 'simple_dense_block',
-            'activation': 'relu',
+            'dense_activation': 'relu',
             'dropout_rate': 0,
             'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
         }
-
-        exp_input_shape = 32, 10, 128 # batch, time, feat
-        exp_output_shape = 32, 10, model_config['n_classes'] # batch, time, feat
+        exp_input_shape = 32, 10, 64
+        exp_output_shape = 32, 10, 128
 
         self.block_test(simple_dense_block, 
                         model_config, 
