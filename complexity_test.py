@@ -207,9 +207,9 @@ class ComplexityTest(tf.test.TestCase):
         cx, output_shape = complexity_fn(model_config, exp_input_shape)
 
         # TODO: count ops
-        params = [p for p in model.weights if p.name.startswith('conv')]
+        params = [p for p in model.weights]
         self.assertEquals(cx['params'], 
-                          sum([K.count_params(p) for p in params]))
+                          sum([K.count_params(p) for p in model.trainable_weights]))
         self.assertEquals(tuple(output_shape), model.output_shape[1:])
 
 
