@@ -98,6 +98,17 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_transformer_encoder_block_complexity(self):
+        model_config = {
+            'n_head': 4,
+            'ff_multiplier': 2,
+            'kernel_size': 3,
+        }
+        self.complexity_test(transformer_encoder_block_complexity,
+                             transformer_encoder_block,
+                             model_config,
+                             [32, 48])
+
     def test_conv2d_complexity(self):
         target_cx = {'flops': 442384, 'params': 448}
         target_shape = [32, 32, 16]

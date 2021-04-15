@@ -186,8 +186,53 @@ def bidirectional_GRU_block_complexity(model_config, input_shape):
     return cx, shape
 
 
+def transformer_encoder_block_complexity(model_config, input_shape):
+    # mandatory parameters
+    n_head = model_config['n_head']
+    ff_multiplier = model_config['ff_multiplier'] # default to 4 
+    kernel_size = model_config['kernel_size'] # default to 1
+
+    shape = input_shape
+    if len(shape) == 3:
+        shape = [shape[0], shape[1] * shape[2]]
+
+    d_model = shape[-1]
+
+    cx = {}
+    cx, shape = multi_head_attention_complexity(
+        shape, n_head, d_model//n_head, prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+
+    cx, shape = conv1d_complexity(shape, int(ff_multiplier*d_model),
+                                  kernel_size, prev_cx=cx)
+    cx, shape = conv1d_complexity(shape, d_model, kernel_size, prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+
+    return cx, shape
+
+
 '''            basic complexities            '''
-# TODO: Conv1D
+def conv1d_complexity(input_shape: list, 
+                      filters,
+                      kernel_size,
+                      strides=1,
+                      use_bias=True,
+                      prev_cx=None):
+    t, c = input_shape
+    t = (t-1) // strides + 1
+    shape = [t, filters]
+
+    flops = kernel_size * c * filters * t
+    params = kernel_size * c * filters
+    if use_bias:
+        flops += filters 
+        params += filters
+
+    complexity = dict_add(
+        {'flops': flops, 'params': params},
+        prev_cx if prev_cx else {})
+
+    return complexity, shape
 
 
 def conv2d_complexity(input_shape: list, 
@@ -200,9 +245,9 @@ def conv2d_complexity(input_shape: list,
     kernel_size = safe_tuple(kernel_size, 2)
     strides = safe_tuple(strides, 2)
 
-    h, w, c = input_shape[-3:]
+    h, w, c = input_shape
     h, w = (h-1)//strides[0] + 1, (w-1)//strides[1] + 1
-    output_shape = input_shape[:-3] + [h, w, filters]
+    output_shape = [h, w, filters]
 
     kernel = kernel_size[0] * kernel_size[1]
     flops = kernel * c * filters * h * w // groups

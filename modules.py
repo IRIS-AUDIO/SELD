@@ -201,7 +201,7 @@ def dense_net_block(model_config: dict):
 
 
 def sepformer_block(model_config: dict):
-    # mandatory parameters (for transformer_encoder_layer)
+    # mandatory parameters (for transformer_encoder_block)
     # 'n_head', 'ff_multiplier', 'kernel_size'
 
     pos_encoding = model_config.get('pos_encoding', None)
@@ -227,7 +227,7 @@ def sepformer_block(model_config: dict):
         intra = tf.reshape(intra, [-1, time, freq])
         if pos_encoding:
             intra += pos_encoding(intra.shape)(intra)
-        intra = transformer_encoder_layer(model_config)(intra)
+        intra = transformer_encoder_block(model_config)(intra)
         intra = tf.reshape(intra, [-1, chan, time, freq])
         intra = tf.transpose(intra, [0, 2, 3, 1])
         intra = LayerNormalization()(intra) + x
@@ -236,7 +236,7 @@ def sepformer_block(model_config: dict):
         inter = tf.reshape(inter, [-1, chan, freq])
         if pos_encoding:
             inter += pos_encoding(inter.shape)(inter)
-        inter = transformer_encoder_layer(model_config)(inter)
+        inter = transformer_encoder_block(model_config)(inter)
         inter = tf.reshape(inter, [-1, time, chan, freq])
         inter = tf.transpose(inter, [0, 1, 3, 2])
         inter = LayerNormalization()(inter) + intra
@@ -330,7 +330,7 @@ def bidirectional_GRU_block(model_config: dict):
     return GRU_block
 
 
-def transformer_encoder_layer(model_config: dict):
+def transformer_encoder_block(model_config: dict):
     # mandatory parameters
     n_head = model_config['n_head']
     # multiplier for feed forward layer
