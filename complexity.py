@@ -169,7 +169,27 @@ def dense_net_block_complexity(model_config, input_shape):
     return cx, shape
 
 
+# TODO: Sepformer
+# TODO: Xception
+
+
+def bidirectional_GRU_block_complexity(model_config, input_shape):
+    units_per_layer = model_config['units']
+
+    shape = input_shape
+    if len(shape) == 3:
+        shape = [shape[0], shape[1] * shape[2]]
+
+    cx = {}
+    for units in units_per_layer:
+        cx, shape = gru_complexity(shape, units, bi=True, prev_cx=cx)
+    return cx, shape
+
+
 '''            basic complexities            '''
+# TODO: Conv1D
+
+
 def conv2d_complexity(input_shape: list, 
                       filters,
                       kernel_size,

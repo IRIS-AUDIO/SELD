@@ -89,6 +89,15 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_bidirectional_GRU_block_complexity(self):
+        model_config = {
+            'units': [128, 128],
+        }
+        self.complexity_test(bidirectional_GRU_block_complexity,
+                             bidirectional_GRU_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_conv2d_complexity(self):
         target_cx = {'flops': 442384, 'params': 448}
         target_shape = [32, 32, 16]
@@ -220,9 +229,9 @@ class ComplexityTest(tf.test.TestCase):
         cx, output_shape = complexity_fn(model_config, exp_input_shape)
 
         # TODO: count ops
-        params = [p for p in model.weights]
         self.assertEquals(cx['params'], 
-                          sum([K.count_params(p) for p in model.trainable_weights]))
+                          sum([K.count_params(p) 
+                               for p in model.trainable_weights]))
         self.assertEquals(tuple(output_shape), model.output_shape[1:])
 
 
