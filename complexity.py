@@ -85,7 +85,8 @@ def res_basic_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
     if input_shape[-1] != filters:
-        cx, _ = conv2d_complexity(input_shape, filters, 1, strides=strides, prev_cx=cx)
+        cx, _ = conv2d_complexity(input_shape, filters, 1, strides=strides, 
+                                  prev_cx=cx)
         cx, _ = norm_complexity(shape, prev_cx=cx)
     return cx, shape
 
@@ -169,7 +170,26 @@ def dense_net_block_complexity(model_config, input_shape):
     return cx, shape
 
 
-# TODO: Sepformer
+def sepformer_block_complexity(model_config, input_shape):
+    # mandatory parameters (for transformer_encoder_block)
+    # 'n_head', 'ff_multiplier', 'kernel_size'
+    time, freq, chan = input_shape
+
+    intra_shape = [time, freq] # [batch*chan, time, freq]
+    cx, intra_shape = transformer_encoder_block_complexity(model_config, 
+                                                           intra_shape)
+    cx['flops'] = cx['flops'] * chan
+    cx, shape = norm_complexity(input_shape, prev_cx=cx)
+    total_cx = cx
+
+    inter_shape = [chan, freq] # [batch*time, chan, freq]
+    cx, inter_shape = transformer_encoder_block_complexity(model_config, 
+                                                           inter_shape)
+    cx['flops'] = cx['flops'] * time
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+
 
 def xception_block_complexity(model_config, input_shape):
     filters = model_config['filters']

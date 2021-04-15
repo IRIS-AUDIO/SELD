@@ -89,6 +89,17 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_sepformer_block_complexity(self):
+        model_config = {
+            'n_head': 8,
+            'ff_multiplier': 4,
+            'kernel_size': 3,
+        }
+        self.complexity_test(sepformer_block_complexity,
+                             sepformer_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_xception_block_complexity(self):
         model_config = {
             'filters': 32,
