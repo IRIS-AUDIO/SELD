@@ -319,6 +319,8 @@ def conv1d_complexity(input_shape: list,
     not_same = padding != 'same'
     t = (t - 1 - not_same*(kernel_size-1)) // strides + 1
     shape = [t, filters]
+    if t < 1:
+        raise ValueError('invalid strides, kernel_size')
 
     flops = kernel_size * c * filters * t
     params = kernel_size * c * filters
@@ -340,6 +342,8 @@ def conv2d_complexity(input_shape: list,
                       groups=1,
                       use_bias=True,
                       prev_cx=None):
+    if input_shape[-1] < groups or input_shape[-1] % groups:
+        raise ValueError('wrong groups')
     if filters < groups or filters % groups:
         raise ValueError('wrong groups')
 
@@ -351,6 +355,8 @@ def conv2d_complexity(input_shape: list,
     h = (h - 1 - not_same*(kernel_size[0]-1)) // strides[0] + 1
     w = (w - 1 - not_same*(kernel_size[1]-1)) // strides[1] + 1
     output_shape = [h, w, filters]
+    if h < 1 or w < 1:
+        raise ValueError('invalid strides, kernel_size')
 
     kernel = kernel_size[0] * kernel_size[1]
     flops = kernel * c * filters * h * w // groups
@@ -407,6 +413,8 @@ def pool2d_complexity(input_shape, pool_size, strides=None,
     h = (h - 1 - not_same*(strides[0]-1)) // strides[0] + 1
     w = (w - 1 - not_same*(strides[1]-1)) // strides[1] + 1
     output_shape = input_shape[:-3] + [h, w, c]
+    if h < 1 or w < 1:
+        raise ValueError('invalid strides, kernel_size')
 
     complexity = prev_cx if prev_cx else {}
     return complexity, output_shape
