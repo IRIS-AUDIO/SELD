@@ -451,13 +451,15 @@ def conformer_encoder_block(model_config: dict):
         
         # GLU Part
         conv_1, conv_2 = tf.split(conv, 2, axis=-1)
-        conv_1 = Dense(emb, use_bias=True)(conv_1)
-        conv_2 = Dense(emb, use_bias=True)(conv_2)
+        conv_1 = Dense(emb)(conv_1)
+        conv_2 = Dense(emb)(conv_2)
         conv_2 = tf.keras.activations.sigmoid(conv_2)
-        conv = tf.multiply(conv_1, conv_2)        
-        conv = Conv1D(filters = emb,
+        conv = tf.multiply(conv_1, conv_2)    
+
+        #Depth Wise
+        conv = Conv1D(filters=emb,
                       kernel_size=1,
-                      groups = emb, 
+                      groups=emb, 
                       strides=1, padding="same", 
                       kernel_regularizer=kernel_regularizer)(conv)
 
@@ -466,13 +468,12 @@ def conformer_encoder_block(model_config: dict):
         conv = Conv1D(filters=emb, 
                       kernel_size=1, 
                       strides=1, 
-                      padding="valid",
+                      padding="same",
                       kernel_regularizer=kernel_regularizer)(conv)
 
-        # conv = tf.reshape(conv, [-1, time, emb])
         conv = Dropout(dropout_rate)(conv)
         conv = conv + x
-# 
+
         # FFN
         ffn = LayerNormalization()(conv)
         ffn = Dense(multiplier*emb, activation=activation)(ffn)
