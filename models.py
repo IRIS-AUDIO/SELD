@@ -15,27 +15,23 @@ You should not define modules nor layers here.
 
 
 def seldnet(input_shape, model_config):
-    # hyperparameters for the model
     n_classes = model_config.get('n_classes', 14)
 
+    # interprets model_config to an actual model
     inputs = Input(shape=input_shape[-3:])
 
     x = getattr(modules, model_config['FIRST'])(model_config['FIRST_ARGS'])(inputs)
     x = getattr(modules, model_config['SECOND'])(model_config['SECOND_ARGS'])(x)
 
     sed = getattr(modules, model_config['SED'])(model_config['SED_ARGS'])(x)
-    sed = layers.force_1d_inputs()(sed)
     sed = Dense(n_classes, activation='sigmoid', name='sed_out')(sed)
-
     doa = getattr(modules, model_config['DOA'])(model_config['DOA_ARGS'])(x)
-    doa = layers.force_1d_inputs()(doa)
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     return tf.keras.Model(inputs=inputs, outputs=[sed, doa])
 
 
 def seldnet_v1(input_shape, model_config):
-    # hyperparameters for the model
     n_classes = model_config.get('n_classes', 14)
 
     inputs = Input(shape=input_shape[-3:])
@@ -44,11 +40,8 @@ def seldnet_v1(input_shape, model_config):
     x = getattr(modules, model_config['SECOND'])(model_config['SECOND_ARGS'])(x)
 
     sed = getattr(modules, model_config['SED'])(model_config['SED_ARGS'])(x)
-    sed = layers.force_1d_inputs()(sed)
     sed = Dense(n_classes, activation='sigmoid', name='sed_out')(sed)
-
     doa = getattr(modules, model_config['DOA'])(model_config['DOA_ARGS'])(x)
-    doa = layers.force_1d_inputs()(doa)
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     doa *= Concatenate()([sed] * 3)
@@ -58,11 +51,10 @@ def seldnet_v1(input_shape, model_config):
     
 
 def conv_temporal(input_shape, model_config):
-    # hyperparameters for the model
     filters = model_config.get('filters', 32)
     first_kernel_size = model_config.get('first_kernel_size', 7)
-    n_classes = model_config.get('n_classes', 14)
     first_pool_size = model_config.get('first_pool_size', [5, 2])
+    n_classes = model_config.get('n_classes', 14)
 
     inputs = Input(shape=input_shape[-3:])
     
@@ -78,11 +70,8 @@ def conv_temporal(input_shape, model_config):
         x = getattr(modules, model_config[block])(model_config[f'{block}_ARGS'])(x)
 
     sed = getattr(modules, model_config['SED'])(model_config['SED_ARGS'])(x)
-    sed = layers.force_1d_inputs()(sed)
     sed = Dense(n_classes, activation='sigmoid', name='sed_out')(sed)
-
     doa = getattr(modules, model_config['DOA'])(model_config['DOA_ARGS'])(x)
-    doa = layers.force_1d_inputs()(doa)
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     return tf.keras.Model(inputs=inputs, outputs=[sed, doa])

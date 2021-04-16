@@ -192,10 +192,10 @@ class ModulesTest(tf.test.TestCase):
     def test_simple_dense_block(self):
         model_config = {
             'units': [128, 128], # mandatory
+            'dense_activation': 'relu',
             'dropout_rate': 0,
             'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
         }
-
         exp_input_shape = 32, 10, 64
         exp_output_shape = 32, 10, 128
 
