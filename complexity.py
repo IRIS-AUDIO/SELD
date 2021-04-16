@@ -10,6 +10,45 @@ import copy
 from utils import dict_add
 
 
+'''            model complexities            '''
+def conv_temporal_complexity(model_config, input_shape):
+    filters = model_config.get('filters', 32)
+    first_kernel_size = model_config.get('first_kernel_size', 7)
+    first_pool_size = model_config.get('first_pool_size', [5, 2])
+    n_classes = model_config.get('n_classes', 14)
+
+    shape = input_shape[-3:]
+    total_cx = {}
+    
+    total_cx, shape = conv2d_complexity(shape, filters, first_kernel_size,
+                                        padding='same', prev_cx=total_cx)
+    total_cx, shape = norm_complexity(shape, prev_cx=total_cx)
+    total_cx, shape = pool2d_complexity(shape, first_pool_size, padding='same',
+                                        prev_cx=total_cx)
+
+    blocks = [key for key in model_config.keys()
+              if key.startswith('BLOCK') and not key.endswith('_ARGS')]
+    blocks.sort()
+
+    for block in blocks:
+        cx, shape = globals()[f'{model_config[block]}_complexity'](
+            model_config[f'{block}_ARGS'], shape)
+        total_cx = dict_add(total_cx, cx)
+
+    cx, sed_shape = globals()[f'{model_config["SED"]}_complexity'](
+        model_config['SED_ARGS'], shape)
+    cx, sed_shape = linear_complexity(sed_shape, n_classes, prev_cx=cx)
+    total_cx = dict_add(total_cx, cx)
+
+    cx, doa_shape = globals()[f'{model_config["SED"]}_complexity'](
+        model_config['SED_ARGS'], shape)
+    cx, doa_shape = linear_complexity(doa_shape, 3*n_classes, prev_cx=cx)
+    total_cx = dict_add(total_cx, cx)
+
+    return total_cx, (sed_shape, doa_shape)
+
+
+'''            module complexities            '''
 def simple_conv_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     pool_size = model_config['pool_size']
@@ -117,6 +156,8 @@ def res_bottleneck_block_complexity(model_config, input_shape):
 
     strides = safe_tuple(strides, 2)
     btn_size = int(filters * bottleneck_ratio)
+    if btn_size < 1:
+        raise ValueError('invalid filters and bottleneck ratio')
 
     # calculate
     cx = {}
@@ -148,6 +189,8 @@ def dense_net_block_complexity(model_config, input_shape):
     reduction_ratio = model_config.get('reduction_ratio', 0.5)
 
     bottleneck_size = int(bottleneck_ratio * growth_rate)
+    if bottleneck_size < 1:
+        raise ValueError('invalid filters and bottleneck ratio')
 
     cx = {}
     for i in range(depth):
@@ -161,9 +204,13 @@ def dense_net_block_complexity(model_config, input_shape):
 
         input_shape = shape
 
+    reduction_size = int(reduction_ratio * shape[-1])
+    if reduction_size < 1:
+        raise ValueError('invalid reduction ratio')
+
     if strides[0] != 1 or strides[1] != 1:
         cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = conv2d_complexity(shape, int(shape[-1] * reduction_ratio),
+        cx, shape = conv2d_complexity(shape, reduction_size,
                                       1, use_bias=False, prev_cx=cx)
         cx, shape = pool2d_complexity(shape, strides, prev_cx=cx)
 
@@ -263,14 +310,19 @@ def transformer_encoder_block_complexity(model_config, input_shape):
     shape = force_1d_shape(input_shape)
 
     d_model = shape[-1]
+    if d_model < n_head or d_model % n_head:
+        raise ValueError('invalid n_head')
+
+    ff_dim = int(ff_multiplier * d_model)
+    if ff_dim < 0:
+        raise ValueError('invalid ff_multiplier')
 
     cx = {}
     cx, shape = multi_head_attention_complexity(
         shape, n_head, d_model//n_head, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
-    cx, shape = conv1d_complexity(shape, int(ff_multiplier*d_model),
-                                  kernel_size, prev_cx=cx)
+    cx, shape = conv1d_complexity(shape, ff_dim, kernel_size, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, d_model, kernel_size, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
@@ -326,6 +378,9 @@ def conv2d_complexity(input_shape: list,
                       groups=1,
                       use_bias=True,
                       prev_cx=None):
+    if filters < groups or filters % groups:
+        raise ValueError('wrong groups')
+
     kernel_size = safe_tuple(kernel_size, 2)
     strides = safe_tuple(strides, 2)
     not_same = padding != 'same'
@@ -488,4 +543,20 @@ def force_1d_shape(shape):
     elif len(shape) > 3:
         raise ValueError(f'invalid shape: {shape}')
     return shape
+
+
+if __name__ == '__main__':
+    import json
+
+    model_config = json.load(open('model_config/conv_temp.json', 'rb'))
+    input_shape = [300, 64, 7]
+
+    print(conv_temporal_complexity(model_config, input_shape))
+    print(multi_head_attention_complexity(
+              [300, 64], 128, 64//128))
+    '''
+    import models
+    model = models.conv_temporal(input_shape, model_config)
+    print(model.count_params())
+    '''
 
