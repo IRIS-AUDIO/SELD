@@ -183,7 +183,8 @@ def dense_net_block(model_config: dict):
         for i in range(depth):
             out = BatchNormalization()(x)
             out = Activation('relu')(out)
-            out = Conv2D(bottleneck_ratio * growth_rate, 1, use_bias=False)(out)
+            out = Conv2D(int(bottleneck_ratio*growth_rate), 1, 
+                         use_bias=False)(out)
             out = BatchNormalization()(out)
             out = Activation('relu')(out)
             out = Conv2D(growth_rate, 3, padding='same', use_bias=True)(out)
@@ -349,7 +350,7 @@ def transformer_encoder_block(model_config: dict):
         x = LayerNormalization()(x + attn)
 
         # FFN
-        ffn = Conv1D(ff_multiplier*d_model, kernel_size, padding='same',
+        ffn = Conv1D(int(ff_multiplier*d_model), kernel_size, padding='same',
                      activation=activation)(x)
         ffn = Dropout(dropout_rate)(ffn)
         ffn = Conv1D(d_model, kernel_size, padding='same')(ffn)
