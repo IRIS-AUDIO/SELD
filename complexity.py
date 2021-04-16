@@ -309,7 +309,6 @@ def conv1d_complexity(input_shape: list,
     flops = kernel_size * c * filters * t
     params = kernel_size * c * filters
     if use_bias:
-        flops += filters 
         params += filters
 
     complexity = dict_add(
@@ -340,7 +339,6 @@ def conv2d_complexity(input_shape: list,
     flops = kernel * c * filters * h * w // groups
     params = kernel * c * filters // groups
     if use_bias:
-        flops += filters 
         params += filters
 
     complexity = dict_add(
