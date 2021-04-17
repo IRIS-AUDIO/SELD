@@ -149,6 +149,22 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_xception_basic_block(self):
+        model_config = {
+            'filters' : 32, # mandatory
+            'mid_ratio': 1,
+            'strides': (1, 2),
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
+        }
+
+        exp_input_shape = 32, 300, 64, 3
+        exp_output_shape = 32, 300, 32, 32
+
+        self.block_test(xception_basic_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_bidirectional_GRU_block(self):
         model_config = {
             'units': [128, 128], # mandatory

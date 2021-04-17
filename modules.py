@@ -308,6 +308,35 @@ def xception_block(model_config: dict):
     return _xception_net_block
 
 
+def xception_basic_block(model_config: dict):
+    filters = model_config['filters']
+    
+    mid_ratio = model_config.get('mid_ratio', 1)
+    strides = model_config.get('strides', (1, 2))
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    mid_filters = int(mid_ratio * filters)
+
+    def _basic_block(inputs):
+        x = SeparableConv2D(mid_filters, 3, padding='same', use_bias=False, 
+                            kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
+                            kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization()(x)
+        x = MaxPooling2D((3, 3), strides=strides, padding='same')(x)
+
+        residual = conv2d_bn(filters, 1, strides=strides, padding='same', 
+                             use_bias=False, 
+                             kernel_regularizer=kernel_regularizer, 
+                             activation=None)(inputs)
+        return x + residual
+    return _basic_block
+
+
 """            BLOCKS WITH 1D OUTPUTS            """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
