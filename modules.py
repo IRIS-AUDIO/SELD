@@ -325,7 +325,7 @@ def xception_basic_block(model_config: dict):
         x = Activation('relu')(x)
 
         x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
-                            kernel_regularizer=kernel_regularizer)(inputs)
+                            kernel_regularizer=kernel_regularizer)(x)
         x = BatchNormalization()(x)
         x = MaxPooling2D((3, 3), strides=strides, padding='same')(x)
 
