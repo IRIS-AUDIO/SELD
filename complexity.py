@@ -291,6 +291,33 @@ def xception_block_complexity(model_config, input_shape):
     return cx, shape
 
 
+def xception_basic_block_complexity(model_config, input_shape):
+    filters = model_config['filters']
+    
+    mid_ratio = model_config.get('mid_ratio', 1)
+    strides = model_config.get('strides', (1, 2))
+
+    mid_filters = int(mid_ratio * filters)
+    if mid_filters < 1:
+        raise ValueError('invalid mid_ratio, filters')
+    cx = {}
+    cx, shape = separable_conv2d_complexity(
+        input_shape, mid_filters, 3, padding='same', use_bias=False, 
+        prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+
+    cx, shape = separable_conv2d_complexity(
+        shape, filters, 3, padding='same', use_bias=False, prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = pool2d_complexity(shape, strides, padding='same', prev_cx=cx)
+
+    cx, res_shape = conv2d_complexity(
+        input_shape, filters, 1, strides=strides, use_bias=False, prev_cx=cx)
+    cx, res_shape = norm_complexity(res_shape, prev_cx=cx)
+
+    return cx, shape
+
+
 def bidirectional_GRU_block_complexity(model_config, input_shape):
     units_per_layer = model_config['units']
 
