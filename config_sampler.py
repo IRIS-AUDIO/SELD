@@ -108,91 +108,144 @@ def complexity(model_config: OrderedDict,
 
 
 if __name__ == '__main__':
+    import complexity
+
     search_space_2d = {
         'simple_conv_block': 
-            {'filters': [[8], [16], [32], [48], [64], [96], [128]], 
-             'pool_size': [[1], [2]]},
+            {'filters': [[16], [24], [32], [48], [64], [96], [128], [192], [256]], 
+             'pool_size': [[[1, 1]], [[1, 2]], [[1, 4]]]},
         'another_conv_block': 
-            {'filters': [8, 12, 16, 24, 32, 48, 64, 96, 128],
-             'depth': [1, 2, 3, 4, 5, 6],
-             'pool_size': [1, 2]},
+            {'filters': [16, 24, 32, 48, 64, 96, 128, 192, 256],
+             'depth': [1, 2, 3, 4, 5, 6, 7, 8],
+             'pool_size': [1, (1, 2), (1, 4)]},
         'res_basic_stage': 
-            {'filters': [8, 12, 16, 24, 32, 48, 64, 96, 128],
-             'depth': [1, 2, 3, 4, 5, 6],
-             'strides': [1, 2],
-             'groups': [1, 2, 4, 8, 16, 32]},
+            {'filters': [16, 24, 32, 48, 64, 96, 128, 192, 256],
+             'depth': [1, 2, 3, 4, 5, 6, 7, 8],
+             'strides': [1, (1, 2), (1, 4)],
+             'groups': [1, 2, 4, 8, 16, 32, 64]},
         'res_bottleneck_stage': 
-            {'filters': [8, 12, 16, 24, 32, 48, 64, 96, 128],
-             'depth': [1, 2, 3, 4, 5, 6],
-             'strides': [1, 2],
-             'groups': [1, 2, 4, 8, 16, 32],
-             'bottleneck_ratio': [1, 2, 4]},
+            {'filters': [16, 24, 32, 48, 64, 96, 128, 192, 256],
+             'depth': [1, 2, 3, 4, 5, 6, 7, 8],
+             'strides': [1, (1, 2), (1, 4)],
+             'groups': [1, 2, 4, 8, 16, 32, 64],
+             'bottleneck_ratio': [0.25, 0.5, 1, 2, 4, 8]},
         'dense_net_block': 
-            {'growth_rate': [2, 4, 8, 16, 32, 48],
-             'depth': [1, 2, 3, 4, 5, 6],
-             'strides': [1, 2],
-             'bottleneck_ratio': [0.5, 1, 2, 4],
+            {'growth_rate': [4, 6, 8, 12, 16, 24, 32, 48],
+             'depth': [1, 2, 3, 4, 5, 6, 7, 8],
+             'strides': [1, (1, 2), (1, 4)],
+             'bottleneck_ratio': [0.25, 0.5, 1, 2, 4, 8],
              'reduction_ratio': [0.5, 1, 2]},
         'sepformer_block': 
             {'pos_encoding': [None, 'basic', 'rff'],
              'n_head': [1, 2, 4, 8],
-             'ff_multiplier': [0.5, 1, 2, 4, 8, 16],
-             'kernel_size': [1, 3, 5]},
-        'xception_block':
-            {'filters': [8, 16, 32, 48, 64, 96],
-             'block_num': [1, 2, 3, 4, 5, 6, 7]},
+             'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
+             'kernel_size': [1, 3]},
+        'xception_basic_block':
+            {'filters': [16, 24, 32, 48, 64, 96, 128, 192, 256],
+             'strides': [(1, 2)],
+             'mid_ratio': [1]},
         'identity_block': 
             {},
     }
     search_space_1d = {
         'bidirectional_GRU_block':
-            {'units': [[16], [32], [48], [64], [128], [256]]},
+            {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]]}, 
         'transformer_encoder_block':
             {'n_head': [1, 2, 4, 8],
-             'ff_multiplier': [0.5, 1, 2, 4, 8, 16],
-             'kernel_size': [1, 3, 5]},
+             'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
+             'kernel_size': [1, 3]},
         'simple_dense_block':
-            {'units': [[8], [16], [32], [64], [128], [256]]},
+            {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]], 
+             'dense_activation': [None, 'relu']},
     }
+
+    def sample_constraint(min_flops=None, max_flops=None, 
+                          min_params=None, max_params=None):
+        # this contraint was designed for conv_temporal
+        def _contraint(model_config, input_shape):
+            def get_complexity(block_type):
+                return getattr(complexity, f'{block_type}_complexity')
+
+            shape = input_shape[-3:]
+            total_cx = {}
+
+            total_cx, shape = complexity.conv2d_complexity(
+                shape, model_config['filters'], model_config['first_kernel_size'],
+                padding='same', prev_cx=total_cx)
+            total_cx, shape = complexity.norm_complexity(shape, prev_cx=total_cx)
+            total_cx, shape = complexity.pool2d_complexity(
+                shape, model_config['first_pool_size'], padding='same', 
+                prev_cx=total_cx)
+
+            # main body parts
+            blocks = [b for b in model_config.keys()
+                      if b.startswith('BLOCK') and not b.endswith('_ARGS')]
+            blocks.sort()
+
+            for block in blocks:
+                # input shape check
+                if model_config[block] not in search_space_1d and len(shape) != 3:
+                    return False
+
+                try:
+                    cx, shape = get_complexity(model_config[block])(
+                        model_config[f'{block}_ARGS'], shape)
+                    total_cx = dict_add(total_cx, cx)
+                except ValueError as e:
+                    return False
+
+            # sed + doa
+            try:
+                cx, sed_shape = get_complexity(model_config['SED'])(
+                    model_config['SED_ARGS'], shape)
+                cx, sed_shape = complexity.linear_complexity(
+                    sed_shape, model_config['n_classes'], prev_cx=cx)
+                total_cx = dict_add(total_cx, cx)
+
+                cx, doa_shape = get_complexity(model_config['DOA'])(
+                    model_config['DOA_ARGS'], shape)
+                cx, doa_shape = complexity.linear_complexity(
+                    doa_shape, 3*model_config['n_classes'], prev_cx=cx)
+                total_cx = dict_add(total_cx, cx)
+            except ValueError as e:
+                return False
+
+            # total complexity contraint
+            if min_flops and total_cx['flops'] < min_flops:
+                return False
+            if max_flops and total_cx['flops'] > max_flops:
+                return False
+            if min_params and total_cx['params'] < min_params:
+                return False
+            if max_params and total_cx['params'] > max_params:
+                return False
+            return True
+        return _contraint
+
     default_config = {
-        'filters': 32,
-        'first_pool_size': [5, 2],
+        'filters': 16,
+        'first_kernel_size': 5,
+        'first_pool_size': [5, 1],
         'n_classes': 14}
 
-    def sample_constraint(model_config, input_shape):
-        # if previous module outputs 1D, current module cannot be
-        # a module with 2D inputs, outputs
-        prev_2d = True
-        blocks = [b for b in model_config.keys()
-                  if b.startswith('BLOCK') and not b.endswith('_ARGS')]
-        blocks.sort()
-
-        for block in blocks:
-            if model_config[block] in search_space_1d:
-                prev_2d = False
-            else: # 2D module
-                if not prev_2d:
-                    return False
-
-            args = model_config[f'{block}_ARGS']
-            if 'groups' in args and 'filters' in args:
-                if args['groups'] > args['filters']:
-                    return False
-
-        return True
-
     input_shape = [300, 64, 4]
-    model_config = conv_temporal_sampler(search_space_2d,
-                                         search_space_1d,
-                                         n_blocks=4,
-                                         input_shape=input_shape,
-                                         default_config=default_config,
-                                         constraint=sample_constraint)
-    print(model_config)
+    min_flops, max_flops = 750_000_000, 1_333_333_333
 
-    import models
-    '''
-    model = models.conv_temporal(input_shape, model_config)
-    model.summary()
-    '''
+    import models # for test
+    import tensorflow.keras.backend as K
+
+    for i in range(100):
+        model_config = conv_temporal_sampler(
+            search_space_2d,
+            search_space_1d,
+            n_blocks=4,
+            input_shape=input_shape,
+            default_config=default_config,
+            constraint=sample_constraint(min_flops, max_flops))
+        print(complexity.conv_temporal_complexity(model_config, input_shape))
+
+        # for test
+        model = models.conv_temporal(input_shape, model_config)
+        print(model.output_shape, 
+              sum([K.count_params(p) for p in model.trainable_weights]))
 
