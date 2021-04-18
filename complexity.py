@@ -342,7 +342,7 @@ def transformer_encoder_block_complexity(model_config, input_shape):
         raise ValueError('invalid n_head')
 
     ff_dim = int(ff_multiplier * d_model)
-    if ff_dim < 0:
+    if ff_dim < 1:
         raise ValueError('invalid ff_multiplier')
 
     cx = {}
