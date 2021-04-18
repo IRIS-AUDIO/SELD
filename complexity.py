@@ -220,7 +220,7 @@ def sepformer_block_complexity(model_config, input_shape):
     # mandatory parameters (for transformer_encoder_block)
     # 'n_head', 'ff_multiplier', 'kernel_size'
     time, freq, chan = input_shape
-    if freq < 2 or freq % 2:
+    if freq % 2:
         raise ValueError('invalid freq')
 
     intra_shape = [time, freq] # [batch*chan, time, freq]
