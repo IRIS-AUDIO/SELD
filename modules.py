@@ -201,7 +201,7 @@ def dense_net_block(model_config: dict):
 
 
 def sepformer_block(model_config: dict):
-    # mandatory parameters (for transformer_encoder_layer)
+    # mandatory parameters (for transformer_encoder_block)
     # 'n_head', 'ff_multiplier', 'kernel_size'
 
     pos_encoding = model_config.get('pos_encoding', None)
@@ -227,7 +227,7 @@ def sepformer_block(model_config: dict):
         intra = tf.reshape(intra, [-1, time, freq])
         if pos_encoding:
             intra += pos_encoding(intra.shape)(intra)
-        intra = transformer_encoder_layer(model_config)(intra)
+        intra = transformer_encoder_block(model_config)(intra)
         intra = tf.reshape(intra, [-1, chan, time, freq])
         intra = tf.transpose(intra, [0, 2, 3, 1])
         intra = LayerNormalization()(intra) + x
@@ -236,7 +236,7 @@ def sepformer_block(model_config: dict):
         inter = tf.reshape(inter, [-1, chan, freq])
         if pos_encoding:
             inter += pos_encoding(inter.shape)(inter)
-        inter = transformer_encoder_layer(model_config)(inter)
+        inter = transformer_encoder_block(model_config)(inter)
         inter = tf.reshape(inter, [-1, time, chan, freq])
         inter = tf.transpose(inter, [0, 1, 3, 2])
         inter = LayerNormalization()(inter) + intra
@@ -246,7 +246,6 @@ def sepformer_block(model_config: dict):
     return _sepformer_block
     
 
-"""            BLOCKS WITH 1D OUTPUTS            """
 def xception_block(model_config: dict):
     filters = model_config['filters']
     block_num = model_config['block_num']
@@ -304,11 +303,11 @@ def xception_block(model_config: dict):
 
         x = _sepconv_block(x, filters * 48, 'relu')
         x = _sepconv_block(x, filters * 64, 'relu')
-        x = Reshape((-1, x.shape[-2]*x.shape[-1]))(x)
         return x
     return _xception_net_block
 
 
+"""            BLOCKS WITH 1D OUTPUTS            """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
     units_per_layer = model_config['units']
@@ -330,7 +329,7 @@ def bidirectional_GRU_block(model_config: dict):
     return GRU_block
 
 
-def transformer_encoder_layer(model_config: dict):
+def transformer_encoder_block(model_config: dict):
     # mandatory parameters
     n_head = model_config['n_head']
     # multiplier for feed forward layer
@@ -366,10 +365,8 @@ def simple_dense_block(model_config: dict):
     # assumes 1D inputs
     # mandatory parameters
     units_per_layer = model_config['units']
-    n_classes = model_config['n_classes']
 
-    name = model_config.get('name', None)
-    activation = model_config.get('activation', None)
+    activation = model_config.get('dense_activation', None)
     dropout_rate = model_config.get('dropout_rate', 0)
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
@@ -380,10 +377,9 @@ def simple_dense_block(model_config: dict):
         for units in units_per_layer:
             x = TimeDistributed(
                 Dense(units, kernel_regularizer=kernel_regularizer))(x)
+            if activation:
+                x = Activation(activation)(x)
             x = Dropout(dropout_rate)(x)
-        x = TimeDistributed(
-            Dense(n_classes, activation=activation, name=name,
-                  kernel_regularizer=kernel_regularizer))(x) 
         return x
 
     return dense_block
