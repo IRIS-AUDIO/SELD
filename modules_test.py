@@ -223,9 +223,7 @@ class ModulesTest(tf.test.TestCase):
             'activation': 'swish',
             'dropout_rate': 0,
         }
-    
-        dropout_rate = model_config.get('dropout_rate', 0.1)
-    
+        
         exp_input_shape = 32, 100, 64 # batch, time, feat
         exp_output_shape = 32, 100, 64 # batch, time, feat
     

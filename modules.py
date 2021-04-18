@@ -400,7 +400,7 @@ def conformer_encoder_block(model_config: dict):
     activation = model_config.get('activation', 'swish')
     dropout_rate = model_config.get('dropout_rate', 0.1)
     multiplier = model_config.get('multiplier', 4)
-    ffn_factor = model_config.get('ffn_factor', 0.2)
+    ffn_factor = model_config.get('ffn_factor', 0.5)
     pos_encoding = model_config.get('pos_encoding', 'basic')
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
@@ -442,21 +442,19 @@ def conformer_encoder_block(model_config: dict):
         conv = LayerNormalization()(x)
         conv = Conv1D(filters=2*emb, 
                       kernel_size=1,
-                      strides=1, padding='same',
-                      kernel_regularizer=kernel_regularizer,)(conv)
+                      kernel_regularizer=kernel_regularizer)(conv)
         
         # GLU Part
         conv_1, conv_2 = tf.split(conv, 2, axis=-1)
         conv_1 = Dense(emb)(conv_1)
-        conv_2 = Dense(emb)(conv_2)
+        conv_2 = Dense(emb, activation ='sigmoid')(conv_2)
         conv_2 = tf.keras.activations.sigmoid(conv_2)
-        conv = tf.multiply(conv_1, conv_2)    
+        conv = conv_1 * conv_2
 
         #Depth Wise
         conv = Conv1D(filters=emb,
                       kernel_size=1,
                       groups=emb, 
-                      strides=1, padding="same", 
                       kernel_regularizer=kernel_regularizer)(conv)
 
         conv = BatchNormalization()(conv)
