@@ -466,6 +466,48 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
         prev_cx if prev_cx else {})
     return complexity, output_shape
 
+def conformer_block_complexity(model_config, input_shape):
+    time, emb = input_shape
+    multiplier = model_config.get('multiplier', 4)
+    key_dim = model_config.get('key_dim', 36)
+    n_head = model_config.get('n_head', 4)
+    kernel_size = model_config.get('kernel_size', 32) # 32 
+    
+    # normalization and two dense layer 
+    cx, shape = norm_complexity(input_shape, prev_cx=None)
+    cx, shape = linear_complexity(shape, emb*multiplier)
+    cx, shape = linear_complexity(shape, emb, True, cx)
+    
+    # add operator
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
+ 
+    # Multi Head Attention 
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
+                                                key_dim, True, cx)
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
+
+    
+    #Convolution & GLU
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = conv1d_complexity(shape, 2*emb, 1, prev_cx=cx)
+    cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
+
+    # Depthwise
+    cx, shape = conv1d_complexity(shape, emb, kernel_size, prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = conv1d_complexity(shape, 1, kernel_size, prev_cx=cx)
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
+
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = linear_complexity(shape, emb*multiplier)
+    cx, shape = linear_complexity(shape, emb, True, cx)
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
+
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    return total_cx, shape
+
 
 # utils
 def safe_tuple(tuple_or_scalar, length=2):
