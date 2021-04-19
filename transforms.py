@@ -1,6 +1,7 @@
 import tensorflow as tf
 from numpy import pi
 import numpy as np
+import math
 
 
 def mask(specs, axis, max_mask_size=None, n_mask=1):
@@ -160,8 +161,21 @@ def acs_aug(x, y):
     return x, y
 
 
-def condition_number(matrix, axis=(-2,-1)):
-    return tf.norm(matrix, 2, axis=axis) * tf.norm(tf.linalg.inv(matrix), 2, axis=axis)
+def tf_cond(x):
+    s = tf.linalg.svd(x, compute_uv=False)
+    r = s[..., 0] / s[..., -1]
+    # Replace NaNs in r with infinite unless there were NaNs before
+    x_nan = tf.reduce_any(tf.math.is_nan(x), axis=(-2, -1))
+    r_nan = tf.math.is_nan(r)
+    r_inf = tf.fill(tf.shape(r), tf.constant(math.inf, r.dtype))
+    r = tf.where(x_nan, r, tf.where(r_nan, r_inf, r))
+    return r
+
+
+def is_invertible(x, epsilon=1e-6):  # Epsilon may be smaller with tf.float64
+    eps_inv = tf.cast(1 / epsilon, x.dtype)
+    x_cond = tf_cond(x)
+    return tf.math.is_finite(x_cond) & (x_cond < eps_inv)
 
 
 def stab(matrix, num_channel, theta):
@@ -169,7 +183,7 @@ def stab(matrix, num_channel, theta):
     nx = tf.newaxis
     dd = tf.constant([1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1], dtype=matrix.dtype)
     for i in range(6):
-        mask = tf.cast(1 / condition_number(matrix) <= theta, matrix.dtype)
+        mask = 1 - tf.cast(is_invertible(matrix), matrix.dtype)
         matrix = matrix + (mask * dd[i])[..., nx, nx] * tf.eye(matrix.shape[-1])[nx, nx,...]
     return matrix
 
@@ -180,18 +194,15 @@ def mcs_aug(iteration: int, theta = 1e-6):
         '''
             x: (batch, time, freq, chan)
             y: (batch, time, n_classes*4)
-        '''
+        ''' 
         batch, time, freq, chan = x.shape   
 
         # initialize rnoisy, rnoise, phi's
         rnoisy = tf.matmul(tf.transpose(x, [0, 2, 3, 1]), tf.transpose(x, [0, 2, 1, 3])) / time # (batch, freq, chan, chan)
-        rnoise =  tf.tile(tf.eye(chan)[tf.newaxis, tf.newaxis, ...], [batch,freq,1,1]) # (batch, freq, chan, chan)
-        phi_noise = tf.ones([batch, time, freq], dtype=x.dtype)
-        phi_noisy = tf.ones([batch, time, freq], dtype=x.dtype)
+        rnoise =  tf.tile(tf.eye(chan)[tf.newaxis, tf.newaxis, ...], tf.TensorShape([1,freq,1,1])) # (batch, freq, chan, chan)
 
         yx = x[..., tf.newaxis] # (batch, time, freq, chan, 1)
         yyh = tf.matmul(yx, tf.transpose(yx, [0, 1, 2, 4, 3])) # (batch, time, freq, chan, chan)
-        
         rnoisy_onbin = stab(rnoisy, chan, theta)
         rnoise_onbin = stab(rnoise, chan, theta)
         
@@ -201,8 +212,8 @@ def mcs_aug(iteration: int, theta = 1e-6):
         phi_noisy = tf.math.real(tf.linalg.trace(tf.matmul(yyh, rnoisy_inv[:,tf.newaxis,...]) / chan)) # (batch, time, freq)
         phi_noise = tf.math.real(tf.linalg.trace(tf.matmul(yyh, rnoise_inv[:,tf.newaxis,...]) / chan)) # (batch, time, freq)
 
-        p_noise = tf.ones((batch, time, freq), dtype=x.dtype)
-        p_noisy = tf.ones((batch, time, freq), dtype=x.dtype)
+        p_noise = tf.ones((1, time, freq), dtype=x.dtype)
+        p_noisy = tf.ones((1, time, freq), dtype=x.dtype)
         # --------------------------------initialize end--------------------------------
         
 
@@ -213,17 +224,14 @@ def mcs_aug(iteration: int, theta = 1e-6):
             rnoisy_inv = tf.linalg.inv(rnoisy_onbin)
             rnoise_inv = tf.linalg.inv(rnoise_onbin)
 
-            rnoisy_accu = tf.zeros((batch, freq, chan, chan), dtype=x.dtype)
-            rnoise_accu = tf.zeros((batch, freq, chan, chan), dtype=x.dtype)
-
             # corre = yyh
             k_noise = tf.matmul(x[...,tf.newaxis,:], rnoise_inv[:,tf.newaxis,...] / phi_noise[...,tf.newaxis,tf.newaxis])
-            k_noise = tf.squeeze(tf.matmul(k_noise, x[...,tf.newaxis]))
+            k_noise = tf.squeeze(tf.matmul(k_noise, x[...,tf.newaxis]), axis=(-2,-1))
             det_noise =  tf.linalg.det(phi_noise[...,tf.newaxis,tf.newaxis] * rnoise_onbin[:,tf.newaxis]) * pi
             p_noise = tf.math.real(tf.math.exp(-k_noise) / det_noise) + theta
 
             k_noisy = tf.matmul(x[...,tf.newaxis,:], rnoisy_inv[:,tf.newaxis,...] / phi_noisy[...,tf.newaxis,tf.newaxis])
-            k_noisy = tf.squeeze(tf.matmul(k_noisy, x[...,tf.newaxis]))
+            k_noisy = tf.squeeze(tf.matmul(k_noisy, x[...,tf.newaxis]), axis=(-2,-1))
             det_noisy =  tf.linalg.det(phi_noisy[...,tf.newaxis,tf.newaxis] * rnoisy_onbin[:,tf.newaxis]) * pi
             p_noisy = tf.math.real(tf.math.exp(-k_noisy) / det_noisy) + theta
 
@@ -235,7 +243,7 @@ def mcs_aug(iteration: int, theta = 1e-6):
 
             rnoisy_accu = (lambda_noisy / phi_noisy)[...,tf.newaxis,tf.newaxis] * yyh
             rnoise_accu = (lambda_noise / phi_noise)[...,tf.newaxis,tf.newaxis] * yyh
-
+            
             rnoisy = tf.reduce_sum(rnoisy_accu, axis=1) / tf.reduce_sum(lambda_noisy, axis=1)[...,tf.newaxis, tf.newaxis]
             rnoise = tf.reduce_sum(rnoise_accu, axis=1) / tf.reduce_sum(lambda_noise, axis=1)[...,tf.newaxis, tf.newaxis]
 
