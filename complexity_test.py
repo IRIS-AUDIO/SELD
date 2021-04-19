@@ -151,14 +151,13 @@ class ComplexityTest(tf.test.TestCase):
         model_config = {
             'n_head': 8,
             'multiplier': 4,
-            'key_dim': 32,
+            'key_dim': 36,
             'kernel_size': 32,
         }
         self.complexity_test(conformer_block_complexity,
                              conformer_encoder_block,
                              model_config,
-                             [100, 32])
-
+                             [100, 40])
 
     def test_conv1d_complexity(self):
         target_cx = {'flops': 4608, 'params': 160}
