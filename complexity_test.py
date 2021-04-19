@@ -146,8 +146,22 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 48])
 
+
+    def test_conformer_block_complexity(self):
+        model_config = {
+            'n_head': 8,
+            'multiplier': 4,
+            'key_dim': 32,
+            'kernel_size': 32,
+        }
+        self.complexity_test(conformer_block_complexity,
+                             conformer_encoder_block,
+                             model_config,
+                             [100, 32])
+
+
     def test_conv1d_complexity(self):
-        target_cx = {'flops': 4624, 'params': 160}
+        target_cx = {'flops': 4608, 'params': 160}
         target_shape = [32, 16]
 
         self.assertEqual(
@@ -164,8 +178,9 @@ class ComplexityTest(tf.test.TestCase):
                               prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
 
+
     def test_conv2d_complexity(self):
-        target_cx = {'flops': 442384, 'params': 448}
+        target_cx = {'flops': 442368, 'params': 448}
         target_shape = [32, 32, 16]
 
         self.assertEqual(
