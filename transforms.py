@@ -211,9 +211,6 @@ def mcs_aug(iteration: int, theta = 1e-6):
 
         phi_noisy = tf.math.real(tf.linalg.trace(tf.matmul(yyh, rnoisy_inv[:,tf.newaxis,...]) / chan)) # (batch, time, freq)
         phi_noise = tf.math.real(tf.linalg.trace(tf.matmul(yyh, rnoise_inv[:,tf.newaxis,...]) / chan)) # (batch, time, freq)
-
-        p_noise = tf.ones((1, time, freq), dtype=x.dtype)
-        p_noisy = tf.ones((1, time, freq), dtype=x.dtype)
         # --------------------------------initialize end--------------------------------
         
 
