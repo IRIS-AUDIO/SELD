@@ -160,28 +160,8 @@ def acs_aug(x, y):
     return x, y
 
 
-def init_Rnoisy(x):
-    '''
-        input
-        x: (batch, time, freq)
-        output
-        rnoisy
-    '''
-    rnoisy = tf.matmul(x, tf.transpose(x, [0, 2, 1])) / x.shape[1]
-    return rnoisy
-
-
 def condition_number(matrix, axis=(-2,-1)):
     return tf.norm(matrix, 2, axis=axis) * tf.norm(tf.linalg.inv(matrix), 2, axis=axis)
-
-
-def _stab(matrix, num_channel, theta):
-    # matrix: (batch, chan, chan)
-    dd = tf.constant([1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1], dtype=matrix.dtype)
-    for i in range(6):
-        mask = tf.cast(1 / condition_number(matrix) <= theta, matrix.dtype)
-        matrix = matrix + tf.tile(tf.eye(matrix.shape[1])[tf.newaxis,...], (matrix.shape[0],1,1)) * mask[...,tf.newaxis,tf.newaxis] * dd[i]
-    return matrix
 
 
 def stab(matrix, num_channel, theta):
@@ -195,6 +175,7 @@ def stab(matrix, num_channel, theta):
 
 
 def mcs_aug(iteration: int, theta = 1e-6):
+    # reference: https://github.com/funcwj/cgmm-mask-estimator.git
     def _mcs_aug(x, y):
         '''
             x: (batch, time, freq, chan)
