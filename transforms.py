@@ -173,6 +173,7 @@ def tf_cond(x):
 
 
 def is_invertible(x, epsilon=1e-6):  # Epsilon may be smaller with tf.float64
+    # reference: https://stackoverflow.com/questions/57073381/how-to-check-if-a-matrix-is-invertible-in-tensorflow
     eps_inv = tf.cast(1 / epsilon, x.dtype)
     x_cond = tf_cond(x)
     return tf.math.is_finite(x_cond) & (x_cond < eps_inv)
