@@ -45,7 +45,7 @@ def conv_temporal_sampler(search_space_2d: dict,
     search_space_total = copy.deepcopy(search_space_2d)
     search_space_total.update(search_space_1d)
     
-    modules_total = search_space_total.keys()
+    modules_2d = search_space_2d.keys()
     modules_1d = search_space_1d.keys()
 
     if default_config is None:
@@ -56,8 +56,10 @@ def conv_temporal_sampler(search_space_2d: dict,
         # body parts
         model_config = copy.deepcopy(default_config)
 
+        n_2d = random.randint(0, n_blocks)
         for i in range(n_blocks):
-            module = random.sample(modules_total, 1)[0]
+            pool = modules_2d if i < n_2d else modules_1d
+            module = random.sample(pool, 1)[0]
             model_config[f'BLOCK{i}'] = module
             model_config[f'BLOCK{i}_ARGS'] = {
                 k: random.sample(v, 1)[0]
