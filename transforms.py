@@ -1,7 +1,5 @@
 import tensorflow as tf
 from numpy import pi
-import numpy as np
-import math
 from utils import safe_div
 
 
