@@ -310,23 +310,18 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(input_shape, prev_cx=None)
     cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
     cx, shape = linear_complexity(shape, emb, True, cx)
-    
-    # add operator
-    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
- 
+     
     # Multi Head Attention 
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
                                                 key_dim, prev_cx=cx)
-    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
-
+    
     #Convolution & GLU
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, 2*emb, 1, prev_cx=cx)
     shape[-1] = shape[-1]//2
     cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
     cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
-    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
 
     # Depthwise
     cx_1, shape = conv1d_complexity(shape, emb, kernel_size, prev_cx=None)
@@ -336,12 +331,10 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx['params']  = cx['params'] + cx_1['params']//emb + (emb - 1)
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
-    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
 
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
     cx, shape = linear_complexity(shape, emb, True, cx)
-    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
 
     cx, shape = norm_complexity(shape, prev_cx=cx)
     return cx, shape
