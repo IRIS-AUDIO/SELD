@@ -233,6 +233,23 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_conformer_encoder_block(self):
+        model_config = {
+            'key_dim': 36, # mandatory
+            'n_head' : 4,
+            'kernel_size' : 32,
+            'activation': 'swish',
+            'dropout_rate': 0,
+        }
+        
+        exp_input_shape = 32, 100, 64 # batch, time, feat
+        exp_output_shape = 32, 100, 64 # batch, time, feat
+    
+        self.block_test(conformer_encoder_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def block_test(self, 
                    block_fn,
                    model_config: dict,
@@ -243,7 +260,6 @@ class ModulesTest(tf.test.TestCase):
         model_config: model_config for block_fn
         exp_input_shape: expected input shape
         exp_output_shape: expected output_shape
-
         "batch size" must be included in both arguments
         ex) [batch, time, chan]
         '''
@@ -258,5 +274,11 @@ class ModulesTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+      try:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+      except RuntimeError as e:
+        # 프로그램 시작시에 메모리 증가가 설정되어야만 합니다
+        print(e)
     tf.test.main()
-

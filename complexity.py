@@ -374,12 +374,58 @@ def identity_block_complexity(model_config, input_shape):
     return {'flops': 0, 'params': 0}, input_shape
 
 
+def conformer_encoder_block_complexity(model_config, input_shape):
+    time, emb = input_shape
+    multiplier = model_config.get('multiplier', 4)
+    key_dim = model_config.get('key_dim', 36)
+    n_head = model_config.get('n_head', 4)
+    kernel_size = model_config.get('kernel_size', 32) # 32 
+    
+    if emb < n_head or emb % n_head:
+        raise ValueError('invalid n_head')
+
+    if emb % 2:
+        raise ValueError('Input Shape should be even')
+        
+    # normalization and two dense layer 
+    cx, shape = norm_complexity(input_shape, prev_cx=None)
+    cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
+    cx, shape = linear_complexity(shape, emb, True, cx)
+
+    # Multi Head Attention 
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
+                                                key_dim, prev_cx=cx)
+    
+    #Convolution & GLU
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = conv1d_complexity(shape, 2*emb, 1, prev_cx=cx)
+    shape[-1] = shape[-1]//2
+    cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
+    cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]     
+
+    # Depthwise
+    cx, shape = conv1d_complexity(shape, emb, kernel_size, groups=emb,
+                                    prev_cx=cx)
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
+
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
+    cx, shape = linear_complexity(shape, emb, True, cx)
+
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    return cx, shape
+
+    
 '''            basic complexities            '''
 def conv1d_complexity(input_shape: list, 
                       filters,
                       kernel_size,
                       strides=1,
                       padding='same',
+                      groups=1,
                       use_bias=True,
                       prev_cx=None):
     t, c = input_shape
@@ -389,8 +435,8 @@ def conv1d_complexity(input_shape: list,
     if t < 1:
         raise ValueError('invalid strides, kernel_size')
 
-    flops = kernel_size * c * filters * t
-    params = kernel_size * c * filters
+    flops = kernel_size * c * filters * t // groups
+    params = kernel_size * c * filters // groups
     if use_bias:
         params += filters
 
@@ -557,7 +603,6 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
         {'flops': flops, 'params': params},
         prev_cx if prev_cx else {})
     return complexity, output_shape
-
 
 # utils
 def safe_tuple(tuple_or_scalar, length=2):
