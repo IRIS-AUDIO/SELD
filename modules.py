@@ -362,6 +362,8 @@ def bidirectional_GRU_block(model_config: dict):
 def transformer_encoder_block(model_config: dict):
     # mandatory parameters
     n_head = model_config['n_head']
+    key_dim = model_config['key_dim']
+
     # multiplier for feed forward layer
     ff_multiplier = model_config['ff_multiplier'] # default to 4 
     kernel_size = model_config['kernel_size'] # default to 1
@@ -374,7 +376,7 @@ def transformer_encoder_block(model_config: dict):
         d_model = x.shape[-1]
 
         attn = MultiHeadAttention(
-            n_head, d_model//n_head, dropout=dropout_rate)(x, x)
+            n_head, key_dim, dropout=dropout_rate)(x, x)
         attn = Dropout(dropout_rate)(attn)
         x = LayerNormalization()(x + attn)
 
