@@ -140,6 +140,7 @@ if __name__ == '__main__':
         'sepformer_block': 
             {'pos_encoding': [None, 'basic', 'rff'],
              'n_head': [1, 2, 4, 8],
+             'key_dim': [4, 6, 8, 12, 16, 24, 32, 48],
              'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
              'kernel_size': [1, 3]},
         'xception_basic_block':
@@ -154,6 +155,7 @@ if __name__ == '__main__':
             {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]]}, 
         'transformer_encoder_block':
             {'n_head': [1, 2, 4, 8],
+             'key_dim': [4, 6, 8, 12, 16, 24, 32, 48],
              'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
              'kernel_size': [1, 3]},
         'simple_dense_block':

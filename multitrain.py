@@ -89,6 +89,7 @@ search_space_2d = {
     'sepformer_block': 
         {'pos_encoding': [None, 'basic', 'rff'],
          'n_head': [1, 2, 4, 8],
+         'key_dim': [4, 6, 8, 12, 16, 24, 32, 48],
          'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
          'kernel_size': [1, 3]},
     'xception_basic_block':
@@ -104,6 +105,7 @@ search_space_1d = {
         {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]]}, 
     'transformer_encoder_block':
         {'n_head': [1, 2, 4, 8],
+         'key_dim': [4, 6, 8, 12, 16, 24, 32, 48],
          'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
          'kernel_size': [1, 3]},
     'simple_dense_block':
@@ -249,7 +251,7 @@ if __name__=='__main__':
     # LOOP
     constraint = sample_constraint(train_config.min_flops, 
                                    train_config.max_flops)
-    results = {'results': []}
+    results = {}
 
     metric_class = SELDMetrics()
 
@@ -265,7 +267,7 @@ if __name__=='__main__':
             input_shape, 
             train_config, model_config, trainset, total_testset, metric_class)
 
-        results['results'].append((model_config, outputs))
+        results[str(i)] = (model_config, outputs)
         with open(train_config.json_fname, 'w') as f:
-            json.dump(results, f)
+            json.dump(results, f, separators='\n')
 
