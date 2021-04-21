@@ -251,7 +251,7 @@ if __name__=='__main__':
     # LOOP
     constraint = sample_constraint(train_config.min_flops, 
                                    train_config.max_flops)
-    results = {}
+    results = {'train_config': vars(train_config)}
 
     metric_class = SELDMetrics()
 
@@ -267,7 +267,7 @@ if __name__=='__main__':
             input_shape, 
             train_config, model_config, trainset, total_testset, metric_class)
 
-        results[str(i)] = (model_config, outputs)
+        results[f'{i:03d}'] = {'config': model_config, 'perf': outputs}
         with open(train_config.json_fname, 'w') as f:
-            json.dump(results, f, separators='\n')
+            json.dump(results, f, indent=4)
 
