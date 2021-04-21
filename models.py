@@ -53,7 +53,7 @@ def seldnet_v1(input_shape, model_config):
 def conv_temporal(input_shape, model_config):
     filters = model_config.get('filters', 32)
     first_kernel_size = model_config.get('first_kernel_size', 7)
-    first_pool_size = model_config.get('first_pool_size', [5, 2])
+    first_pool_size = model_config.get('first_pool_size', [5, 1])
     n_classes = model_config.get('n_classes', 14)
 
     inputs = Input(shape=input_shape[-3:])
