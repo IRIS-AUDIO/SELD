@@ -332,6 +332,7 @@ def bidirectional_GRU_block_complexity(model_config, input_shape):
 def transformer_encoder_block_complexity(model_config, input_shape):
     # mandatory parameters
     n_head = model_config['n_head']
+    key_dim = model_config['key_dim']
     ff_multiplier = model_config['ff_multiplier'] # default to 4 
     kernel_size = model_config['kernel_size'] # default to 1
 
@@ -347,7 +348,7 @@ def transformer_encoder_block_complexity(model_config, input_shape):
 
     cx = {}
     cx, shape = multi_head_attention_complexity(
-        shape, n_head, d_model//n_head, prev_cx=cx)
+        shape, n_head, key_dim, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
     cx, shape = conv1d_complexity(shape, ff_dim, kernel_size, prev_cx=cx)

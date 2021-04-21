@@ -92,6 +92,7 @@ class ComplexityTest(tf.test.TestCase):
     def test_sepformer_block_complexity(self):
         model_config = {
             'n_head': 8,
+            'key_dim': 8,
             'ff_multiplier': 4,
             'kernel_size': 3,
         }
@@ -133,6 +134,7 @@ class ComplexityTest(tf.test.TestCase):
     def test_transformer_encoder_block_complexity(self):
         model_config = {
             'n_head': 4,
+            'key_dim': 8,
             'ff_multiplier': 2,
             'kernel_size': 3,
         }
