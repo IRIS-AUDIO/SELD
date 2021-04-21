@@ -159,20 +159,22 @@ class ComplexityTest(tf.test.TestCase):
                              [100, 72])
 
     def test_conv1d_complexity(self):
-        target_cx = {'flops': 4608, 'params': 160}
+        target_cx = {'flops': 2304, 'params': 88}
         target_shape = [32, 16]
 
         self.assertEqual(
             conv1d_complexity(input_shape=[32, 3],
                               filters=16,
                               kernel_size=3,
-                              strides=1),
+                              strides=1,
+                              groups=2,),
             (target_cx, target_shape))
         self.assertEqual(
             conv1d_complexity(input_shape=[32, 3],
                               filters=16,
                               kernel_size=3,
                               strides=1,
+                              groups=2,
                               prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
 

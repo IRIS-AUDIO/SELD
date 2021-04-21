@@ -310,7 +310,6 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(input_shape, prev_cx=None)
     cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
     cx, shape = linear_complexity(shape, emb, True, cx)
-    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]     
 
     # Multi Head Attention 
     cx, shape = norm_complexity(shape, prev_cx=cx)
@@ -323,6 +322,7 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     shape[-1] = shape[-1]//2
     cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
     cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]     
 
     # Depthwise
     cx, shape = conv1d_complexity(shape, emb, kernel_size, groups=emb,
