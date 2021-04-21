@@ -146,18 +146,17 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 48])
 
-
-    def test_conformer_block_complexity(self):
+    def test_conformer_encoder_block_complexity(self):
         model_config = {
             'n_head': 8,
             'multiplier': 4,
             'key_dim': 36,
             'kernel_size': 32,
         }
-        self.complexity_test(conformer_block_complexity,
+        self.complexity_test(conformer_encoder_block_complexity,
                              conformer_encoder_block,
                              model_config,
-                             [100, 40])
+                             [100, 74])
 
     def test_conv1d_complexity(self):
         target_cx = {'flops': 4608, 'params': 160}
@@ -337,6 +336,6 @@ class ComplexityTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    os.environ['CUDA_VISIBLE_DEVICES']  = '-1'
     tf.test.main()
 

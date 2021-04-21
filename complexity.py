@@ -293,7 +293,7 @@ def identity_block_complexity(model_config, input_shape):
     return {'flops': 0, 'params': 0}, input_shape
 
 
-def conformer_block_complexity(model_config, input_shape):
+def conformer_encoder_block_complexity(model_config, input_shape):
     time, emb = input_shape
     multiplier = model_config.get('multiplier', 4)
     key_dim = model_config.get('key_dim', 36)
@@ -314,7 +314,6 @@ def conformer_block_complexity(model_config, input_shape):
                                                 key_dim, prev_cx=cx)
     cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
 
-    
     #Convolution & GLU
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, 2*emb, 1, prev_cx=cx)
@@ -324,7 +323,11 @@ def conformer_block_complexity(model_config, input_shape):
     cx['flops'] = cx['flops'] + shape[-1]*shape[-2]
 
     # Depthwise
-    cx, shape = conv1d_complexity(shape, emb, kernel_size, prev_cx=cx)
+    cx_1, shape = conv1d_complexity(shape, emb, kernel_size, prev_cx=None)
+    cx['flops']  = cx['flops'] + cx_1['flops']//emb
+
+    # It awayas adding bias
+    cx['params']  = cx['params'] + cx_1['params']//emb + (emb - 1)
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
     cx['flops'] = cx['flops'] + shape[-1]*shape[-2]

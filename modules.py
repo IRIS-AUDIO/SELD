@@ -455,7 +455,7 @@ def conformer_encoder_block(model_config: dict):
                       kernel_size=kernel_size,
                       strides=1,
                       padding='same',
-                      groups=1, 
+                      groups=emb, 
                       kernel_regularizer=kernel_regularizer)(conv)
 
         conv = BatchNormalization()(conv)

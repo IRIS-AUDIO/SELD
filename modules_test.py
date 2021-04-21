@@ -133,21 +133,21 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    # def test_xception_block(self):
-    #     model_config = {
-    #         'filters' : 32,
-    #         'name': 'xception_block',
-    #         'block_num': 8,
-    #         'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
-    #     }
+    def test_xception_block(self):
+        model_config = {
+            'filters' : 32,
+            'name': 'xception_block',
+            'block_num': 8,
+            'kernel_regularizer': {'l1': 1e-3, 'l2': 0.}
+        }
 
-    #     exp_input_shape = 32, 300, 64, 3
-    #     exp_output_shape = 32, 60, 8192
+        exp_input_shape = 32, 300, 64, 3
+        exp_output_shape = 32, 60, 8192
 
-    #     self.block_test(xception_block, 
-    #                     model_config, 
-    #                     exp_input_shape,
-    #                     exp_output_shape)
+        self.block_test(xception_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
 
     def test_bidirectional_GRU_block(self):
         model_config = {
@@ -215,7 +215,7 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_conformer_block(self):
+    def test_conformer_encoder_block(self):
         model_config = {
             'key_dim': 36, # mandatory
             'n_head' : 4,
@@ -256,4 +256,11 @@ class ModulesTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+      try:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+      except RuntimeError as e:
+        # 프로그램 시작시에 메모리 증가가 설정되어야만 합니다
+        print(e)
     tf.test.main()
