@@ -110,6 +110,17 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_xception_basic_block_complexity(self):
+        model_config = {
+            'filters': 32,
+            'mid_ratio': 0.75,
+            'strides': (1, 2),
+        }
+        self.complexity_test(xception_basic_block_complexity,
+                             xception_basic_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_bidirectional_GRU_block_complexity(self):
         model_config = {
             'units': [128, 128],
@@ -147,7 +158,7 @@ class ComplexityTest(tf.test.TestCase):
                              [32, 32, 48])
 
     def test_conv1d_complexity(self):
-        target_cx = {'flops': 4624, 'params': 160}
+        target_cx = {'flops': 4608, 'params': 160}
         target_shape = [32, 16]
 
         self.assertEqual(
@@ -165,7 +176,7 @@ class ComplexityTest(tf.test.TestCase):
             (dict_add(target_cx, self.prev_cx), target_shape))
 
     def test_conv2d_complexity(self):
-        target_cx = {'flops': 442384, 'params': 448}
+        target_cx = {'flops': 442368, 'params': 448}
         target_shape = [32, 32, 16]
 
         self.assertEqual(
