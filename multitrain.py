@@ -111,6 +111,12 @@ search_space_1d = {
     'simple_dense_block':
         {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]], 
          'dense_activation': [None, 'relu']},
+    'conformer_encoder_block':
+        {'key_dim': [4, 6, 8, 12, 16, 24, 32, 48],
+         'n_head': [1, 2, 4, 8],
+         'kernel_size': [16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'multiplier': [1, 2, 4, 8],
+         'pos_encoding': [None, 'basic', 'rff']},
 }
 
 
@@ -192,7 +198,7 @@ def evaluate_model(input_shape,
                   loss=[sed_loss, doa_loss],
                   loss_weights=[1, 1000])
 
-    model.fit(trainset, epochs=train_config.epochs)
+    history = model.fit(trainset, epochs=train_config.epochs)
 
     # evaluate model
     metric_class.reset_states()
@@ -216,9 +222,10 @@ def evaluate_model(input_shape,
         'test_f': test_performance[1].numpy().tolist(),
         'test_de': test_performance[2].numpy().tolist(),
         'test_de_f': test_performance[3].numpy().tolist(),
+        **history.history,
         **(conv_temporal_complexity(model_config, input_shape)[0])
     }
-    del model, optimizer
+    del model, optimizer, history
 
     return performances
 

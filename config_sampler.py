@@ -161,6 +161,12 @@ if __name__ == '__main__':
         'simple_dense_block':
             {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]], 
              'dense_activation': [None, 'relu']},
+        'conformer_encoder_block':
+            {'key_dim': [4, 6, 8, 12, 16, 24, 32, 48],
+             'n_head': [1, 2, 4, 8],
+             'kernel_size': [16, 24, 32, 48, 64, 96, 128, 192, 256],
+             'multiplier': [1, 2, 4, 8],
+             'pos_encoding': [None, 'basic', 'rff']},
     }
 
     def sample_constraint(min_flops=None, max_flops=None, 
