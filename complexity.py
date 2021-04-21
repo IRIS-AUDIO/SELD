@@ -310,7 +310,8 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(input_shape, prev_cx=None)
     cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
     cx, shape = linear_complexity(shape, emb, True, cx)
-     
+    cx['flops'] = cx['flops'] + shape[-1]*shape[-2]     
+
     # Multi Head Attention 
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
@@ -324,11 +325,8 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = linear_complexity(shape, emb, True, prev_cx=cx)
 
     # Depthwise
-    cx_1, shape = conv1d_complexity(shape, emb, kernel_size, prev_cx=None)
-    cx['flops']  = cx['flops'] + cx_1['flops']//emb
-
-    # It awayas adding bias
-    cx['params']  = cx['params'] + cx_1['params']//emb + (emb - 1)
+    cx, shape = conv1d_complexity(shape, emb, kernel_size, groups=emb,
+                                    prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
 
@@ -346,6 +344,7 @@ def conv1d_complexity(input_shape: list,
                       kernel_size,
                       strides=1,
                       padding='same',
+                      groups=1,
                       use_bias=True,
                       prev_cx=None):
     t, c = input_shape
@@ -353,8 +352,8 @@ def conv1d_complexity(input_shape: list,
     t = (t - 1 - not_same*(kernel_size-1)) // strides + 1
     shape = [t, filters]
 
-    flops = kernel_size * c * filters * t
-    params = kernel_size * c * filters
+    flops = kernel_size * c * filters * t // groups
+    params = kernel_size * c * filters // groups
     if use_bias:
         params += filters
 
