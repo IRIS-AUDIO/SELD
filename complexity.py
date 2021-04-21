@@ -300,6 +300,12 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     n_head = model_config.get('n_head', 4)
     kernel_size = model_config.get('kernel_size', 32) # 32 
     
+    if emb < n_head or emb % n_head:
+        raise ValueError('invalid n_head')
+
+    if emb % 2:
+        raise ValueError('Input Shape should be even')
+        
     # normalization and two dense layer 
     cx, shape = norm_complexity(input_shape, prev_cx=None)
     cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
