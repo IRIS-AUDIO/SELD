@@ -91,7 +91,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                       ddloss.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_seldScore', 
                       SeldScore.result().numpy(), epoch)
-                      
+
     writer.add_scalars(f'{mode}/{mode}_class_recall', {
     'alarm': recall[0].numpy(),
     'crying_baby': recall[1].numpy(),
@@ -254,7 +254,5 @@ def main(config):
 
 
 if __name__=='__main__':
-    physical_devices = tf.config.list_physical_devices('GPU')
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
     main(get_param())
 
