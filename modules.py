@@ -12,10 +12,17 @@ Use only custom layers or predefined
 
 """            STAGES            """
 def res_basic_stage(model_config: dict):
-    # mandatory parameters
+    '''
+    essential configs
+        depth: int
+        strides: int or tuple of ints
+
+    non-essential configs
+        groups: (default=1)
+        activation: (default=relu)
+    '''
     depth = model_config['depth']
     strides = model_config['strides']
-
     model_config = copy.deepcopy(model_config)
 
     def stage(inputs):
@@ -110,9 +117,6 @@ def res_basic_block(model_config: dict):
     groups = model_config.get('groups', 1)
     activation = model_config.get('activation', 'relu')
 
-    if isinstance(strides, int):
-        strides = (strides, strides)
-
     def basic_block(inputs):
         out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
         out = BatchNormalization()(out)
@@ -125,10 +129,7 @@ def res_basic_block(model_config: dict):
             inputs = Conv2D(filters, 1, strides)(inputs)
             inputs = BatchNormalization()(inputs)
 
-        out = Activation(activation)(out + inputs)
-
-        return out
-
+        return Activation(activation)(out + inputs)
     return basic_block
 
 
