@@ -11,6 +11,37 @@ Use only custom layers or predefined
 """
 
 """            STAGES            """
+def simple_conv_stage(model_config: dict):
+    '''
+    essential configs
+        filters: int
+        depth: int
+        pool_size: int or tuple of ints
+
+    non-essential configs
+        strides: (default=None)
+        activation: (default=relu)
+        dropout_rate: (default=0.)
+    '''
+    filters = model_config['filters']
+    depth = model_config['depth']
+    pool_size = model_config['pool_size']
+
+    dropout_rate = model_config.get('dropout_rate', 0.)
+    activation = model_config.get('activation', 'relu')
+    strides = model_config.get('strides', None)
+
+    def stage(x):
+        for i in range(depth):
+            x = conv2d_bn(filters, kernel_size=3, 
+                          activation=activation)(x)
+        x = MaxPooling2D(pool_size=pool_size, strides=strides)(x)
+        if dropout_rate > 0:
+            x = Dropout(dropout_rate)(x)
+        return x
+    return stage
+
+
 def res_basic_stage(model_config: dict):
     '''
     essential configs
@@ -25,8 +56,7 @@ def res_basic_stage(model_config: dict):
     strides = model_config['strides']
     model_config = copy.deepcopy(model_config)
 
-    def stage(inputs):
-        x = inputs
+    def stage(x):
         for i in range(depth):
             x = res_basic_block(model_config)(x)
             model_config['strides'] = 1
@@ -35,13 +65,20 @@ def res_basic_stage(model_config: dict):
 
 
 def res_bottleneck_stage(model_config: dict):
-    # mandatory parameters
+    '''
+    essential configs
+        depth: int
+        strides: int or tuple of ints
+
+    non-essential configs
+        groups: (default=1)
+        activation: (default=relu)
+    '''
     depth = model_config['depth']
     strides = model_config['strides']
     model_config = copy.deepcopy(model_config)
 
-    def stage(inputs):
-        x = inputs
+    def stage(x):
         for i in range(depth):
             x = res_bottleneck_block(model_config)(x)
             model_config['strides'] = 1

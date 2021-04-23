@@ -5,6 +5,22 @@ from modules import *
 
 
 class ModulesTest(tf.test.TestCase):
+    def test_simple_conv_stage(self):
+        model_config = {
+            'filters': 128,
+            'depth': 4,
+            'pool_size': (2, 4),
+            'dropout_rate': 0.3,
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 16, 8, 128
+
+        self.block_test(simple_conv_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_res_basic_stage(self):
          model_config = {
              'depth': 2, # mandatory
