@@ -184,28 +184,63 @@ def xception_basic_stage(model_config: dict):
     return stage
 
 
-def res_basic_block(model_config: dict):
-    # mandatory parameters
-    filters = model_config['filters']
-    strides = model_config['strides']
+def bidirectional_GRU_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        units: int
 
-    groups = model_config.get('groups', 1)
-    activation = model_config.get('activation', 'relu')
+    non-essential configs
+        dropout_rate: (default=0.)
+    '''
+    depth = model_config['depth']
+    units = model_config['units']
 
-    def basic_block(inputs):
-        out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
-        out = BatchNormalization()(out)
-        out = Activation(activation)(out)
+    dropout_rate = model_config.get('dropout_rate', 0.)
 
-        out = Conv2D(filters, 3, padding='same', groups=groups)(out)
-        out = BatchNormalization()(out)
+    def stage(x):
+        x = force_1d_inputs()(x)
 
-        if strides not in [(1, 1), [1, 1]] or inputs.shape[-1] != filters:
-            inputs = Conv2D(filters, 1, strides)(inputs)
-            inputs = BatchNormalization()(inputs)
+        for i in range(depth):
+            x = Bidirectional(
+                GRU(units, activation='tanh', 
+                    dropout=dropout_rate, recurrent_dropout=dropout_rate, 
+                    return_sequences=True),
+                merge_mode='mul')(x)
+        return x
+    return stage
 
-        return Activation(activation)(out + inputs)
-    return basic_block
+
+def simple_dense_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        units: int
+
+    non-essential configs
+        activation: (default=None)
+        dropout_rate: (default=0.)
+        kernel_regularizer: (default={'l1': 0., 'l2': 0.})
+    '''
+    depth = model_config['depth']
+    units = model_config['units']
+
+    activation = model_config.get('activation', None)
+    dropout_rate = model_config.get('dropout_rate', 0)
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def stage(x):
+        x = force_1d_inputs()(x)
+
+        for i in range(depth):
+            x = TimeDistributed(
+                Dense(units, activation=activation,
+                      kernel_regularizer=kernel_regularizer))(x)
+            if dropout_rate > 0:
+                x = Dropout(dropout_rate)(x)
+        return x
+    return stage
 
 
 """            BLOCKS WITH 2D OUTPUTS            """
@@ -518,6 +553,30 @@ def bidirectional_GRU_block(model_config: dict):
     return GRU_block
 
 
+def simple_dense_block(model_config: dict):
+    # assumes 1D inputs
+    # mandatory parameters
+    units_per_layer = model_config['units']
+
+    activation = model_config.get('dense_activation', None)
+    dropout_rate = model_config.get('dropout_rate', 0)
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    def dense_block(inputs):
+        x = force_1d_inputs()(inputs)
+
+        for units in units_per_layer:
+            x = TimeDistributed(
+                Dense(units, kernel_regularizer=kernel_regularizer))(x)
+            if activation:
+                x = Activation(activation)(x)
+            x = Dropout(dropout_rate)(x)
+        return x
+
+    return dense_block
+
+
 def transformer_encoder_block(model_config: dict):
     # mandatory parameters
     n_head = model_config['n_head']
@@ -548,30 +607,6 @@ def transformer_encoder_block(model_config: dict):
         return x
 
     return block
-
-
-def simple_dense_block(model_config: dict):
-    # assumes 1D inputs
-    # mandatory parameters
-    units_per_layer = model_config['units']
-
-    activation = model_config.get('dense_activation', None)
-    dropout_rate = model_config.get('dropout_rate', 0)
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def dense_block(inputs):
-        x = force_1d_inputs()(inputs)
-
-        for units in units_per_layer:
-            x = TimeDistributed(
-                Dense(units, kernel_regularizer=kernel_regularizer))(x)
-            if activation:
-                x = Activation(activation)(x)
-            x = Dropout(dropout_rate)(x)
-        return x
-
-    return dense_block
 
 
 def conformer_encoder_block(model_config: dict):

@@ -120,6 +120,36 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_bidirectional_GRU_stage(self):
+        model_config = {
+            'depth': 3,
+            'units': 128,
+            'dropout_rate': 0.3,
+        }
+        exp_input_shape = 32, 10, 32, 8
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(bidirectional_GRU_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_simple_dense_stage(self):
+        model_config = {
+            'depth': 2,
+            'units': 128,
+            'dense_activation': 'relu',
+            'dropout_rate': 0,
+            'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
+        }
+        exp_input_shape = 32, 10, 64
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(simple_dense_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_simple_conv_block(self):
         model_config = {
             'filters': [128, 128], # mandatory
@@ -271,6 +301,21 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_simple_dense_block(self):
+        model_config = {
+            'units': [128, 128], # mandatory
+            'dense_activation': 'relu',
+            'dropout_rate': 0,
+            'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
+        }
+        exp_input_shape = 32, 10, 64
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(simple_dense_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_transformer_encoder_block(self):
         model_config = {
             'n_head': 8, # mandatory
@@ -283,21 +328,6 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 20, 64
 
         self.block_test(transformer_encoder_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
-    def test_simple_dense_block(self):
-        model_config = {
-            'units': [128, 128], # mandatory
-            'dense_activation': 'relu',
-            'dropout_rate': 0,
-            'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
-        }
-        exp_input_shape = 32, 10, 64
-        exp_output_shape = 32, 10, 128
-
-        self.block_test(simple_dense_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
