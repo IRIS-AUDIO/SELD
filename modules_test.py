@@ -90,6 +90,7 @@ class ModulesTest(tf.test.TestCase):
         model_config = {
             'depth': 2,
             'n_head': 4, # mandatory
+            'key_dim': 8,
             'ff_multiplier': 2, # mandatory
             'kernel_size': 3, # mandatory
             'pos_encoding': 'basic',
@@ -154,6 +155,7 @@ class ModulesTest(tf.test.TestCase):
         model_config = {
             'depth': 3,
             'n_head': 8, # mandatory
+            'key_dim': 8,
             'ff_multiplier': 128, # mandatory
             'kernel_size': 1, # mandatory
             'dropout_rate': 0.1,
@@ -267,6 +269,7 @@ class ModulesTest(tf.test.TestCase):
     def test_sepformer_block(self):
         model_config = {
             'n_head': 4, # mandatory
+            'key_dim': 32,
             'ff_multiplier': 2, # mandatory
             'kernel_size': 3, # mandatory
             'pos_encoding': 'basic',
@@ -354,6 +357,7 @@ class ModulesTest(tf.test.TestCase):
     def test_transformer_encoder_block(self):
         model_config = {
             'n_head': 8, # mandatory
+            'key_dim': 8,
             'ff_multiplier': 128, # mandatory
             'kernel_size': 1, # mandatory
             'dropout_rate': 0.1,
