@@ -116,6 +116,7 @@ def dense_net_stage(model_config: dict):
 def sepformer_stage(model_config: dict):
     '''
     essential configs
+        depth: int
         n_head: int
         ff_multiplier: int or float
         kernel_size: int
@@ -132,6 +133,79 @@ def sepformer_stage(model_config: dict):
             x = sepformer_block(model_config)(x)
         return x
     return stage
+
+
+def xception_basic_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        filters: int
+
+    non-essential configs
+        mid_ratio: (default=1)
+        strides: (default=(1, 2))
+        kernel_regularizer: (default={'l1': 0., 'l2': 0.})
+    '''
+    depth = model_config['depth']
+    filters = model_config['filters']
+    
+    mid_ratio = model_config.get('mid_ratio', 1)
+    strides = model_config.get('strides', (1, 2))
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    mid_filters = int(mid_ratio * filters)
+
+    def stage(x):
+        for i in range(depth):
+            residual = x
+            x = SeparableConv2D(mid_filters, 3, padding='same', use_bias=False, 
+                                kernel_regularizer=kernel_regularizer)(x)
+            x = BatchNormalization()(x)
+            x = Activation('relu')(x)
+
+            x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
+                                kernel_regularizer=kernel_regularizer)(x)
+            x = BatchNormalization()(x)
+
+            if i == depth-1:
+                residual = conv2d_bn(filters, 1, strides=strides, padding='same', 
+                                     use_bias=False, 
+                                     kernel_regularizer=kernel_regularizer, 
+                                     activation=None)(residual)
+
+                x = MaxPooling2D((3, 3), strides=strides, padding='same')(x)
+            elif x.shape[-1] != residual.shape[-1]:
+                residual = conv2d_bn(filters, 1, use_bias=False, 
+                                     kernel_regularizer=kernel_regularizer, 
+                                     activation=None)(residual)
+            x = x + residual
+        return x
+    return stage
+
+
+def res_basic_block(model_config: dict):
+    # mandatory parameters
+    filters = model_config['filters']
+    strides = model_config['strides']
+
+    groups = model_config.get('groups', 1)
+    activation = model_config.get('activation', 'relu')
+
+    def basic_block(inputs):
+        out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
+        out = BatchNormalization()(out)
+        out = Activation(activation)(out)
+
+        out = Conv2D(filters, 3, padding='same', groups=groups)(out)
+        out = BatchNormalization()(out)
+
+        if strides not in [(1, 1), [1, 1]] or inputs.shape[-1] != filters:
+            inputs = Conv2D(filters, 1, strides)(inputs)
+            inputs = BatchNormalization()(inputs)
+
+        return Activation(activation)(out + inputs)
+    return basic_block
 
 
 """            BLOCKS WITH 2D OUTPUTS            """
