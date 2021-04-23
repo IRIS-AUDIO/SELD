@@ -196,20 +196,10 @@ def bidirectional_GRU_stage(model_config: dict):
     '''
     depth = model_config['depth']
     units = model_config['units']
+    model_config = copy.deepcopy(model_config)
+    model_config['units'] = [units] * depth
 
-    dropout_rate = model_config.get('dropout_rate', 0.)
-
-    def stage(x):
-        x = force_1d_inputs()(x)
-
-        for i in range(depth):
-            x = Bidirectional(
-                GRU(units, activation='tanh', 
-                    dropout=dropout_rate, recurrent_dropout=dropout_rate, 
-                    return_sequences=True),
-                merge_mode='mul')(x)
-        return x
-    return stage
+    return bidirectional_GRU_block(model_config)
 
 
 def simple_dense_stage(model_config: dict):
@@ -225,23 +215,11 @@ def simple_dense_stage(model_config: dict):
     '''
     depth = model_config['depth']
     units = model_config['units']
-
-    activation = model_config.get('activation', None)
-    dropout_rate = model_config.get('dropout_rate', 0)
-    kernel_regularizer = tf.keras.regularizers.l1_l2(
-        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
-    def stage(x):
-        x = force_1d_inputs()(x)
-
-        for i in range(depth):
-            x = TimeDistributed(
-                Dense(units, activation=activation,
-                      kernel_regularizer=kernel_regularizer))(x)
-            if dropout_rate > 0:
-                x = Dropout(dropout_rate)(x)
-        return x
-    return stage
+    model_config = copy.deepcopy(model_config)
+    model_config['units'] = [units] * depth
+    model_config['dense_activation'] = model_config.get('activation', None)
+    
+    return simple_dense_block(model_config)
 
 
 def transformer_encoder_stage(model_config: dict):
@@ -597,7 +575,6 @@ def bidirectional_GRU_block(model_config: dict):
                     dropout=dropout_rate, recurrent_dropout=dropout_rate, 
                     return_sequences=True),
                 merge_mode='mul')(x)
-
         return x
 
     return GRU_block
@@ -618,10 +595,10 @@ def simple_dense_block(model_config: dict):
 
         for units in units_per_layer:
             x = TimeDistributed(
-                Dense(units, kernel_regularizer=kernel_regularizer))(x)
-            if activation:
-                x = Activation(activation)(x)
-            x = Dropout(dropout_rate)(x)
+                Dense(units, activation=activation,
+                      kernel_regularizer=kernel_regularizer))(x)
+            if dropout_rate > 0:
+                x = Dropout(dropout_rate)(x)
         return x
 
     return dense_block
