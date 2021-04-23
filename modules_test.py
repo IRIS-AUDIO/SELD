@@ -5,6 +5,39 @@ from modules import *
 
 
 class ModulesTest(tf.test.TestCase):
+    def test_res_basic_stage(self):
+         model_config = {
+             'depth': 2, # mandatory
+             'filters': 32, # mandatory (for res basic block)
+             'strides': 2, # mandatory (for res basic block)
+             'groups': 1, 
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(res_basic_stage,
+                         model_config,
+                         exp_input_shape,
+                         exp_output_shape)
+
+    def test_res_bottleneck_stage(self):
+         model_config = {
+             'depth': 2, # mandatory
+             'filters': 32, # mandatory (for res bottleneck block)
+             'strides': 2, # mandatory (for res bottleneck block)
+             'groups': 1, 
+             'bottleneck_ratio': 2,
+         }
+
+         exp_input_shape = 32, 32, 32, 3
+         exp_output_shape = 32, 16, 16, 32
+
+         self.block_test(res_bottleneck_stage,
+                         model_config,
+                         exp_input_shape,
+                         exp_output_shape)
+
     def test_simple_conv_block(self):
         model_config = {
             'filters': [128, 128], # mandatory
@@ -36,22 +69,6 @@ class ModulesTest(tf.test.TestCase):
                          exp_input_shape,
                          exp_output_shape)
 
-    def test_res_basic_stage(self):
-         model_config = {
-             'depth': 2, # mandatory
-             'filters': 32, # mandatory (for res basic block)
-             'strides': 2, # mandatory (for res basic block)
-             'groups': 1, 
-         }
-
-         exp_input_shape = 32, 32, 32, 3
-         exp_output_shape = 32, 16, 16, 32
-
-         self.block_test(res_basic_stage,
-                         model_config,
-                         exp_input_shape,
-                         exp_output_shape)
-
     def test_res_basic_block(self):
          model_config = {
              'filters': 32, # mandatory
@@ -64,23 +81,6 @@ class ModulesTest(tf.test.TestCase):
 
          self.block_test(res_basic_block, 
                          model_config, 
-                         exp_input_shape,
-                         exp_output_shape)
-
-    def test_res_bottleneck_stage(self):
-         model_config = {
-             'depth': 2, # mandatory
-             'filters': 32, # mandatory (for res bottleneck block)
-             'strides': 2, # mandatory (for res bottleneck block)
-             'groups': 1, 
-             'bottleneck_ratio': 2,
-         }
-
-         exp_input_shape = 32, 32, 32, 3
-         exp_output_shape = 32, 16, 16, 32
-
-         self.block_test(res_bottleneck_stage,
-                         model_config,
                          exp_input_shape,
                          exp_output_shape)
 
@@ -220,17 +220,6 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_identity_block(self):
-        model_config = {}
-
-        exp_input_shape = 32, 16, 16, 8
-        exp_output_shape = 32, 16, 16, 8
-
-        self.block_test(identity_block, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
     def test_conformer_encoder_block(self):
         model_config = {
             'key_dim': 36, # mandatory
@@ -244,6 +233,17 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 100, 64 # batch, time, feat
     
         self.block_test(conformer_encoder_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_identity_block(self):
+        model_config = {}
+
+        exp_input_shape = 32, 16, 16, 8
+        exp_output_shape = 32, 16, 16, 8
+
+        self.block_test(identity_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)

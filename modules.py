@@ -10,6 +10,38 @@ This is only for implementing modules.
 Use only custom layers or predefined 
 """
 
+"""            STAGES            """
+def res_basic_stage(model_config: dict):
+    # mandatory parameters
+    depth = model_config['depth']
+    strides = model_config['strides']
+
+    model_config = copy.deepcopy(model_config)
+
+    def stage(inputs):
+        x = inputs
+        for i in range(depth):
+            x = res_basic_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
+def res_bottleneck_stage(model_config: dict):
+    # mandatory parameters
+    depth = model_config['depth']
+    strides = model_config['strides']
+    model_config = copy.deepcopy(model_config)
+
+    def stage(inputs):
+        x = inputs
+        for i in range(depth):
+            x = res_bottleneck_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
 """            BLOCKS WITH 2D OUTPUTS            """
 def simple_conv_block(model_config: dict):
     # mandatory parameters
@@ -70,22 +102,6 @@ def another_conv_block(model_config: dict):
     return conv_block
 
 
-def res_basic_stage(model_config: dict):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-
-    model_config = copy.deepcopy(model_config)
-
-    def stage(inputs):
-        x = inputs
-        for i in range(depth):
-            x = res_basic_block(model_config)(x)
-            model_config['strides'] = 1
-        return x
-    return stage
-
-
 def res_basic_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
@@ -114,21 +130,6 @@ def res_basic_block(model_config: dict):
         return out
 
     return basic_block
-
-
-def res_bottleneck_stage(model_config: dict):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-    model_config = copy.deepcopy(model_config)
-
-    def stage(inputs):
-        x = inputs
-        for i in range(depth):
-            x = res_bottleneck_block(model_config)(x)
-            model_config['strides'] = 1
-        return x
-    return stage
 
 
 def res_bottleneck_block(model_config: dict):
@@ -415,13 +416,6 @@ def simple_dense_block(model_config: dict):
     return dense_block
 
 
-"""                 OTHER BLOCKS                 """
-def identity_block(model_config: dict):
-    def identity(inputs):
-        return inputs
-    return identity
-
-
 def conformer_encoder_block(model_config: dict):
     # mandatory parameters
     key_dim = model_config.get('key_dim', 36)
@@ -509,3 +503,11 @@ def conformer_encoder_block(model_config: dict):
         return x
 
     return conformer_block
+
+
+"""                 OTHER BLOCKS                 """
+def identity_block(model_config: dict):
+    def identity(inputs):
+        return inputs
+    return identity
+
