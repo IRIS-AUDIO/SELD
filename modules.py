@@ -42,6 +42,19 @@ def simple_conv_stage(model_config: dict):
     return stage
 
 
+def another_conv_stage(model_config: dict):
+    '''
+    essential configs
+        filters: int
+        depth: int
+        pool_size: int or tuple of ints
+
+    non-essential configs
+        activation: (default=relu)
+    '''
+    return another_conv_block(model_config)
+
+
 def res_basic_stage(model_config: dict):
     '''
     essential configs
