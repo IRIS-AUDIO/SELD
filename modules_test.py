@@ -150,6 +150,41 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_transformer_encoder_stage(self):
+        model_config = {
+            'depth': 3,
+            'n_head': 8, # mandatory
+            'ff_multiplier': 128, # mandatory
+            'kernel_size': 1, # mandatory
+            'dropout_rate': 0.1,
+        }
+
+        exp_input_shape = 32, 20, 64
+        exp_output_shape = 32, 20, 64
+
+        self.block_test(transformer_encoder_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_conformer_encoder_stage(self):
+        model_config = {
+            'depth': 3,
+            'key_dim': 36, # mandatory
+            'n_head' : 4,
+            'kernel_size' : 32,
+            'activation': 'swish',
+            'dropout_rate': 0,
+        }
+        
+        exp_input_shape = 32, 100, 64 # batch, time, feat
+        exp_output_shape = 32, 100, 64 # batch, time, feat
+    
+        self.block_test(conformer_encoder_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_simple_conv_block(self):
         model_config = {
             'filters': [128, 128], # mandatory

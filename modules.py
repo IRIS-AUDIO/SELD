@@ -243,6 +243,54 @@ def simple_dense_stage(model_config: dict):
     return stage
 
 
+def transformer_encoder_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        n_head: int
+        ff_multiplier: int or float
+        kernel_size: int
+
+    non-essential configs
+        activation: (default=relu)
+        dropout_rate: (default=0.1)
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        x = force_1d_inputs()(x)
+        for i in range(depth):
+            x = transformer_encoder_block(model_config)(x)
+        return x
+    return stage
+
+
+def conformer_encoder_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+
+    non-essential configs
+        key_dim: (default=36)
+        n_head: (default=4)
+        kernel_size: (default=32)
+        activation: (default=swish)
+        dropout_rate: (default=0.1)
+        multiplier: (default=4)
+        ffn_factor: (default=0.5)
+        pos_encoding: (default=basic)
+        kernel_regularizer: (default={'l1': 0., 'l2': 0.})
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        inputs = force_1d_inputs()(x)
+        for i in range(depth):
+            x = conformer_encoder_block(model_config)(x)
+        return x
+    return stage
+
+
 """            BLOCKS WITH 2D OUTPUTS            """
 def simple_conv_block(model_config: dict):
     # mandatory parameters
@@ -630,8 +678,7 @@ def conformer_encoder_block(model_config: dict):
         pos_encoding = None
     
     def conformer_block(inputs):
-        
-        inputs =  force_1d_inputs()(inputs)
+        inputs = force_1d_inputs()(inputs)
         x = inputs
         batch, time, emb = x.shape
 
