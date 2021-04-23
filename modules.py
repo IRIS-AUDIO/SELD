@@ -99,6 +99,41 @@ def res_bottleneck_stage(model_config: dict):
     return stage
 
 
+def dense_net_stage(model_config: dict):
+    '''
+    essential configs
+        growth_rate: int
+        depth: int
+        strides: int or tuple of ints
+
+    non-essential configs
+        bottleneck_ratio: int or float
+        reduction_ratio: int or float
+    '''
+    return dense_net_block(model_config)
+
+
+def sepformer_stage(model_config: dict):
+    '''
+    essential configs
+        n_head: int
+        ff_multiplier: int or float
+        kernel_size: int
+
+    non-essential configs
+        pos_encoding: (default=None) [None, 'basic', 'rff']
+        activation: (default=relu)
+        dropout_rate: (default=0.1)
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        for i in range(depth):
+            x = sepformer_block(model_config)(x)
+        return x
+    return stage
+
+
 """            BLOCKS WITH 2D OUTPUTS            """
 def simple_conv_block(model_config: dict):
     # mandatory parameters
@@ -262,8 +297,6 @@ def sepformer_block(model_config: dict):
         pos_encoding = basic_pos_encoding
     elif pos_encoding == 'rff': # random fourier feature
         pos_encoding = rff_pos_encoding
-    else:
-        pos_encoding = None
 
     def _sepformer_block(inputs):
         # https://github.com/speechbrain/speechbrain/blob/develop/
