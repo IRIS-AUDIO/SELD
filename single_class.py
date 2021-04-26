@@ -7,8 +7,8 @@ import os
 import soundfile as sf
 from tqdm import tqdm 
 
-file_list = sorted(glob('/home/pjh/fork/SELD/normal/DCASE2020/feat_label/foa_dev_label/*'))
-sound_list = sorted(glob('/home/pjh/seld-dcase2020/foa_dev/*'))
+file_list = sorted(glob('./normal/DCASE2020/feat_label/foa_dev_label/*'))
+sound_list = sorted(glob('/dataset/DCASE2020/foa_dev/*'))
 os.makedirs('./single_sound', exist_ok=True)
 os.makedirs('./single_label', exist_ok=True)
 

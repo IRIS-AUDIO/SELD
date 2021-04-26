@@ -12,7 +12,7 @@ from metrics import *
 from params import get_param
 from transforms import *
 from utils import adaptive_clip_grad
-
+import pdb
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, agc):
@@ -49,6 +49,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     ddloss = tf.keras.metrics.Mean()
 
     loss_weight = [int(i) for i in config.loss_weight.split(',')]
+    from tqdm import tqdm
     with tqdm(dataset) as pbar:
         for x, y in pbar:
             if mode == 'train':
@@ -167,13 +168,41 @@ def get_tdm_dataset(config, mode:str='train'):
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    TDM_PATH = './'
     x, y = get_preprocessed_wave(FEATURE_PATH,
                                  LABEL_PATH)
+
     # 데이터 훑어서 aug용 데이터 뽑기
     # 아래 코드들은 어차피 feature extractor부터 사용해야해서 파이토치로 짜도 무방할듯
-    tdm_x, tdm_y = get_TDMset(abspath)
-    x, y = TDM_aug(x, y, tdm_x, tdm_y)
-    
+    tdm_x, tdm_y, sr = get_TDMset(TDM_PATH)
+    x, y = TDM_aug(x, y, tdm_x, tdm_y, sr)
+    x = [get_preprocessed_x(x_, sr, mode=mode,
+                         n_mels=64, 
+                         multiplier=5,
+                         max_label_length=600,
+                         win_length=960,
+                         hop_length=480,
+                         n_fft=1024) for x_ in x] 
+    x_temp = torch.cat(x, axis=0)
+
+    m = x_temp.mean(axis=0, keepdim=True)
+    s = x_temp.std(axis=0, keepdim=True)
+    print("mean", m.mean())
+    print("STD", s.mean())
+    x = [(x_ - m)/s for x_ in x]
+
+    del x_temp 
+    del m 
+    del s 
+    x = [tf.convert_to_tensor(x_.cpu().numpy()) for x_ in x]
+
+    if not 'nomask' in config.name:
+         sample_transforms = [
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+        ]
+    else:
+        sample_transforms = []
     # 이후에는 기존 데이터셋 만드는 코드
     # seldnet_data_to_dataloader
     batch_transforms = [split_total_labels_to_sed_doa]
@@ -181,7 +210,7 @@ def get_tdm_dataset(config, mode:str='train'):
         batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
-        train= mode == 'train',
+        train=True,
         batch_transforms=batch_transforms,
         label_window_size=60,
         batch_size=config.batch,
@@ -245,8 +274,8 @@ def main(config):
         model = tf.keras.models.load_model(_model_path[0])
         if config.tdm_epoch:
             trainset = get_tdm_dataset(config, 'train')
-            valset = get_tdm_dataset(config, 'val')
-            testset = get_tdm_dataset(config, 'test')
+            valset = get_dataset(config, 'val')
+            testset = get_dataset(config, 'test')
 
     
     best_score = 99999
@@ -259,8 +288,8 @@ def main(config):
         # tdm
         if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
             trainset = get_tdm_dataset(config, 'train')
-            valset = get_tdm_dataset(config, 'val')
-            testset = get_tdm_dataset(config, 'test')
+            valset = get_dataset(config, 'val')
+            testset = get_dataset(config, 'test')
             
         # train loop
         metric_class.reset_states()
@@ -296,7 +325,5 @@ def main(config):
 
 
 if __name__=='__main__':
-    physical_devices = tf.config.list_physical_devices('GPU')
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
     main(get_param())
 

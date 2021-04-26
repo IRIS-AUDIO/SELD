@@ -99,6 +99,18 @@ def get_preprocessed_wave(feat_path, label_path, mode='train'):
     f_paths = sorted(glob(os.path.join(feat_path, '*.wav')))
     l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
 
+    splits = {
+        'train': [3, 4, 5, 6],
+        'val': [2],
+        'test': [1]
+    }
+
+    f_paths = [f for f in f_paths 
+            if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
+    l_paths = [f for f in l_paths 
+            if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
+
+
     if len(f_paths) != len(l_paths):
         raise ValueError('# of features and labels are not matched')
     
@@ -154,21 +166,26 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
     return dataset.prefetch(AUTOTUNE)
 
+
 def get_TDMset(TDM_PATH):
     from glob import glob
     tdm_x = [torchaudio.load(f)[0] for f in sorted(glob(TDM_PATH + '/single_sound/*'))]
     tdm_y = [np.load(f) for f in sorted(glob(TDM_PATH + '/single_label/*'))]
-    return tdm_x, tdm_y
+    sr = torchaudio.load(sorted(glob(TDM_PATH + '/single_sound/*'))[0])[1]
+    return tdm_x, tdm_y, sr
 
-def TDM_aug(x, y, tdm_x, tdm_y):
-    for x_, y_ in zip(x,y):
+
+def TDM_aug(x, y, tdm_x, tdm_y, sr):
+    from tqdm import tqdm
+    for x_, y_ in tqdm(zip(x,y)):
         single_source = y_[:,:14]
+        # check If source is single
         check_single = np.sum(single_source, axis=1)
         single_index = np.where(check_single == 1)
         
-        check_same_label = 0
-        check_sequence = 0
-        index_list = []
+        check_same_label = 0 # check It is same label
+        check_sequence = 0 # check if this segment is sequnetial
+        index_list = [] # will store start, length, label class
         
         frame_len = 0 # length of start frame
         start_location = 0 # start location of specific class
@@ -176,58 +193,113 @@ def TDM_aug(x, y, tdm_x, tdm_y):
     
         sequence = [i for i in range(len(tdm_x))]
         for single in single_index[0]:        
-            if new_location == 0:
+            if new_location == 0: # When first frame of specific source
+                # Set condition for first frame of sequence
                 check_sequence = single - 1
                 check_same_label = np.argwhere(single_source[single] == 1)[0][0]
                 start_location = single
                 frame_len = 1
                 new_location = 1
                 
+            # If cascade frame has same class, measure length of sequence
             if (single - 1) == check_sequence and \
                 check_same_label == np.argwhere(single_source[single] == 1)[0][0]:
                 check_sequence = single
                 frame_len += 1
-                
+                new_location = 1
+            
+            # If sequence is ended, check length of sequence
             else:
                 if frame_len >= 10 : 
                     index_list.append([start_location, frame_len, check_same_label])
                 new_location = 0
-        
+
         for index in index_list: 
-            pick = rnd.choice(tdm_y[sequence])
             
-            while(np.argwhere(pick[0,:14] == 1)[0][0] == index[2]):
-                pick = rnd.choice(tdm_y[sequence])
-                
-            if rnd.random() > 0.5 : 
-                length_diff = index[1] - len(tdm_y)
-                noise_ = rnd.random()*0.4 + 0.3
-                if length_diff > 0 : 
-                    offset = int(rnd.random() * length_diff)
-                    mix_x = tdm_x
-                    mix_y = tdm_y
+            # Pick Some segment from single source
+            rnd_num = rnd.choice(sequence)
+            pick_y = tdm_y[rnd_num]
+            
+            # check weather class is same 
+            while(np.argwhere(pick_y[0,:14] == 1)[0][0] == index[2]):
+                rnd_num = rnd.choice(sequence)
+                pick_y = tdm_y[rnd_num]
+            pick_x = tdm_x[rnd_num]
+
+
+            if rnd.random() > 0.5 :  # set probability
+                length_diff = index[1] - len(pick_y)
+                noise_ = rnd.random()*0.4 + 0.3 # mix with weight
+                if length_diff > 0 : # case when mixing sound is shorter
+                    offset = int(rnd.random() * length_diff) #set random offset
+                    mix_x = pick_x
+                    mix_y = pick_y
     
-                    x_[:, offset + index[0]:offset + index[0] + len(mix_y)] = \
+                    x_[:, int(0.1*sr*(offset + index[0])):int(0.1*sr*(offset + index[0] + len(mix_y)))] = \
                     mix_x * noise_ + \
-                    x_[:, offset + index[0]:offset + index[0] + len(mix_y)] * (1 - noise_)
+                    x_[:, int(0.1*sr*(offset + index[0])):int(0.1*sr*(offset + index[0] + len(mix_y)))] * (1 - noise_)
                     
-                    y_[offset + index[0]:offset + index[0] + index[1],:] =\
-                    y_[offset + index[0]:offset + index[0] + index[1],:] + mix_y
+                    y_[offset + index[0]:offset + index[0] + len(mix_y),:] =\
+                    y_[offset + index[0]:offset + index[0] + len(mix_y),:] + mix_y
     
-                else:
-                    offset = int(rnd.random() * (-length_diff))
-                    mix_x = tdm_x[:, offset:offset + index[1]]
-                    mix_y = tdm_y[offset:offset + index[1], :]
+                else:  # case when mixing sound is longer
+                    offset = int(rnd.random() * (-length_diff))  # set random offset
+                    mix_x = pick_x[:, int(0.1*sr*offset):int(0.1*sr*(offset + index[1]))]
+                    mix_y = pick_y[offset:offset + index[1], :]
     
-                    x_[:, index[0]:index[0] + index_1] = \
+                    x_[:, int(0.1*sr*index[0]):int(0.1*sr*(index[0] + index[1]))] = \
                     mix_x*noise_ + \
-                    x_[:, index[0]:index[0] + len(mix_y)]*(1 - noise_)
+                    x_[:, int(0.1*sr*index[0]):int(0.1*sr*(index[0] + index[1]))]*(1 - noise_)
 
                     y_[index[0]:index[0]+index[1], :] = \
                     y_[index[0]:index[0]+index[1], :] + mix_y
     return x, y    
 
-        
+
+def get_preprocessed_x(wav, sample_rate, mode='foa', n_mels=64,
+                       multiplier=5, max_label_length=600, **kwargs):
+    device = get_device()
+    melscale = torchaudio.transforms.MelScale(
+        n_mels=n_mels, sample_rate=sample_rate).to(device)
+    spec = complex_spec(wav.to(device), **kwargs)
+
+    mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
+    mel_spec = melscale(mel_spec)
+    mel_spec = torchaudio.functional.amplitude_to_DB(
+        mel_spec,
+        multiplier=10.,
+        amin=1e-10,
+        db_multiplier=np.log10(max(1., 1e-10)), # log10(max(ref, amin))
+        top_db=80.,
+    )
+
+    features = [mel_spec]
+    if mode == 'foa':
+        foa = foa_intensity_vectors(spec)
+        foa = melscale(foa)
+        features.append(foa)
+    elif mode == 'mic':
+        gcc = gcc_features(spec, n_mels=n_mels)
+        features.append(gcc)
+    else:
+        raise ValueError('invalid mode')
+
+    features = torch.cat(features, axis=0)
+
+    # [chan, freq, time] -> [time, freq, chan]
+    features = torch.transpose(features, 0, 2)
+    cur_len = features.shape[0]
+    max_len = max_label_length * multiplier
+    if cur_len < max_len: 
+        features = np.pad(features, 
+                          ((0, max_len-cur_len), (0,0), (0,0)),
+                          'constant')
+    else:
+        features = features[:max_len]
+
+    return features
+
+
 if __name__ == '__main__':
     ''' An example of how to use '''
     import os
