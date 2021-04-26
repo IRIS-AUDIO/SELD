@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from feature_extractor import *
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -87,6 +88,33 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
         pass
     
     return features, labels
+
+
+def get_preprocessed_wave(feat_path, label_path, mode='train'):
+    '''
+        output
+        x: wave form -> (data_num, channel(4), time)
+        y: label(padded) -> (data_num, time, 56)
+    '''
+    f_paths = sorted(glob(os.path.join(feat_path, '*.wav')))
+    l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
+
+    if len(f_paths) != len(l_paths):
+        raise ValueError('# of features and labels are not matched')
+    
+    def preprocess_label(labels, max_label_length=600):
+        cur_len = labels.shape[0]
+        max_len = max_label_length
+
+        if cur_len < max_len: 
+            labels = np.pad(labels, ((0, max_len-cur_len), (0,0)), 'constant')
+        else:
+            labels = labels[:max_len]
+        return labels
+    
+    x = list(map(lambda x: torchaudio.load(x)[0], f_paths))
+    y = list(map(lambda x: preprocess_label(extract_labels(x)), l_paths))
+    return x, y
 
 
 def seldnet_data_to_dataloader(features: [list, tuple], 

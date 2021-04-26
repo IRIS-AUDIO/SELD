@@ -110,6 +110,17 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_xception_basic_block_complexity(self):
+        model_config = {
+            'filters': 32,
+            'mid_ratio': 0.75,
+            'strides': (1, 2),
+        }
+        self.complexity_test(xception_basic_block_complexity,
+                             xception_basic_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_bidirectional_GRU_block_complexity(self):
         model_config = {
             'units': [128, 128],
