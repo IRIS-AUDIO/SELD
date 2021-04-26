@@ -125,6 +125,36 @@ def get_dataset(config, mode:str='train'):
     return dataset
 
 
+def get_tdm_dataset(config, mode:str='train'):
+    mode = 'foa'
+    abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
+    LABEL_PATH = os.path.join(abspath, 'metadata_dev')
+    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    x, y = get_preprocessed_wave(FEATURE_PATH,
+                                 LABEL_PATH)
+    # 데이터 훑어서 aug용 데이터 뽑기
+    # 아래 코드들은 어차피 feature extractor부터 사용해야해서 파이토치로 짜도 무방할듯
+    tdm_x, tdm_y = get_TDMset(x, y)
+    x, y = TDM_aug(x, y, tdm_x, tdm_y)
+    
+    # 이후에는 기존 데이터셋 만드는 코드
+    # seldnet_data_to_dataloader
+    batch_transforms = [split_total_labels_to_sed_doa]
+    if config.foa_aug and mode == 'train':
+        batch_transforms.insert(0, foa_intensity_vec_aug)
+    dataset = seldnet_data_to_dataloader(
+        x, y,
+        train= mode == 'train',
+        batch_transforms=batch_transforms,
+        label_window_size=60,
+        batch_size=config.batch,
+        sample_transforms=sample_transforms,
+        loop_time=config.loop_time
+    )
+    return dataset
+
+
 def main(config):
     config, model_config = config[0], config[1]
 
@@ -140,7 +170,8 @@ def main(config):
         os.makedirs(model_path)
 
     # data load
-    trainset = get_dataset(config, 'train')
+    # trainset = get_dataset(config, 'train')
+    trainset = get_tdm_dataset(config, 'train')
     valset = get_dataset(config, 'val')
     testset = get_dataset(config, 'test')
 
@@ -173,6 +204,11 @@ def main(config):
         if len(_model_path) == 0:
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
+        if config.tdm_epoch:
+            trainset = get_tdm_dataset(config, 'train')
+            valset = get_tdm_dataset(config, 'val')
+            testset = get_tdm_dataset(config, 'test')
+
     
     best_score = 99999
     early_stop_patience = 0
@@ -181,6 +217,12 @@ def main(config):
         doa_threshold=config.lad_doa_thresh)
 
     for epoch in range(config.epoch):
+        # tdm
+        if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
+            trainset = get_tdm_dataset(config, 'train')
+            valset = get_tdm_dataset(config, 'val')
+            testset = get_tdm_dataset(config, 'test')
+            
         # train loop
         metric_class.reset_states()
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=optimizer, mode='train') 

@@ -34,6 +34,8 @@ def get_param(known=None):
     args.add_argument('--time_mask_size', type=int, default=24)
     args.add_argument('--loop_time', type=int, default=5, 
                       help='times of train dataset iter for an epoch')
+    args.add_argument('--tdm_epoch', type=int, default=5,
+                      help='epochs of applying tdm augmentation. If 0, don\'t use it.')
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
