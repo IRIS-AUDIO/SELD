@@ -12,3 +12,17 @@ def MMSE(y_true, y_pred):
     return tf.keras.backend.sqrt(
         tf.keras.backend.sum(tf.keras.backend.square(y_true - y_pred) * sed)) \
                 / tf.keras.backend.sum(sed)
+
+
+class Focal_Loss:
+    def __init__(self, alpha=0.25, gamma=2):
+        self.alpha = alpha
+        self.gamma = gamma
+    
+    def __call__(self, y_true, y_pred):
+        eps = 1e-7
+        y_pred = tf.clip_by_value(y_pred, eps, 1-eps)
+        focal = - y_true * self.alpha * tf.pow(1 - y_pred, self.gamma) * tf.math.log(y_pred)\
+                - (1-y_true) * self.alpha * tf.pow(y_pred, self.gamma) * tf.math.log(1-y_pred)
+
+        return tf.reduce_mean(focal)

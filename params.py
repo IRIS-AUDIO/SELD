@@ -37,6 +37,10 @@ def get_param(known=None):
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
+    args.add_argument('--sed_loss', type=str, default='BCE',
+                        choices=['BCE','FOCAL'])
+    args.add_argument('--focal_g', type=float, default=2)
+    args.add_argument('--focal_a', type=float, default=0.25)
 
     config = args.parse_args()
 

@@ -40,7 +40,7 @@ def data_loader(dataset,
         return dataset
 
     dataset = apply_ops(dataset, preprocessing)
-    dataset = dataset.cache()
+    # dataset = dataset.cache()
     dataset = dataset.repeat(loop_time)
     dataset = apply_ops(dataset, sample_transforms)
     dataset = dataset.batch(batch_size, drop_remainder=False)

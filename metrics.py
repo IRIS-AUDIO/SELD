@@ -25,6 +25,10 @@ class SELDMetrics:
 
         self.total_DE = tf.zeros([], tf.float32)
         self.DE_TP = tf.zeros([], tf.float32)
+        self.class_tp = tf.zeros([14], tf.float32)
+        self.class_fp = tf.zeros([14], tf.float32)
+        self.class_tn = tf.zeros([14], tf.float32)
+        self.class_fn = tf.zeros([14], tf.float32)
 
     def result(self):
         # Location-senstive detection performance
@@ -47,6 +51,11 @@ class SELDMetrics:
 
         return ER, F, DE, DE_F
 
+    def class_result(self):
+        class_recall = safe_div(self.class_tp, self.class_tp + self.class_fn)
+        class_precision = safe_div(self.class_tp, self.class_tp + self.class_fp)
+        return class_recall, class_precision
+    
     def update_states(self, y_true, y_pred): 
         y_true_blocks = self.split(y_true)
         y_pred_blocks = self.split(y_pred)
@@ -87,14 +96,20 @@ class SELDMetrics:
 
         false_negative = true_classes * (1-pred_classes)
         false_positive = (1-true_classes) * pred_classes
-
+        true_negative = (1-true_classes) * (1-pred_classes)
+        true_positives = true_classes * pred_classes
+        
+        self.class_fn += tf.reduce_sum(false_negative, axis=(-3,-2))
+        self.class_fp += tf.reduce_sum(false_positive, axis=(-3,-2))
+        self.class_tn += tf.reduce_sum(true_negative, axis=(-3,-2))
+        self.class_tp += tf.reduce_sum(true_positives, axis=(-3,-2))
+        
         self.FN += tf.math.reduce_sum(false_negative)
         self.FP += tf.math.reduce_sum(false_positive)
         loc_FN = tf.math.reduce_sum(false_negative, axis=(-2, -1))
         loc_FP = tf.math.reduce_sum(false_positive, axis=(-2, -1))
 
         ''' when a class exists in both y_true and y_pred '''
-        true_positives = true_classes * pred_classes
         frames_true = sed_true * true_positives
         frames_pred = sed_pred * true_positives
         frames_matched = frames_true * frames_pred
@@ -190,4 +205,3 @@ def regression_label_format_to_output_format(preds):
             for cls in classes:
                 output_dict[i].append([cls, *doa_labels[i, :, cls]])
     return output_dict
-
