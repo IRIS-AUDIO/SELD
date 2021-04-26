@@ -171,7 +171,7 @@ def get_tdm_dataset(config, mode:str='train'):
                                  LABEL_PATH)
     # 데이터 훑어서 aug용 데이터 뽑기
     # 아래 코드들은 어차피 feature extractor부터 사용해야해서 파이토치로 짜도 무방할듯
-    tdm_x, tdm_y = get_TDMset(x, y)
+    tdm_x, tdm_y = get_TDMset(abspath)
     x, y = TDM_aug(x, y, tdm_x, tdm_y)
     
     # 이후에는 기존 데이터셋 만드는 코드

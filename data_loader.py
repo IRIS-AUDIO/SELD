@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from feature_extractor import *
-
+import random as rnd
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
@@ -154,7 +154,80 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
     return dataset.prefetch(AUTOTUNE)
 
+def get_TDMset(TDM_PATH):
+    from glob import glob
+    tdm_x = [torchaudio.load(f)[0] for f in sorted(glob(TDM_PATH + '/single_sound/*'))]
+    tdm_y = [np.load(f) for f in sorted(glob(TDM_PATH + '/single_label/*'))]
+    return tdm_x, tdm_y
 
+def TDM_aug(x, y, tdm_x, tdm_y):
+    for x_, y_ in zip(x,y):
+        single_source = y_[:,:14]
+        check_single = np.sum(single_source, axis=1)
+        single_index = np.where(check_single == 1)
+        
+        check_same_label = 0
+        check_sequence = 0
+        index_list = []
+        
+        frame_len = 0 # length of start frame
+        start_location = 0 # start location of specific class
+        new_location = 0 # check weather start frame changed
+    
+        sequence = [i for i in range(len(tdm_x))]
+        for single in single_index[0]:        
+            if new_location == 0:
+                check_sequence = single - 1
+                check_same_label = np.argwhere(single_source[single] == 1)[0][0]
+                start_location = single
+                frame_len = 1
+                new_location = 1
+                
+            if (single - 1) == check_sequence and \
+                check_same_label == np.argwhere(single_source[single] == 1)[0][0]:
+                check_sequence = single
+                frame_len += 1
+                
+            else:
+                if frame_len >= 10 : 
+                    index_list.append([start_location, frame_len, check_same_label])
+                new_location = 0
+        
+        for index in index_list: 
+            pick = rnd.choice(tdm_y[sequence])
+            
+            while(np.argwhere(pick[0,:14] == 1)[0][0] == index[2]):
+                pick = rnd.choice(tdm_y[sequence])
+                
+            if rnd.random() > 0.5 : 
+                length_diff = index[1] - len(tdm_y)
+                noise_ = rnd.random()*0.4 + 0.3
+                if length_diff > 0 : 
+                    offset = int(rnd.random() * length_diff)
+                    mix_x = tdm_x
+                    mix_y = tdm_y
+    
+                    x_[:, offset + index[0]:offset + index[0] + len(mix_y)] = \
+                    mix_x * noise_ + \
+                    x_[:, offset + index[0]:offset + index[0] + len(mix_y)] * (1 - noise_)
+                    
+                    y_[offset + index[0]:offset + index[0] + index[1],:] =\
+                    y_[offset + index[0]:offset + index[0] + index[1],:] + mix_y
+    
+                else:
+                    offset = int(rnd.random() * (-length_diff))
+                    mix_x = tdm_x[:, offset:offset + index[1]]
+                    mix_y = tdm_y[offset:offset + index[1], :]
+    
+                    x_[:, index[0]:index[0] + index_1] = \
+                    mix_x*noise_ + \
+                    x_[:, index[0]:index[0] + len(mix_y)]*(1 - noise_)
+
+                    y_[index[0]:index[0]+index[1], :] = \
+                    y_[index[0]:index[0]+index[1], :] + mix_y
+    return x, y    
+
+        
 if __name__ == '__main__':
     ''' An example of how to use '''
     import os
