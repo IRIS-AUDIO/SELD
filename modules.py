@@ -183,7 +183,8 @@ def dense_net_block(model_config: dict):
         for i in range(depth):
             out = BatchNormalization()(x)
             out = Activation('relu')(out)
-            out = Conv2D(bottleneck_ratio * growth_rate, 1, use_bias=False)(out)
+            out = Conv2D(int(bottleneck_ratio*growth_rate), 1, 
+                         use_bias=False)(out)
             out = BatchNormalization()(out)
             out = Activation('relu')(out)
             out = Conv2D(growth_rate, 3, padding='same', use_bias=True)(out)
@@ -307,6 +308,35 @@ def xception_block(model_config: dict):
     return _xception_net_block
 
 
+def xception_basic_block(model_config: dict):
+    filters = model_config['filters']
+    
+    mid_ratio = model_config.get('mid_ratio', 1)
+    strides = model_config.get('strides', (1, 2))
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    mid_filters = int(mid_ratio * filters)
+
+    def _basic_block(inputs):
+        x = SeparableConv2D(mid_filters, 3, padding='same', use_bias=False, 
+                            kernel_regularizer=kernel_regularizer)(inputs)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
+                            kernel_regularizer=kernel_regularizer)(x)
+        x = BatchNormalization()(x)
+        x = MaxPooling2D((3, 3), strides=strides, padding='same')(x)
+
+        residual = conv2d_bn(filters, 1, strides=strides, padding='same', 
+                             use_bias=False, 
+                             kernel_regularizer=kernel_regularizer, 
+                             activation=None)(inputs)
+        return x + residual
+    return _basic_block
+
+
 """            BLOCKS WITH 1D OUTPUTS            """
 def bidirectional_GRU_block(model_config: dict):
     # mandatory parameters
@@ -349,7 +379,7 @@ def transformer_encoder_block(model_config: dict):
         x = LayerNormalization()(x + attn)
 
         # FFN
-        ffn = Conv1D(ff_multiplier*d_model, kernel_size, padding='same',
+        ffn = Conv1D(int(ff_multiplier*d_model), kernel_size, padding='same',
                      activation=activation)(x)
         ffn = Dropout(dropout_rate)(ffn)
         ffn = Conv1D(d_model, kernel_size, padding='same')(ffn)
@@ -391,3 +421,91 @@ def identity_block(model_config: dict):
         return inputs
     return identity
 
+
+def conformer_encoder_block(model_config: dict):
+    # mandatory parameters
+    key_dim = model_config.get('key_dim', 36)
+    n_head = model_config.get('n_head', 4)
+    kernel_size = model_config.get('kernel_size', 32) # 32 
+    activation = model_config.get('activation', 'swish')
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+    multiplier = model_config.get('multiplier', 4)
+    ffn_factor = model_config.get('ffn_factor', 0.5)
+    pos_encoding = model_config.get('pos_encoding', 'basic')
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    if pos_encoding == 'basic':
+        pos_encoding = basic_pos_encoding
+    elif pos_encoding == 'rff': # random fourier feature
+        pos_encoding = rff_pos_encoding
+    else:
+        pos_encoding = None
+    
+    def conformer_block(inputs):
+        
+        inputs =  force_1d_inputs()(inputs)
+        x = inputs
+        batch, time, emb = x.shape
+
+        # FFN Modules
+        ffn = LayerNormalization()(x)
+        ffn = Dense(multiplier*emb, activation=activation)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Dense(emb)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        x = x + ffn_factor*ffn
+
+        # Positional Encoding
+        if pos_encoding:
+            x += pos_encoding(x.shape)(x)
+            
+        # Multi Head Self Attention module
+        attn = LayerNormalization()(x)
+        attn = MultiHeadAttention(n_head,
+                                  key_dim,
+                                  dropout=dropout_rate)(attn, attn)
+        attn = Dropout(dropout_rate)(attn)
+        x = attn + x
+
+        # Conv Module
+        conv = LayerNormalization()(x)
+        conv = Conv1D(filters=2*emb, 
+                      kernel_size=1,
+                      kernel_regularizer=kernel_regularizer)(conv)
+        
+        # GLU Part
+        conv_1, conv_2 = tf.split(conv, 2, axis=-1)
+        conv_1 = Dense(emb)(conv_1)
+        conv_2 = Dense(emb, activation ='sigmoid')(conv_2)
+        conv = conv_1 * conv_2
+
+        #Depth Wise
+        conv = Conv1D(filters=emb,
+                      kernel_size=kernel_size,
+                      strides=1,
+                      padding='same',
+                      groups=emb, 
+                      kernel_regularizer=kernel_regularizer)(conv)
+
+        conv = BatchNormalization()(conv)
+        conv = tf.keras.activations.swish(conv) 
+        conv = Conv1D(filters=emb, 
+                      kernel_size=1,
+                      padding="same",
+                      kernel_regularizer=kernel_regularizer)(conv)
+        conv = Dropout(dropout_rate)(conv)
+        conv = conv + x
+
+        # FFN
+        ffn = LayerNormalization()(conv)
+        ffn = Dense(multiplier*emb, activation=activation)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Dense(emb)(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        
+        x = LayerNormalization()(x + ffn_factor*ffn)
+
+        return x
+
+    return conformer_block

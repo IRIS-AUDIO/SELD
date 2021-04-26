@@ -110,6 +110,17 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_xception_basic_block_complexity(self):
+        model_config = {
+            'filters': 32,
+            'mid_ratio': 0.75,
+            'strides': (1, 2),
+        }
+        self.complexity_test(xception_basic_block_complexity,
+                             xception_basic_block,
+                             model_config,
+                             [32, 32, 3])
+
     def test_bidirectional_GRU_block_complexity(self):
         model_config = {
             'units': [128, 128],
@@ -146,26 +157,41 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 48])
 
+    def test_conformer_encoder_block_complexity(self):
+        model_config = {
+            'n_head': 4,
+            'multiplier': 4,
+            'key_dim': 36,
+            'kernel_size': 32,
+        }
+        self.complexity_test(conformer_encoder_block_complexity,
+                             conformer_encoder_block,
+                             model_config,
+                             [100, 72])
+
     def test_conv1d_complexity(self):
-        target_cx = {'flops': 4624, 'params': 160}
+        target_cx = {'flops': 2304, 'params': 88}
         target_shape = [32, 16]
 
         self.assertEqual(
             conv1d_complexity(input_shape=[32, 3],
                               filters=16,
                               kernel_size=3,
-                              strides=1),
+                              strides=1,
+                              groups=2,),
             (target_cx, target_shape))
         self.assertEqual(
             conv1d_complexity(input_shape=[32, 3],
                               filters=16,
                               kernel_size=3,
                               strides=1,
+                              groups=2,
                               prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
 
+
     def test_conv2d_complexity(self):
-        target_cx = {'flops': 442384, 'params': 448}
+        target_cx = {'flops': 442368, 'params': 448}
         target_shape = [32, 32, 16]
 
         self.assertEqual(
@@ -323,6 +349,6 @@ class ComplexityTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    os.environ['CUDA_VISIBLE_DEVICES']  = '-1'
     tf.test.main()
 
