@@ -10,6 +10,267 @@ This is only for implementing modules.
 Use only custom layers or predefined 
 """
 
+"""            STAGES            """
+def simple_conv_stage(model_config: dict):
+    '''
+    essential configs
+        filters: int
+        depth: int
+        pool_size: int or tuple of ints
+
+    non-essential configs
+        strides: (default=None)
+        activation: (default=relu)
+        dropout_rate: (default=0.)
+    '''
+    filters = model_config['filters']
+    depth = model_config['depth']
+    pool_size = model_config['pool_size']
+
+    dropout_rate = model_config.get('dropout_rate', 0.)
+    activation = model_config.get('activation', 'relu')
+    strides = model_config.get('strides', None)
+
+    def stage(x):
+        for i in range(depth):
+            x = conv2d_bn(filters, kernel_size=3, 
+                          activation=activation)(x)
+        x = MaxPooling2D(pool_size=pool_size, strides=strides)(x)
+        if dropout_rate > 0:
+            x = Dropout(dropout_rate)(x)
+        return x
+    return stage
+
+
+def another_conv_stage(model_config: dict):
+    '''
+    essential configs
+        filters: int
+        depth: int
+        pool_size: int or tuple of ints
+
+    non-essential configs
+        activation: (default=relu)
+    '''
+    return another_conv_block(model_config)
+
+
+def res_basic_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        strides: int or tuple of ints
+
+    non-essential configs
+        groups: (default=1)
+        activation: (default=relu)
+    '''
+    depth = model_config['depth']
+    strides = model_config['strides']
+    model_config = copy.deepcopy(model_config)
+
+    def stage(x):
+        for i in range(depth):
+            x = res_basic_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
+def res_bottleneck_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        strides: int or tuple of ints
+
+    non-essential configs
+        groups: (default=1)
+        activation: (default=relu)
+    '''
+    depth = model_config['depth']
+    strides = model_config['strides']
+    model_config = copy.deepcopy(model_config)
+
+    def stage(x):
+        for i in range(depth):
+            x = res_bottleneck_block(model_config)(x)
+            model_config['strides'] = 1
+        return x
+    return stage
+
+
+def dense_net_stage(model_config: dict):
+    '''
+    essential configs
+        growth_rate: int
+        depth: int
+        strides: int or tuple of ints
+
+    non-essential configs
+        bottleneck_ratio: int or float
+        reduction_ratio: int or float
+    '''
+    return dense_net_block(model_config)
+
+
+def sepformer_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        n_head: int
+        key_dim: int
+        ff_multiplier: int or float
+        kernel_size: int
+
+    non-essential configs
+        pos_encoding: (default=None) [None, 'basic', 'rff']
+        activation: (default=relu)
+        dropout_rate: (default=0.1)
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        for i in range(depth):
+            x = sepformer_block(model_config)(x)
+        return x
+    return stage
+
+
+def xception_basic_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        filters: int
+
+    non-essential configs
+        mid_ratio: (default=1)
+        strides: (default=(1, 2))
+        kernel_regularizer: (default={'l1': 0., 'l2': 0.})
+    '''
+    depth = model_config['depth']
+    filters = model_config['filters']
+    
+    mid_ratio = model_config.get('mid_ratio', 1)
+    strides = model_config.get('strides', (1, 2))
+    kernel_regularizer = tf.keras.regularizers.l1_l2(
+        **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
+
+    mid_filters = int(mid_ratio * filters)
+
+    def stage(x):
+        for i in range(depth):
+            residual = x
+            x = SeparableConv2D(mid_filters, 3, padding='same', use_bias=False, 
+                                kernel_regularizer=kernel_regularizer)(x)
+            x = BatchNormalization()(x)
+            x = Activation('relu')(x)
+
+            x = SeparableConv2D(filters, 3, padding='same', use_bias=False, 
+                                kernel_regularizer=kernel_regularizer)(x)
+            x = BatchNormalization()(x)
+
+            if i == depth-1:
+                residual = conv2d_bn(filters, 1, strides=strides, padding='same', 
+                                     use_bias=False, 
+                                     kernel_regularizer=kernel_regularizer, 
+                                     activation=None)(residual)
+
+                x = MaxPooling2D((3, 3), strides=strides, padding='same')(x)
+            elif x.shape[-1] != residual.shape[-1]:
+                residual = conv2d_bn(filters, 1, use_bias=False, 
+                                     kernel_regularizer=kernel_regularizer, 
+                                     activation=None)(residual)
+            x = x + residual
+        return x
+    return stage
+
+
+def bidirectional_GRU_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        units: int
+
+    non-essential configs
+        dropout_rate: (default=0.)
+    '''
+    depth = model_config['depth']
+    units = model_config['units']
+    model_config = copy.deepcopy(model_config)
+    model_config['units'] = [units] * depth
+
+    return bidirectional_GRU_block(model_config)
+
+
+def simple_dense_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        units: int
+
+    non-essential configs
+        activation: (default=None)
+        dropout_rate: (default=0.)
+        kernel_regularizer: (default={'l1': 0., 'l2': 0.})
+    '''
+    depth = model_config['depth']
+    units = model_config['units']
+    model_config = copy.deepcopy(model_config)
+    model_config['units'] = [units] * depth
+    model_config['dense_activation'] = model_config.get('activation', None)
+    
+    return simple_dense_block(model_config)
+
+
+def transformer_encoder_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        n_head: int
+        key_dim: int
+        ff_multiplier: int or float
+        kernel_size: int
+
+    non-essential configs
+        activation: (default=relu)
+        dropout_rate: (default=0.1)
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        x = force_1d_inputs()(x)
+        for i in range(depth):
+            x = transformer_encoder_block(model_config)(x)
+        return x
+    return stage
+
+
+def conformer_encoder_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+
+    non-essential configs
+        key_dim: (default=36)
+        n_head: (default=4)
+        kernel_size: (default=32)
+        activation: (default=swish)
+        dropout_rate: (default=0.1)
+        multiplier: (default=4)
+        ffn_factor: (default=0.5)
+        pos_encoding: (default=basic)
+        kernel_regularizer: (default={'l1': 0., 'l2': 0.})
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        inputs = force_1d_inputs()(x)
+        for i in range(depth):
+            x = conformer_encoder_block(model_config)(x)
+        return x
+    return stage
+
+
 """            BLOCKS WITH 2D OUTPUTS            """
 def simple_conv_block(model_config: dict):
     # mandatory parameters
@@ -70,22 +331,6 @@ def another_conv_block(model_config: dict):
     return conv_block
 
 
-def res_basic_stage(model_config: dict):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-
-    model_config = copy.deepcopy(model_config)
-
-    def stage(inputs):
-        x = inputs
-        for i in range(depth):
-            x = res_basic_block(model_config)(x)
-            model_config['strides'] = 1
-        return x
-    return stage
-
-
 def res_basic_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
@@ -93,9 +338,6 @@ def res_basic_block(model_config: dict):
 
     groups = model_config.get('groups', 1)
     activation = model_config.get('activation', 'relu')
-
-    if isinstance(strides, int):
-        strides = (strides, strides)
 
     def basic_block(inputs):
         out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
@@ -109,26 +351,8 @@ def res_basic_block(model_config: dict):
             inputs = Conv2D(filters, 1, strides)(inputs)
             inputs = BatchNormalization()(inputs)
 
-        out = Activation(activation)(out + inputs)
-
-        return out
-
+        return Activation(activation)(out + inputs)
     return basic_block
-
-
-def res_bottleneck_stage(model_config: dict):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-    model_config = copy.deepcopy(model_config)
-
-    def stage(inputs):
-        x = inputs
-        for i in range(depth):
-            x = res_bottleneck_block(model_config)(x)
-            model_config['strides'] = 1
-        return x
-    return stage
 
 
 def res_bottleneck_block(model_config: dict):
@@ -210,8 +434,6 @@ def sepformer_block(model_config: dict):
         pos_encoding = basic_pos_encoding
     elif pos_encoding == 'rff': # random fourier feature
         pos_encoding = rff_pos_encoding
-    else:
-        pos_encoding = None
 
     def _sepformer_block(inputs):
         # https://github.com/speechbrain/speechbrain/blob/develop/
@@ -353,42 +575,9 @@ def bidirectional_GRU_block(model_config: dict):
                     dropout=dropout_rate, recurrent_dropout=dropout_rate, 
                     return_sequences=True),
                 merge_mode='mul')(x)
-
         return x
 
     return GRU_block
-
-
-def transformer_encoder_block(model_config: dict):
-    # mandatory parameters
-    n_head = model_config['n_head']
-    # multiplier for feed forward layer
-    ff_multiplier = model_config['ff_multiplier'] # default to 4 
-    kernel_size = model_config['kernel_size'] # default to 1
-
-    activation = model_config.get('activation', 'relu')
-    dropout_rate = model_config.get('dropout_rate', 0.1)
-    
-    def block(inputs):
-        x = force_1d_inputs()(inputs)
-        d_model = x.shape[-1]
-
-        attn = MultiHeadAttention(
-            n_head, d_model//n_head, dropout=dropout_rate)(x, x)
-        attn = Dropout(dropout_rate)(attn)
-        x = LayerNormalization()(x + attn)
-
-        # FFN
-        ffn = Conv1D(int(ff_multiplier*d_model), kernel_size, padding='same',
-                     activation=activation)(x)
-        ffn = Dropout(dropout_rate)(ffn)
-        ffn = Conv1D(d_model, kernel_size, padding='same')(ffn)
-        ffn = Dropout(dropout_rate)(ffn)
-        x = LayerNormalization()(x + ffn)
-
-        return x
-
-    return block
 
 
 def simple_dense_block(model_config: dict):
@@ -406,20 +595,44 @@ def simple_dense_block(model_config: dict):
 
         for units in units_per_layer:
             x = TimeDistributed(
-                Dense(units, kernel_regularizer=kernel_regularizer))(x)
-            if activation:
-                x = Activation(activation)(x)
-            x = Dropout(dropout_rate)(x)
+                Dense(units, activation=activation,
+                      kernel_regularizer=kernel_regularizer))(x)
+            if dropout_rate > 0:
+                x = Dropout(dropout_rate)(x)
         return x
 
     return dense_block
 
 
-"""                 OTHER BLOCKS                 """
-def identity_block(model_config: dict):
-    def identity(inputs):
-        return inputs
-    return identity
+def transformer_encoder_block(model_config: dict):
+    n_head = model_config['n_head']
+    key_dim = model_config['key_dim']
+    ff_multiplier = model_config['ff_multiplier'] # default to 4 
+    kernel_size = model_config['kernel_size'] # default to 1
+
+    activation = model_config.get('activation', 'relu')
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+    
+    def block(inputs):
+        x = force_1d_inputs()(inputs)
+        d_model = x.shape[-1]
+
+        attn = MultiHeadAttention(
+            n_head, key_dim, dropout=dropout_rate)(x, x)
+        attn = Dropout(dropout_rate)(attn)
+        x = LayerNormalization()(x + attn)
+
+        # FFN
+        ffn = Conv1D(int(ff_multiplier*d_model), kernel_size, padding='same',
+                     activation=activation)(x)
+        ffn = Dropout(dropout_rate)(ffn)
+        ffn = Conv1D(d_model, kernel_size, padding='same')(ffn)
+        ffn = Dropout(dropout_rate)(ffn)
+        x = LayerNormalization()(x + ffn)
+
+        return x
+
+    return block
 
 
 def conformer_encoder_block(model_config: dict):
@@ -443,8 +656,7 @@ def conformer_encoder_block(model_config: dict):
         pos_encoding = None
     
     def conformer_block(inputs):
-        
-        inputs =  force_1d_inputs()(inputs)
+        inputs = force_1d_inputs()(inputs)
         x = inputs
         batch, time, emb = x.shape
 
@@ -509,3 +721,11 @@ def conformer_encoder_block(model_config: dict):
         return x
 
     return conformer_block
+
+
+"""                 OTHER BLOCKS                 """
+def identity_block(model_config: dict):
+    def identity(inputs):
+        return inputs
+    return identity
+
