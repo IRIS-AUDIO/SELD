@@ -9,7 +9,7 @@ from utils import dict_add
 from complexity import *
 
 
-def simple_conv_stage_complexity(model_config: dict, input_shape):
+def simple_conv_stage_complexity(model_config, input_shape):
     filters = model_config['filters']
     depth = model_config['depth']
     pool_size = model_config['pool_size']
@@ -25,7 +25,7 @@ def simple_conv_stage_complexity(model_config: dict, input_shape):
     return cx, shape
 
 
-def another_conv_stage_complexity(model_config: dict, input_shape):
+def another_conv_stage_complexity(model_config, input_shape):
     return another_conv_block_complexity(model_config, input_shape)
 
 
@@ -77,7 +77,7 @@ def sepformer_stage_complexity(model_config, input_shape):
     return total_cx, shape
 
 
-def xception_basic_stage_complexity(model_config: dict, input_shape):
+def xception_basic_stage_complexity(model_config, input_shape):
     depth = model_config['depth']
     filters = model_config['filters']
     
@@ -114,4 +114,22 @@ def xception_basic_stage_complexity(model_config: dict, input_shape):
 
         input_shape = shape
     return cx, shape
+
+
+def bidirectional_GRU_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+    units = model_config['units']
+    model_config = copy.deepcopy(model_config)
+    model_config['units'] = [units] * depth
+
+    return bidirectional_GRU_block_complexity(model_config, input_shape)
+
+
+def simple_dense_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+    units = model_config['units']
+    model_config = copy.deepcopy(model_config)
+    model_config['units'] = [units] * depth
+    
+    return simple_dense_block_complexity(model_config, input_shape)
 

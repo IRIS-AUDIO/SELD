@@ -91,6 +91,26 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_bidirectional_GRU_stage_complexity(self):
+        model_config = {
+            'depth': 3,
+            'units': 128,
+        }
+        self.complexity_test(bidirectional_GRU_stage_complexity,
+                             bidirectional_GRU_stage,
+                             model_config,
+                             [32, 32, 16])
+
+    def test_simple_dense_stage_complexity(self):
+        model_config = {
+            'depth': 2,
+            'units': 128,
+        }
+        self.complexity_test(simple_dense_stage_complexity,
+                             simple_dense_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def complexity_test(self, 
                         complexity_fn,
                         block_fn,
