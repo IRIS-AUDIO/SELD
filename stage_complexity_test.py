@@ -111,6 +111,32 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_transformer_encoder_stage_complexity(self):
+        model_config = {
+            'depth': 3,
+            'n_head': 8,
+            'key_dim': 8,
+            'ff_multiplier': 128,
+            'kernel_size': 3,
+            'dropout_rate': 0.1,
+        }
+        self.complexity_test(transformer_encoder_stage_complexity,
+                             transformer_encoder_stage,
+                             model_config,
+                             [32, 32, 16])
+
+    def test_conformer_encoder_stage_complexity(self):
+        model_config = {
+            'depth': 3,
+            'key_dim': 36, # mandatory
+            'n_head' : 4,
+            'kernel_size' : 32,
+        }
+        self.complexity_test(conformer_encoder_stage_complexity,
+                             conformer_encoder_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def complexity_test(self, 
                         complexity_fn,
                         block_fn,

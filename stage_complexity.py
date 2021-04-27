@@ -133,3 +133,29 @@ def simple_dense_stage_complexity(model_config, input_shape):
     
     return simple_dense_block_complexity(model_config, input_shape)
 
+
+def transformer_encoder_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+
+    shape = input_shape
+    total_cx = {}
+
+    shape = force_1d_shape(input_shape)
+    for i in range(depth):
+        cx, shape = transformer_encoder_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+
+
+def conformer_encoder_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+
+    shape = input_shape
+    total_cx = {}
+
+    shape = force_1d_shape(input_shape)
+    for i in range(depth):
+        cx, shape = conformer_encoder_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+
