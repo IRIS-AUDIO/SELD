@@ -60,3 +60,19 @@ def res_bottleneck_stage_complexity(model_config, input_shape):
         model_config['strides'] = 1
     return total_cx, shape
 
+
+def dense_net_stage_complexity(model_config, input_shape):
+    return dense_net_block_complexity(model_config, input_shape)
+
+
+def sepformer_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+
+    shape = input_shape
+    total_cx = {}
+
+    for i in range(depth):
+        cx, shape = sepformer_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+

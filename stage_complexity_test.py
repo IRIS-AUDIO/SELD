@@ -52,6 +52,33 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_dense_net_stage_complexity(self):
+        model_config = {
+            'growth_rate' : 6,
+            'depth': 4,
+            'strides': [2, 2],
+            'bottleneck_ratio': 4,
+            'reduction_ratio': 0.5,
+        }
+        self.complexity_test(dense_net_stage_complexity,
+                             dense_net_stage,
+                             model_config,
+                             [32, 32, 16])
+
+    def test_sepformer_stage_complexity(self):
+        model_config = {
+            'depth': 4,
+            'n_head': 4,
+            'key_dim': 32,
+            'ff_multiplier': 2,
+            'kernel_size': 3,
+            'pos_encoding': 'basic',
+        }
+        self.complexity_test(sepformer_stage_complexity,
+                             sepformer_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def complexity_test(self, 
                         complexity_fn,
                         block_fn,
