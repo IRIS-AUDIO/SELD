@@ -32,6 +32,7 @@ def get_param(known=None):
                       help='early stop patience')
     args.add_argument('--freq_mask_size', type=int, default=16)
     args.add_argument('--time_mask_size', type=int, default=24)
+    args.add_argument('--use_tdm', type=bool, default=False)
     args.add_argument('--loop_time', type=int, default=5, 
                       help='times of train dataset iter for an epoch')
     args.add_argument('--tdm_epoch', type=int, default=5,

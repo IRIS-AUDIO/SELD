@@ -197,8 +197,10 @@ def main(config):
         os.makedirs(model_path)
 
     # data load
-    # trainset = get_dataset(config, 'train')
-    trainset = get_tdm_dataset(config, 'train')
+    if config.use_tdm:
+        trainset = get_tdm_dataset(config, 'train')
+    else:
+        trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
     testset = get_dataset(config, 'test')
 
@@ -235,7 +237,10 @@ def main(config):
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
         if config.tdm_epoch:
-            trainset = get_tdm_dataset(config, 'train')
+            if config.use_tdm:
+                trainset = get_tdm_dataset(config, 'train')
+            else:
+                trainset = get_dataset(config, 'train')
             valset = get_dataset(config, 'val')
             testset = get_dataset(config, 'test')
 
@@ -249,7 +254,10 @@ def main(config):
     for epoch in range(config.epoch):
         # tdm
         if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
-            trainset = get_tdm_dataset(config, 'train')
+            if config.use_tdm:
+                trainset = get_tdm_dataset(config, 'train')
+            else:
+                trainset = get_dataset(config, 'train')
             valset = get_dataset(config, 'val')
             testset = get_dataset(config, 'test')
             
