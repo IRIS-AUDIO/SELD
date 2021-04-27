@@ -12,7 +12,8 @@ from metrics import *
 from params import get_param
 from transforms import *
 from utils import adaptive_clip_grad
-
+from utils import get_device
+import pdb
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, agc):
@@ -49,6 +50,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     ddloss = tf.keras.metrics.Mean()
 
     loss_weight = [int(i) for i in config.loss_weight.split(',')]
+    from tqdm import tqdm
     with tqdm(dataset) as pbar:
         for x, y in pbar:
             if mode == 'train':
@@ -76,6 +78,8 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                              'doaLoss' : ddloss.result().numpy(),
                              'seldScore' : SeldScore.result().numpy()
                              }))
+
+    recall, precision = metric_class.class_result()
 
     writer.add_scalar(f'{mode}/{mode}_ErrorRate', ER.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_F', F.result().numpy(), epoch)
@@ -125,6 +129,59 @@ def get_dataset(config, mode:str='train'):
     return dataset
 
 
+def get_tdm_dataset(config, mode:str='train'):
+    mode = 'foa'
+    abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
+    LABEL_PATH = os.path.join(abspath, 'metadata_dev')
+    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    TDM_PATH = './'
+    x, y = get_preprocessed_wave(FEATURE_PATH,
+                                 LABEL_PATH)
+
+    # 데이터 훑어서 aug용 데이터 뽑기
+    # 아래 코드들은 어차피 feature extractor부터 사용해야해서 파이토치로 짜도 무방할듯
+    tdm_x, tdm_y, sr = get_TDMset(TDM_PATH)
+    x, y = TDM_aug(x, y, tdm_x, tdm_y, sr)
+    x = [get_preprocessed_x(x_, sr, mode=mode,
+                         n_mels=64, 
+                         multiplier=5,
+                         max_label_length=600,
+                         win_length=960,
+                         hop_length=480,
+                         n_fft=1024) for x_ in x] 
+    x_temp = torch.cat(x, axis=0)
+    device = get_device()
+    m = torch.from_numpy(np.load('mean.npy')).to(device=device)
+    s = torch.from_numpy(np.load('std.npy')).to(device=device)
+    x = [(x_ - m)/s for x_ in x]
+
+    x = [tf.convert_to_tensor(x_.cpu().numpy()) for x_ in x]
+
+    if not 'nomask' in config.name:
+         sample_transforms = [
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+        ]
+    else:
+        sample_transforms = []
+    # 이후에는 기존 데이터셋 만드는 코드
+    # seldnet_data_to_dataloader
+    batch_transforms = [split_total_labels_to_sed_doa]
+    if config.foa_aug :
+        batch_transforms.insert(0, foa_intensity_vec_aug)
+    dataset = seldnet_data_to_dataloader(
+        x, y,
+        train=True,
+        batch_transforms=batch_transforms,
+        label_window_size=60,
+        batch_size=config.batch,
+        sample_transforms=sample_transforms,
+        loop_time=config.loop_time
+    )
+    return dataset
+
+
 def main(config):
     config, model_config = config[0], config[1]
 
@@ -140,7 +197,10 @@ def main(config):
         os.makedirs(model_path)
 
     # data load
-    trainset = get_dataset(config, 'train')
+    if config.use_tdm:
+        trainset = get_tdm_dataset(config, 'train')
+    else:
+        trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
     testset = get_dataset(config, 'test')
 
@@ -160,8 +220,11 @@ def main(config):
     model.summary()
     
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
-    sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
-    
+    if config.sed_loss == 'BCE':
+        sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
+    if config.sed_loss == 'FOCAL':
+        sed_loss = losses.Focal_Loss(alpha=config.focal_g, gamma=config.focal_a)
+
     try:
         doa_loss = getattr(tf.keras.losses, config.doa_loss)
     except:
@@ -173,6 +236,14 @@ def main(config):
         if len(_model_path) == 0:
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
+        if config.tdm_epoch:
+            if config.use_tdm:
+                trainset = get_tdm_dataset(config, 'train')
+            else:
+                trainset = get_dataset(config, 'train')
+            valset = get_dataset(config, 'val')
+            testset = get_dataset(config, 'test')
+
     
     best_score = 99999
     early_stop_patience = 0
@@ -181,6 +252,15 @@ def main(config):
         doa_threshold=config.lad_doa_thresh)
 
     for epoch in range(config.epoch):
+        # tdm
+        if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
+            if config.use_tdm:
+                trainset = get_tdm_dataset(config, 'train')
+            else:
+                trainset = get_dataset(config, 'train')
+            valset = get_dataset(config, 'val')
+            testset = get_dataset(config, 'test')
+            
         # train loop
         metric_class.reset_states()
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=optimizer, mode='train') 
