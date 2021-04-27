@@ -12,6 +12,7 @@ from metrics import *
 from params import get_param
 from transforms import *
 from utils import adaptive_clip_grad
+from utils import get_device
 import pdb
 
 @tf.function
@@ -184,16 +185,11 @@ def get_tdm_dataset(config, mode:str='train'):
                          hop_length=480,
                          n_fft=1024) for x_ in x] 
     x_temp = torch.cat(x, axis=0)
-
-    m = x_temp.mean(axis=0, keepdim=True)
-    s = x_temp.std(axis=0, keepdim=True)
-    print("mean", m.mean())
-    print("STD", s.mean())
+    device = get_device()
+    m = torch.from_numpy(np.load('mean.npy')).to(device=device)
+    s = torch.from_numpy(np.load('std.npy')).to(device=device)
     x = [(x_ - m)/s for x_ in x]
 
-    del x_temp 
-    del m 
-    del s 
     x = [tf.convert_to_tensor(x_.cpu().numpy()) for x_ in x]
 
     if not 'nomask' in config.name:
@@ -206,7 +202,7 @@ def get_tdm_dataset(config, mode:str='train'):
     # 이후에는 기존 데이터셋 만드는 코드
     # seldnet_data_to_dataloader
     batch_transforms = [split_total_labels_to_sed_doa]
-    if config.foa_aug and mode == 'train':
+    if config.foa_aug :
         batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,

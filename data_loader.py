@@ -169,10 +169,16 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
 def get_TDMset(TDM_PATH):
     from glob import glob
-    tdm_x = [torchaudio.load(f)[0] for f in sorted(glob(TDM_PATH + '/single_sound/*'))]
-    tdm_y = [np.load(f) for f in sorted(glob(TDM_PATH + '/single_label/*'))]
-    sr = torchaudio.load(sorted(glob(TDM_PATH + '/single_sound/*'))[0])[1]
-    return tdm_x, tdm_y, sr
+    tdm_x = sorted(glob(TDM_PATH + 'single_sound/*'))
+    tdm_y = sorted(glob(TDM_PATH + 'single_label/*'))
+    tdm_x_class = [[] for i in range(14)]
+    tdm_y_class = [[] for i in range(14)]
+    for x, y in zip(tdm_x, tdm_y):
+        label = int((x.split('.wav')[0]).split('_')[-1])
+        tdm_x_class[label].append(torchaudio.load(x)[0])
+        tdm_y_class[label].append(np.load(y))
+    sr = torchaudio.load(tdm_x[0])[1]
+    return tdm_x_class, tdm_y_class, sr
 
 
 def TDM_aug(x, y, tdm_x, tdm_y, sr):
@@ -191,7 +197,6 @@ def TDM_aug(x, y, tdm_x, tdm_y, sr):
         start_location = 0 # start location of specific class
         new_location = 0 # check weather start frame changed
     
-        sequence = [i for i in range(len(tdm_x))]
         for single in single_index[0]:        
             if new_location == 0: # When first frame of specific source
                 # Set condition for first frame of sequence
@@ -214,19 +219,23 @@ def TDM_aug(x, y, tdm_x, tdm_y, sr):
                     index_list.append([start_location, frame_len, check_same_label])
                 new_location = 0
 
-        for index in index_list: 
-            
+        for index in index_list:
             # Pick Some segment from single source
-            rnd_num = rnd.choice(sequence)
-            pick_y = tdm_y[rnd_num]
-            
-            # check weather class is same 
-            while(np.argwhere(pick_y[0,:14] == 1)[0][0] == index[2]):
-                rnd_num = rnd.choice(sequence)
-                pick_y = tdm_y[rnd_num]
-            pick_x = tdm_x[rnd_num]
 
+            imbalance = [5, 6, 9, 10, 11]
+            class_weight = np.asarray([1 for i in range(14)])
+            class_choice = [i for i in range(14)]
 
+            for item in imbalance:
+                class_weight[item] = 5
+            class_weight[index[2]] = 0 
+
+            class_weight = class_weight/sum(class_weight)
+            picked_class = rnd.choices(class_choice, weights=class_weight, k=1)[0]
+                        
+            pick_segment = rnd.randint(0, len(tdm_y[picked_class])-1)
+            pick_y = tdm_y[picked_class][pick_segment]
+            pick_x = tdm_x[picked_class][pick_segment]
             if rnd.random() > 0.5 :  # set probability
                 length_diff = index[1] - len(pick_y)
                 noise_ = rnd.random()*0.4 + 0.3 # mix with weight
