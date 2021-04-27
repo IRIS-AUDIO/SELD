@@ -17,6 +17,17 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_another_conv_stage_complexity(self):
+        model_config = {
+            'filters': 24,
+            'depth': 4,
+            'pool_size': (2, 3),
+        }
+        self.complexity_test(another_conv_stage_complexity,
+                             another_conv_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def test_res_basic_stage_complexity(self):
         model_config = {
             'depth': 4,

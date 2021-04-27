@@ -25,6 +25,10 @@ def simple_conv_stage_complexity(model_config: dict, input_shape):
     return cx, shape
 
 
+def another_conv_stage_complexity(model_config: dict, input_shape):
+    return another_conv_block_complexity(model_config, input_shape)
+
+
 def res_basic_stage_complexity(model_config, input_shape):
     # mandatory parameters
     depth = model_config['depth']
