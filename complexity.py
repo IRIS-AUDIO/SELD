@@ -7,7 +7,7 @@
 # references
 # https://github.com/facebookresearch/pycls/blob/master/pycls/models/blocks.py
 import copy
-from utils import dict_add
+from utils import *
 
 
 def conv_temporal_complexity(model_config, input_shape):
@@ -604,28 +604,6 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
     return complexity, output_shape
 
 # utils
-def safe_tuple(tuple_or_scalar, length=2):
-    if isinstance(tuple_or_scalar, (int, float)):
-        tuple_or_scalar = (tuple_or_scalar, ) * length
-
-    tuple_or_scalar = tuple(tuple_or_scalar)
-    count = len(tuple_or_scalar)
-    if count == 1:
-        tuple_or_scalar = tuple_or_scalar * length
-    elif count != length:
-        raise ValueError("length of input must be one or required length")
-    return tuple_or_scalar
-
-
-def force_1d_shape(shape):
-    # shape must not have batch dim
-    if len(shape) == 3:
-        shape = [shape[0], shape[1] * shape[2]]
-    elif len(shape) > 3:
-        raise ValueError(f'invalid shape: {shape}')
-    return shape
-
-
 if __name__ == '__main__':
     import json
 

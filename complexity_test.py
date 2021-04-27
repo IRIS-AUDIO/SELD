@@ -313,12 +313,6 @@ class ComplexityTest(tf.test.TestCase):
                                  prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
     
-    def test_safe_tuple(self):
-        self.assertEqual((1, 1), safe_tuple(1, 2))
-        self.assertEqual((1, 3), safe_tuple((1, 3), 2))
-        with self.assertRaises(ValueError):
-            safe_tuple((1, 2, 3), 2)
-
     def complexity_test(self, 
                         complexity_fn,
                         block_fn,

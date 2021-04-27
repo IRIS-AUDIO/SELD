@@ -16,6 +16,12 @@ class UtilsTest(tf.test.TestCase):
         c = dict_add(a, b)
         self.assertEqual(c, gt)
 
+    def test_safe_tuple(self):
+        self.assertEqual((1, 1), safe_tuple(1, 2))
+        self.assertEqual((1, 3), safe_tuple((1, 3), 2))
+        with self.assertRaises(ValueError):
+            safe_tuple((1, 2, 3), 2)
+
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
