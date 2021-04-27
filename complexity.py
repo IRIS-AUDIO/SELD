@@ -572,7 +572,7 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
         prev_cx if prev_cx else {})
     return complexity, output_shape
 
-# utils
+
 if __name__ == '__main__':
     import json
 

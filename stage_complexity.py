@@ -9,6 +9,22 @@ from utils import dict_add
 from complexity import *
 
 
+def simple_conv_stage_complexity(model_config: dict, input_shape):
+    filters = model_config['filters']
+    depth = model_config['depth']
+    pool_size = model_config['pool_size']
+
+    strides = model_config.get('strides', None)
+    shape = input_shape
+    cx = {}
+
+    for i in range(depth):
+       cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
+       cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = pool2d_complexity(shape, pool_size, strides, prev_cx=cx)
+    return cx, shape
+
+
 def res_basic_stage_complexity(model_config, input_shape):
     # mandatory parameters
     depth = model_config['depth']
