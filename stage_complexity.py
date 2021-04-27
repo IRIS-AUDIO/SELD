@@ -76,3 +76,42 @@ def sepformer_stage_complexity(model_config, input_shape):
         total_cx = dict_add(total_cx, cx)
     return total_cx, shape
 
+
+def xception_basic_stage_complexity(model_config: dict, input_shape):
+    depth = model_config['depth']
+    filters = model_config['filters']
+    
+    mid_ratio = model_config.get('mid_ratio', 1)
+    strides = model_config.get('strides', (1, 2))
+
+    mid_filters = int(mid_ratio * filters)
+    if mid_filters < 1:
+        raise ValueError('invalid mid_ratio and filters')
+
+    cx = {}
+
+    for i in range(depth):
+        cx, shape = separable_conv2d_complexity(input_shape, mid_filters, 3,
+                                                use_bias=False, prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+
+        cx, shape = separable_conv2d_complexity(shape, filters, 3,
+                                                use_bias=False, prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+
+        if i == depth-1:
+            cx, r_shape = conv2d_complexity(input_shape, filters, 1,
+                                      strides=strides, use_bias=False,
+                                      prev_cx=cx)
+            cx, _ = norm_complexity(r_shape, prev_cx=cx)
+
+            cx, shape = pool2d_complexity(shape, (3, 3), strides=strides, 
+                                          padding='same', prev_cx=cx)
+        elif shape[-1] != input_shape[-1]:
+            cx, r_shape = conv2d_complexity(input_shape, filters, 1,
+                                      use_bias=False, prev_cx=cx)
+            cx, _ = norm_complexity(r_shape, prev_cx=cx)
+
+        input_shape = shape
+    return cx, shape
+

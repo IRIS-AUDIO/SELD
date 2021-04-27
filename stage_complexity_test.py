@@ -79,6 +79,18 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_xception_basic_stage_complexity(self):
+        model_config = {
+            'depth': 4,
+            'filters' : 32,
+            'mid_ratio': 1.25,
+            'strides': (1, 2),
+        }
+        self.complexity_test(xception_basic_stage_complexity,
+                             xception_basic_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def complexity_test(self, 
                         complexity_fn,
                         block_fn,
