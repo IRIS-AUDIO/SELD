@@ -93,40 +93,6 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                       ddloss.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_seldScore', 
                       SeldScore.result().numpy(), epoch)
-                      
-    writer.add_scalars(f'{mode}/{mode}_class_recall', {
-    'alarm': recall[0].numpy(),
-    'crying_baby': recall[1].numpy(),
-    'crash': recall[2].numpy(),
-    'barking dog': recall[3].numpy(),
-    'running engine': recall[4].numpy(),
-    'female scream': recall[5].numpy(),
-    'femael speech': recall[6].numpy(),
-    'burning fire': recall[7].numpy(),
-    'footsteps': recall[8].numpy(),
-    'knocking on door': recall[9].numpy(),
-    'man scream': recall[10].numpy(),
-    'man speech': recall[11].numpy(),
-    'ringing phone': recall[12].numpy(),
-    'piano': recall[13].numpy(),
-    }, epoch)
-
-    writer.add_scalars(f'{mode}/{mode}_class_precision', {
-    'alarm': precision[0].numpy(),
-    'crying_baby': precision[1].numpy(),
-    'crash': precision[2].numpy(),
-    'barking dog': precision[3].numpy(),
-    'running engine': precision[4].numpy(),
-    'female scream': precision[5].numpy(),
-    'femael speech': precision[6].numpy(),
-    'burning fire': precision[7].numpy(),
-    'footsteps': precision[8].numpy(),
-    'knocking on door': precision[9].numpy(),
-    'man scream': precision[10].numpy(),
-    'man speech': precision[11].numpy(),
-    'ringing phone': precision[12].numpy(),
-    'piano': precision[13].numpy(),
-    }, epoch)
 
     return SeldScore.result()
 
