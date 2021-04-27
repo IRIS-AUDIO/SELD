@@ -2,6 +2,7 @@ import copy
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from layers import *
+from utils import safe_tuple
 
 """
 Modules
@@ -334,7 +335,7 @@ def another_conv_block(model_config: dict):
 def res_basic_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
-    strides = model_config['strides']
+    strides = safe_tuple(model_config['strides'])
 
     groups = model_config.get('groups', 1)
     activation = model_config.get('activation', 'relu')
