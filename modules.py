@@ -595,8 +595,13 @@ def simple_dense_block(model_config: dict):
         x = force_1d_inputs()(inputs)
 
         for units in units_per_layer:
-            x = Dense(units, activation=activation,
-                      kernel_regularizer=kernel_regularizer)(x)
+            if len(x.shape) == 2:
+                x = Dense(units, activation=activation,
+                          kernel_regularizer=kernel_regularizer)(x)
+            else:
+                x = TimeDistributed(
+                    Dense(units, activation=activation,
+                          kernel_regularizer=kernel_regularizer))(x)
             if dropout_rate > 0:
                 x = Dropout(dropout_rate)(x)
         return x
