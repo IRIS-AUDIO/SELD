@@ -70,6 +70,34 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
     return dataset
 
 
+def get_vad_dataset_from_pairs(feat_label_pairs, window):
+    if isinstance(window, int):
+        window = tf.range(window)
+    window = tf.convert_to_tensor(window, dtype=tf.int32)
+    window -= tf.reduce_min(window)
+    win_size = max(window)
+
+    n_mels, n_chan = feat_label_pairs[0][0].shape[1:]
+
+    def window_generator():
+        for feat, label in feat_label_pairs:
+            n_frames = len(label)
+            offset = tf.random.uniform(shape=[], 
+                                       maxval=n_frames-win_size,
+                                       dtype=tf.int32)
+            yield tf.gather(feat, window+offset), \
+                  tf.gather(label, window+offset)
+
+    dataset = tf.data.Dataset.from_generator(
+        window_generator,
+        output_signature=(
+            tf.TensorSpec(shape=(len(window), n_mels, n_chan), 
+                          dtype=tf.float32),
+            tf.TensorSpec(shape=(len(window),), dtype=tf.float32)))
+
+    return dataset
+
+
 def load_wav(name, n_fft=1024, n_mels=80, 
              mel_scale=None, logmel=True, normalize=True):
     wav, sr = tf.audio.decode_wav(tf.io.read_file(name))
@@ -145,7 +173,6 @@ if __name__ == "__main__":
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_NOISEX_extended/TEST/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/LABEL'
 
-    '''
     # TEST
     # LibriSpeech_Aurora - TEST
     WAV_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/DATASET/WAV'
@@ -162,16 +189,16 @@ if __name__ == "__main__":
         for w, l in tqdm.tqdm(zip(wav_fnames, label_fnames)))
 
     joblib.dump(feats_labels, 'libri_aurora_test.jl')
-
     '''
-    window = [-19, -10, -1, 0, 1, 10, 19]
-    vad_dataset = get_vad_dataset(wav_fnames, label_fnames, window, 
-                                  samples_per_wav=32, shuffle_wavs=True, 
-                                  n_fft=1024)
 
-    dataset = data_loader(vad_dataset, loop_time=1, batch_size=256)
+    window = [-19, -10, -1, 0, 1, 10, 19]
+    # vad_dataset = get_vad_dataset(wav_fnames, label_fnames, window, 
+    #                               samples_per_wav=32, shuffle_wavs=True, 
+    #                               n_fft=1024)
+    dataset = get_vad_dataset_from_pairs(
+        joblib.load('timit_soundidea_train.jl'), window=window)
+    dataset = data_loader(dataset, loop_time=1, batch_size=256)
+
     for x, y in dataset.take(2):
         print(x.shape, y.shape)
-    print(len(wav_fnames))
-    '''
 
