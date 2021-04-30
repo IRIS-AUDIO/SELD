@@ -12,11 +12,12 @@ def load_vad_wavs_and_labels(wav_folder, label_folder):
     return wav_fnames, label_fnames
 
 
-def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav, 
+def get_vad_dataset(wav_fnames, label_fnames, window,
+                    samples_per_wav, shuffle_wavs=False,
                     n_fft=1024, n_mels=80, sr=16000, **kwargs):
     n_samples = len(wav_fnames)
     assert n_samples == len(label_fnames)
-    
+
     if isinstance(window, int):
         window = tf.range(window)
     window = tf.convert_to_tensor(window, dtype=tf.int32)
@@ -25,12 +26,12 @@ def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav,
     n_fft = tf.cast(n_fft, tf.int32)
     mel_scale = get_mel_scale(n_fft, n_mels, sr)
 
-    def window_generator(wav_fnames, label_fnames, window, samples_per_wav,
-                         n_fft, n_mels, mel_scale):
+    def window_generator(wav_fnames, label_fnames, n_fft):
         # shuffle fnames
-        order = np.random.permutation(len(wav_fnames))
-        wav_fnames = np.array(wav_fnames)[order].tolist()
-        label_fnames = np.array(label_fnames)[order].tolist()
+        if shuffle_wavs:
+            order = np.random.permutation(len(wav_fnames))
+            wav_fnames = np.array(wav_fnames)[order].tolist()
+            label_fnames = np.array(label_fnames)[order].tolist()
 
         for i in range(n_samples):
             wav = load_wav(wav_fnames[i], n_fft, n_mels, mel_scale, **kwargs)
@@ -41,14 +42,13 @@ def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav,
             assert n_frames == len(wav)
 
             for _ in range(samples_per_wav):
-                offset = tf.random.uniform(shape=[], 
+                offset = tf.random.uniform(shape=[],
                                            maxval=n_frames-win_size,
                                            dtype=tf.int32)
                 yield tf.gather(wav, window+offset), \
                       tf.gather(label, window+offset)
 
-    args=(wav_fnames, label_fnames, window, samples_per_wav, 
-          n_fft, n_mels, mel_scale)
+    args = (wav_fnames, label_fnames, n_fft)
     dataset = tf.data.Dataset.from_generator(
         window_generator,
         args=args,
@@ -141,8 +141,9 @@ if __name__ == "__main__":
     for fname in wav_fnames + label_fnames:
         assert os.path.exists(fname)
     window = [-19, -10, -1, 0, 1, 10, 19]
-    vad_dataset = get_vad_dataset(wav_fnames, label_fnames, 
-                                  window, samples_per_wav=32, n_fft=1024)
+    vad_dataset = get_vad_dataset(wav_fnames, label_fnames, window,
+                                  samples_per_wav=32, shuffle_wavs=True,
+                                  n_fft=1024)
 
     dataset = data_loader(vad_dataset, loop_time=1, batch_size=256)
     for x, y in dataset.take(2):
