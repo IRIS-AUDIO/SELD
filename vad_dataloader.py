@@ -2,14 +2,25 @@ import glob
 import numpy as np
 import os
 import tensorflow as tf
+import tqdm
+
+import joblib
+from joblib import Parallel, delayed
 
 
-def load_vad_wavs_and_labels(wav_folder, label_folder):
+def extract_vad_fnames(wav_folder, label_folder):
     wav_fnames = sorted(search_sub_dirs(wav_folder))
     label_fnames = [os.path.join(label_folder, 
                                  os.path.split(fname)[1].replace('wav', 'npy'))
                     for fname in wav_fnames]
     return wav_fnames, label_fnames
+
+
+def extract_feat_label(wav_fname, label_fname, **kwargs):
+    wav = load_wav(wav_fname, **kwargs)
+    label = load_label(label_fname, **kwargs)
+    assert len(wav) == len(label)    
+    return wav, label
 
 
 def get_vad_dataset(wav_fnames, label_fnames, window, 
@@ -34,13 +45,12 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
             label_fnames = np.array(label_fnames)[order].tolist()
 
         for i in range(n_samples):
-            wav = load_wav(wav_fnames[i], n_fft, n_mels, mel_scale, **kwargs)
-            label = load_label(label_fnames[i], n_fft)
+            wav, label = extract_feat_label(
+                wav_fnames[i], label_fnames[i],
+                n_fft=n_fft, n_mels=n_mels, mel_scale=mel_scale, **kwargs)
 
             n_frames = len(label)
             win_size = max(window)
-            assert n_frames == len(wav)
-            print(n_frames)
 
             for _ in range(samples_per_wav):
                 offset = tf.random.uniform(shape=[], 
@@ -116,12 +126,12 @@ def search_sub_dirs(path, ext='wav'):
 if __name__ == "__main__":
     from data_loader import data_loader
 
+    '''
     # HOW TO USE
     # TIMIT_SoundIdea - TRAIN
-    WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/WAV'
-    LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/LABEL'
+    # WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/WAV'
+    # LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/LABEL'
     
-    '''
     # TIMIT_SoundIdea - VAL
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/LABEL'
@@ -130,17 +140,30 @@ if __name__ == "__main__":
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_NOISEX_extended/TRAIN/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/LABEL'
 
+    # VAL
     # TIMIT_NoiseX92 - VAL
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_NOISEX_extended/TEST/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/LABEL'
+
+    '''
+    # TEST
     # LibriSpeech_Aurora - TEST
     WAV_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/DATASET/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/LABEL'
-    '''
 
-    wav_fnames, label_fnames = load_vad_wavs_and_labels(WAV_PATH, LABEL_PATH)
+    wav_fnames, label_fnames = extract_vad_fnames(WAV_PATH, LABEL_PATH)
     for fname in wav_fnames + label_fnames:
         assert os.path.exists(fname)
+
+    mel_scale = get_mel_scale(1024, 80, 16000)
+
+    feats_labels = Parallel(n_jobs=8)(
+        delayed(extract_feat_label)(w, l, mel_scale=mel_scale)
+        for w, l in tqdm.tqdm(zip(wav_fnames, label_fnames)))
+
+    joblib.dump(feats_labels, 'libri_aurora_test.jl')
+
+    '''
     window = [-19, -10, -1, 0, 1, 10, 19]
     vad_dataset = get_vad_dataset(wav_fnames, label_fnames, window, 
                                   samples_per_wav=32, shuffle_wavs=True, 
@@ -150,4 +173,5 @@ if __name__ == "__main__":
     for x, y in dataset.take(2):
         print(x.shape, y.shape)
     print(len(wav_fnames))
+    '''
 
