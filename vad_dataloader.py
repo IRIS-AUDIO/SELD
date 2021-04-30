@@ -12,7 +12,8 @@ def load_vad_wavs_and_labels(wav_folder, label_folder):
     return wav_fnames, label_fnames
 
 
-def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav, 
+def get_vad_dataset(wav_fnames, label_fnames, window, 
+                    samples_per_wav, shuffle_wavs=False,
                     n_fft=1024, n_mels=80, sr=16000, **kwargs):
     n_samples = len(wav_fnames)
     assert n_samples == len(label_fnames)
@@ -25,12 +26,12 @@ def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav,
     n_fft = tf.cast(n_fft, tf.int32)
     mel_scale = get_mel_scale(n_fft, n_mels, sr)
 
-    def window_generator(wav_fnames, label_fnames, window, samples_per_wav,
-                         n_fft, n_mels, mel_scale):
+    def window_generator(wav_fnames, label_fnames, n_fft):
         # shuffle fnames
-        order = np.random.permutation(len(wav_fnames))
-        wav_fnames = np.array(wav_fnames)[order].tolist()
-        label_fnames = np.array(label_fnames)[order].tolist()
+        if shuffle_wavs:
+            order = np.random.permutation(len(wav_fnames))
+            wav_fnames = np.array(wav_fnames)[order].tolist()
+            label_fnames = np.array(label_fnames)[order].tolist()
 
         for i in range(n_samples):
             wav = load_wav(wav_fnames[i], n_fft, n_mels, mel_scale, **kwargs)
@@ -39,6 +40,7 @@ def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav,
             n_frames = len(label)
             win_size = max(window)
             assert n_frames == len(wav)
+            print(n_frames)
 
             for _ in range(samples_per_wav):
                 offset = tf.random.uniform(shape=[], 
@@ -47,8 +49,7 @@ def get_vad_dataset(wav_fnames, label_fnames, window, samples_per_wav,
                 yield tf.gather(wav, window+offset), \
                       tf.gather(label, window+offset)
 
-    args=(wav_fnames, label_fnames, window, samples_per_wav, 
-          n_fft, n_mels, mel_scale)
+    args = (wav_fnames, label_fnames, n_fft)
     dataset = tf.data.Dataset.from_generator(
         window_generator,
         args=args,
@@ -115,12 +116,12 @@ def search_sub_dirs(path, ext='wav'):
 if __name__ == "__main__":
     from data_loader import data_loader
 
-    '''
     # HOW TO USE
     # TIMIT_SoundIdea - TRAIN
-    WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/WAV',
-    LABLE_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/LABEL'
+    WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/WAV'
+    LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/TRAIN/LABEL'
     
+    '''
     # TIMIT_SoundIdea - VAL
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/LABEL'
@@ -132,19 +133,21 @@ if __name__ == "__main__":
     # TIMIT_NoiseX92 - VAL
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_NOISEX_extended/TEST/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/LABEL'
-    '''
     # LibriSpeech_Aurora - TEST
     WAV_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/DATASET/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/LABEL'
+    '''
 
     wav_fnames, label_fnames = load_vad_wavs_and_labels(WAV_PATH, LABEL_PATH)
     for fname in wav_fnames + label_fnames:
         assert os.path.exists(fname)
     window = [-19, -10, -1, 0, 1, 10, 19]
-    vad_dataset = get_vad_dataset(wav_fnames, label_fnames, 
-                                  window, samples_per_wav=32, n_fft=1024)
+    vad_dataset = get_vad_dataset(wav_fnames, label_fnames, window, 
+                                  samples_per_wav=32, shuffle_wavs=True, 
+                                  n_fft=1024)
 
     dataset = data_loader(vad_dataset, loop_time=1, batch_size=256)
     for x, y in dataset.take(2):
         print(x.shape, y.shape)
+    print(len(wav_fnames))
 
