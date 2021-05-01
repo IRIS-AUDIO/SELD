@@ -56,6 +56,8 @@ def vad_architecture_complexity(model_config, input_shape):
         cx, shape = globals()[f'{model_config[block]}_complexity'](
             model_config[f'{block}_ARGS'], shape)
         total_cx = dict_add(total_cx, cx)
+
+    shape = force_1d_shape(shape)
     total_cx, shape = linear_complexity(shape, last_unit, prev_cx=total_cx)
 
     return total_cx, shape
