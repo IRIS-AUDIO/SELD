@@ -1,15 +1,12 @@
-import os
 import tensorflow as tf
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
-from collections import OrderedDict
+import tensorflow_addons as tfa
 
 import layers
 import losses
 import models
 from data_loader import *
-from vad_dataloader import get_vad_dataset_from_pairs
 from transforms import *
+from vad_dataloader import get_vad_dataset_from_pairs
 
 
 def prepare_dataset(pairs, window, batch_size, train=False, n_repeat=1):
@@ -32,9 +29,12 @@ def train_and_eval(train_config,
 
     model.compile(optimizer=optimizer,
                   loss=tf.keras.losses.MSE,
-                  metrics=['auc', 'accuracy'])
+                  metrics=['auc', 'accuracy', 
+                           tfa.metrics.F1Score(num_classes=1)])
 
-    history = model.fit(trainset, testset, epochs=train_config.epochs)
+    history = model.fit(trainset, 
+                        validation_data=testset)
+
     performances = {
         **history.history,
         **(conv_temporal_complexity(model_config, input_shape)[0])
@@ -46,11 +46,11 @@ def train_and_eval(train_config,
 if __name__=='__main__':
     import joblib
 
-    train_pairs = joblib.load('timit_soundidea_train.jl')
-    test_pairs = joblib.load('libri_aurora_test.jl')
-
     window = [-19, -10, -1, 0, 1, 10, 19]
-    trainset = prepare_dataset(train_pairs, window, 256, train=True, n_repeat=6)
+    trainset = prepare_dataset(joblib.load('timit_soundidea_train.jl'),
+                               window, 256, train=True, n_repeat=6)
+    testset = prepare_dataset(joblib.load('libri_aurora_test.jl'),
+                              window, 256, train=False)
     for x, y in trainset.take(2):
         print(x.shape, y.shape)
 
