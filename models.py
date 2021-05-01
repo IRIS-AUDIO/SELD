@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.activations import *
 from tensorflow.keras.layers import *
@@ -75,4 +76,25 @@ def conv_temporal(input_shape, model_config):
     doa = Dense(3*n_classes, activation='tanh', name='doa_out')(doa)
 
     return tf.keras.Model(inputs=inputs, outputs=[sed, doa])
+
+
+def vad_architecture(input_shape, model_config):
+    flatten = model_config.get('flatten', True)
+    last_unit = model_config.get('last_unit', 1)
+
+    inputs = Input(shape=input_shape)
+
+    x = inputs
+    if flatten:
+        x = Reshape((np.prod(input_shape),))(x)
+
+    blocks = sorted([key for key in model_config.keys()
+                     if key.startswith('BLOCK') and not key.endswith('_ARGS')])
+
+    for block in blocks:
+        x = getattr(modules, model_config[block])(
+            model_config[f'{block}_ARGS'])(x)
+
+    x = Dense(last_unit, activation='sigmoid')(x)
+    return tf.keras.Model(inputs=inputs, outputs=x)
 
