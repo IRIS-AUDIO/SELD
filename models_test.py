@@ -14,7 +14,7 @@ class ModelsTest(tf.test.TestCase):
         raise NotImplemented()
 
     def test_vad_architecture(self):
-        input_shape = [7, 80] # win_size, n_mels
+        input_shape = [7, 80, 1] # win_size, n_mels
         model_config = {
             'flatten': True,
             'last_unit': 7,
@@ -28,6 +28,20 @@ class ModelsTest(tf.test.TestCase):
         }
         vad = vad_architecture(input_shape, model_config)
         self.assertEqual(vad.output_shape[1:], (7,))
+
+        model_config = {
+            'flatten': False,
+            'last_unit': 1,
+            'BLOCK0': 'simple_dense_stage',
+            'BLOCK0_ARGS': {
+                'depth': 2,
+                'units': 512,
+                'dense_activation': 'relu',
+                'dropout_rate': 0.5,
+            }
+        }
+        vad = vad_architecture(input_shape, model_config)
+        self.assertEqual(vad.output_shape[1:], (7, 1))
 
 
 if __name__ == '__main__':
