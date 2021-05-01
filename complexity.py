@@ -171,7 +171,7 @@ def sepformer_block_complexity(model_config, input_shape):
     return total_cx, shape
 
 
-def xception_basic_block_complexity(model_config, input_shape):
+def xception_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     block_num = model_config['block_num']
 
