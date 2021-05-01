@@ -18,15 +18,16 @@ class ModelsTest(tf.test.TestCase):
         model_config = {
             'flatten': True,
             'last_unit': 7,
-            'BLOCK0': 'simple_dense_block',
+            'BLOCK0': 'simple_dense_stage',
             'BLOCK0_ARGS': {
-                'units': [512, 512],
+                'depth': 2,
+                'units': 512,
                 'dense_activation': 'relu',
                 'dropout_rate': 0.5,
             }
         }
         vad = vad_architecture(input_shape, model_config)
-        vad.summary()
+        self.assertEqual(vad.output_shape[1:], (7,))
 
 
 if __name__ == '__main__':

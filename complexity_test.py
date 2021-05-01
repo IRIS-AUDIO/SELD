@@ -10,22 +10,6 @@ class ComplexityTest(tf.test.TestCase):
     def setUp(self):
         self.prev_cx = {'flops': 456, 'params': 123}
 
-    def test_vad_architecture_complexity(self):
-        model_config = {
-            'flatten': True,
-            'last_unit': 7,
-            'BLOCK0': 'simple_dense_block',
-            'BLOCK0_ARGS': {
-                'units': [512, 512],
-                'dense_activation': 'relu',
-                'dropout_rate': 0.5,
-            }
-        }
-        self.model_complexity_test(vad_architecture_complexity,
-                                   vad_architecture,
-                                   model_config,
-                                   [7, 80, 1])
-
     def test_simple_conv_block_complexity(self):
         model_config = {
             'filters': [32, 32],
@@ -332,24 +316,6 @@ class ComplexityTest(tf.test.TestCase):
             model.summary()
 
         cx, output_shape = complexity_fn(model_config, exp_input_shape)
-
-        # TODO: count ops
-        self.assertEquals(cx['params'], 
-                          sum([K.count_params(p) 
-                               for p in model.trainable_weights]))
-        self.assertEquals(tuple(output_shape), model.output_shape[1:])
-
-    def model_complexity_test(self, 
-                              model_complexity_fn,
-                              model_fn,
-                              model_config: dict,
-                              input_shape: list,
-                              verbose=False):
-        model = model_fn(input_shape, model_config)
-        if verbose:
-            model.summary()
-
-        cx, output_shape = model_complexity_fn(model_config, input_shape)
 
         # TODO: count ops
         self.assertEquals(cx['params'], 
