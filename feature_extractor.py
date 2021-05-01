@@ -302,6 +302,7 @@ if __name__ == '__main__':
 
     # Normalizing Extracted Features
     mean, std = calculate_statistics(FEATURE_OUTPUT_PATH)
-
+    np.save('mean.npy', mean)
+    np.save('std.npy', std)
     apply_normalizer(FEATURE_OUTPUT_PATH, NORM_FEATURE_PATH, mean, std)
 

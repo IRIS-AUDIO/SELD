@@ -28,15 +28,22 @@ def get_param(known=None):
     args.add_argument('--loss_weight', type=str, default='1,1000')
     args.add_argument('--lr_patience', type=int, default=5, 
                       help='learning rate decay patience for plateau')
-    args.add_argument('--patience', type=int, default=10, 
+    args.add_argument('--patience', type=int, default=5, 
                       help='early stop patience')
     args.add_argument('--freq_mask_size', type=int, default=16)
     args.add_argument('--time_mask_size', type=int, default=24)
+    args.add_argument('--use_tdm', type=bool, default=False)
     args.add_argument('--loop_time', type=int, default=5, 
                       help='times of train dataset iter for an epoch')
+    args.add_argument('--tdm_epoch', type=int, default=5,
+                      help='epochs of applying tdm augmentation. If 0, don\'t use it.')
 
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
+    args.add_argument('--sed_loss', type=str, default='BCE',
+                        choices=['BCE','FOCAL'])
+    args.add_argument('--focal_g', type=float, default=2)
+    args.add_argument('--focal_a', type=float, default=0.25)
 
     config = args.parse_args()
 

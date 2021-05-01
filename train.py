@@ -12,7 +12,8 @@ from metrics import *
 from params import get_param
 from transforms import *
 from utils import adaptive_clip_grad
-
+from utils import get_device
+import pdb
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, agc):
@@ -38,6 +39,7 @@ def teststep(model, x, y, sed_loss, doa_loss):
     dloss = doa_loss(y[1], y_p[1])
     return y_p, sloss, dloss
 
+
 def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=None, mode='train'):
     # metric
     ER = tf.keras.metrics.Mean()
@@ -49,6 +51,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     ddloss = tf.keras.metrics.Mean()
 
     loss_weight = [int(i) for i in config.loss_weight.split(',')]
+    from tqdm import tqdm
     with tqdm(dataset) as pbar:
         for x, y in pbar:
             if mode == 'train':
@@ -77,6 +80,8 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                              'seldScore' : SeldScore.result().numpy()
                              }))
 
+    recall, precision = metric_class.class_result()
+
     writer.add_scalar(f'{mode}/{mode}_ErrorRate', ER.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_F', F.result().numpy(), epoch)
     writer.add_scalar(f'{mode}/{mode}_DoaErrorRate', 
@@ -95,27 +100,111 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
 def get_dataset(config, mode:str='train'):
     path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
-    # mic_x, _ = load_seldnet_data(os.path.join(path, 'mic_dev_norm'),
-    #                          os.path.join(path, 'mic_dev_label'), 
-    #                          mode=mode, n_freq_bins=64)
-    # x = np.concatenate([x, mic_x], -1)
-    
-    if mode == 'train' and not 'nomask' in config.name:
+    if mode == 'train':
         sample_transforms = [
-            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
-            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+            # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
         ]
     else:
         sample_transforms = []
     batch_transforms = [split_total_labels_to_sed_doa]
-    if config.foa_aug and mode == 'train':
-        batch_transforms.insert(0, foa_intensity_vec_aug)
+    # if config.foa_aug and mode == 'train':
+    #     batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
         train= mode == 'train',
+        batch_transforms=batch_transforms,
+        label_window_size=60,
+        batch_size=config.batch,
+        sample_transforms=sample_transforms,
+        loop_time=config.loop_time
+    )
+    return dataset
+
+
+def get_both_dataset(config, mode:str='train'):
+    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
+                             os.path.join(path, 'foa_dev_label'), 
+                             mode=mode, n_freq_bins=64)
+    mic_x, _ = load_seldnet_data(os.path.join(path, 'mic_dev_norm'),
+                             os.path.join(path, 'mic_dev_label'), 
+                             mode=mode, n_freq_bins=64)
+    x = np.concatenate([x, mic_x], -1)
+
+    if mode == 'train' and not 'nomask' in config.name:
+        sample_transforms = [
+            # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+        ]
+    else:
+        sample_transforms = []
+    batch_transforms = [split_total_labels_to_sed_doa]
+    # if config.foa_aug and mode == 'train':
+    #     batch_transforms.insert(0, acs_aug)
+    dataset = seldnet_data_to_dataloader(
+        x, y,
+        train= mode == 'train',
+        batch_transforms=batch_transforms,
+        label_window_size=60,
+        batch_size=config.batch,
+        sample_transforms=sample_transforms,
+        loop_time=config.loop_time
+    )
+    return dataset
+
+
+def get_tdm_dataset(config, tdm_x, tdm_y):
+    mode = 'foa'
+    abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
+    FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
+    LABEL_PATH = os.path.join(abspath, 'metadata_dev')
+    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    sr = 24000
+    
+    x, y = get_preprocessed_wave(FEATURE_PATH,
+                                 LABEL_PATH)
+
+    # 데이터 훑어서 aug용 데이터 뽑기
+    # 아래 코드들은 어차피 feature extractor부터 사용해야해서 파이토치로 짜도 무방할듯
+    print('TDM augmentation process start')
+    x, y = TDM_aug(x, y, tdm_x, tdm_y)
+
+    print('TDM convert wave to feature')
+    x = [get_preprocessed_x(x_, sr, mode=mode,
+                         n_mels=64, 
+                         multiplier=5,
+                         max_label_length=600,
+                         win_length=1024,
+                         hop_length=480,
+                         n_fft=1024) for x_ in x] 
+    device = get_device()
+    m = torch.from_numpy(np.load('mean.npy')).to(device=device)
+    s = torch.from_numpy(np.load('std.npy')).to(device=device)
+    x = torch.stack(x)
+    # x = (x - x.mean(0)) / x.std(0) # tdm
+    x = (x - m) / s # tdm2
+    x = tf.convert_to_tensor(x.cpu().numpy())
+
+    if not 'nomask' in config.name:
+        sample_transforms = [
+            # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+        ]
+    else:
+        sample_transforms = []
+
+    # seldnet_data_to_dataloader
+    batch_transforms = [split_total_labels_to_sed_doa]
+    # if config.foa_aug:
+    #     batch_transforms.insert(0, foa_intensity_vec_aug)
+    dataset = seldnet_data_to_dataloader(
+        x, y,
+        train=True,
         batch_transforms=batch_transforms,
         label_window_size=60,
         batch_size=config.batch,
@@ -140,9 +229,17 @@ def main(config):
         os.makedirs(model_path)
 
     # data load
-    trainset = get_dataset(config, 'train')
+    if config.tdm:
+        TDM_PATH = './'
+        tdm_x, tdm_y = get_TDMset(TDM_PATH)
+        trainset = get_tdm_dataset(config, tdm_x, tdm_y)
+    else:
+        trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
     testset = get_dataset(config, 'test')
+    # trainset = get_both_dataset(config, 'train')
+    # valset = get_both_dataset(config, 'val')
+    # testset = get_both_dataset(config, 'test')
 
     # extract data size
     x, y = [(x, y) for x, y in trainset.take(1)][0]
@@ -160,8 +257,11 @@ def main(config):
     model.summary()
     
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr)
-    sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
-    
+    if config.sed_loss == 'BCE':
+        sed_loss = tf.keras.losses.BinaryCrossentropy(name='sed_loss')
+    if config.sed_loss == 'FOCAL':
+        sed_loss = losses.Focal_Loss(alpha=config.focal_g, gamma=config.focal_a)
+
     try:
         doa_loss = getattr(tf.keras.losses, config.doa_loss)
     except:
@@ -173,6 +273,14 @@ def main(config):
         if len(_model_path) == 0:
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
+        if config.tdm_epoch:
+            if config.tdm:
+                trainset = get_tdm_dataset(config, tdm_x, tdm_y)
+            else:
+                trainset = get_dataset(config, 'train')
+            valset = get_dataset(config, 'val')
+            testset = get_dataset(config, 'test')
+
     
     best_score = 99999
     early_stop_patience = 0
@@ -181,6 +289,11 @@ def main(config):
         doa_threshold=config.lad_doa_thresh)
 
     for epoch in range(config.epoch):
+        # tdm
+        if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0 and epoch != 0:
+            if config.tdm:
+                trainset = get_tdm_dataset(config, tdm_x, tdm_y)
+            
         # train loop
         metric_class.reset_states()
         iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=optimizer, mode='train') 

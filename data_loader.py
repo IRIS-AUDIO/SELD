@@ -1,6 +1,11 @@
 import numpy as np
 import tensorflow as tf
-
+from feature_extractor import *
+import random as rnd
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from multiprocessing import cpu_count
+from tqdm import tqdm
+import joblib
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
@@ -89,6 +94,45 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     return features, labels
 
 
+def get_preprocessed_wave(feat_path, label_path, mode='train'):
+    '''
+        output
+        x: wave form -> (data_num, channel(4), time)
+        y: label(padded) -> (data_num, time, 56)
+    '''
+    f_paths = sorted(glob(os.path.join(feat_path, '*.wav')))
+    l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
+
+    splits = {
+        'train': [3, 4, 5, 6],
+        'val': [2],
+        'test': [1]
+    }
+
+    f_paths = [f for f in f_paths 
+            if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
+    l_paths = [f for f in l_paths 
+            if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
+
+
+    if len(f_paths) != len(l_paths):
+        raise ValueError('# of features and labels are not matched')
+    
+    def preprocess_label(labels, max_label_length=600):
+        cur_len = labels.shape[0]
+        max_len = max_label_length
+
+        if cur_len < max_len: 
+            labels = np.pad(labels, ((0, max_len-cur_len), (0,0)), 'constant')
+        else:
+            labels = labels[:max_len]
+        return labels
+    
+    x = list(map(lambda x: torchaudio.load(x)[0], f_paths))
+    y = list(map(lambda x: preprocess_label(extract_labels(x)), l_paths))
+    return x, y
+
+
 def seldnet_data_to_dataloader(features: [list, tuple], 
                                labels: [list, tuple], 
                                train=True, 
@@ -125,6 +169,122 @@ def seldnet_data_to_dataloader(features: [list, tuple],
         dataset = dataset.shuffle(shuffle_size)
 
     return dataset.prefetch(AUTOTUNE)
+
+
+def get_TDMset(TDM_PATH):
+    from glob import glob
+    tdm_path = TDM_PATH + 'foa_dev_tdm/'
+    class_num = len(glob(tdm_path + '/*label_*.joblib'))
+    device = get_device()
+
+    def load_data(cls):
+        return joblib.load(open(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'), 'rb'))
+
+    def load_label(cls):
+        return joblib.load(open(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'), 'rb'))
+    
+    with ThreadPoolExecutor() as pool:
+        tdm_x = list(pool.map(load_data, range(class_num)))
+        tdm_y = list(pool.map(load_label, range(class_num)))
+    return tdm_x, tdm_y
+
+
+def TDM_aug(x, y, tdm_x, tdm_y):
+    class_num = y[0].shape[-1] // 4
+    max_noise_num = 5 # total number of added noise per a sample
+    min_noise_seconds = 1
+    max_noise_seconds = 5
+    sr = 24000 / 10
+    
+
+    weight = 1 / torch.tensor([i.shape[0] for i in tdm_y])
+    weight /= weight.sum()
+    weight = torch.tensor([weight[:i+1].sum() for i in range(len(weight))]) # weighted sum of serial
+
+    def add_noise(i):
+        x_, y_ = x[i], torch.from_numpy(y[i])
+        ran = torch.rand((max_noise_num,))
+
+        selected_cls = torch.where(weight < torch.unsqueeze(ran, -1), 1, 0).sum(-1) - 1 # (max_noise_num,)
+        # selected_cls = torch.randint(class_num, (max_noise_num,)) # no weight per class
+
+        for cls in selected_cls:
+            td_x = torch.from_numpy(tdm_x[cls]).type(x_.dtype)
+            td_y = torch.from_numpy(tdm_y[cls]).type(y_.dtype)
+            noise_time = torch.randint(min_noise_seconds, max_noise_seconds, (1,)) * 10 # to milli second
+            offset = torch.randint(y_.shape[-1] - noise_time.item(), (1,)) # offset as label
+
+            nondup_class = y_[...,:class_num].argmax(-1) != cls # 프레임 중 class가 겹치지 않는 부분 찾기
+            valid_index = torch.where(torch.logical_and(y_[...,:class_num].sum(-1) < max_noise_num, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            frame_idx = torch.arange(noise_time.item()) # noise_time 크기만한 frame idx 생성
+            y_idx = frame_idx + offset # 합칠 프레임들 전체
+            con = (torch.unsqueeze(y_idx, -1) == valid_index).sum(-1) # valid_index 중 y_idx에 있는 idx만 찾기, masking 방식의 결과
+            if con.sum() == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
+                continue
+            
+            idx = torch.where(con > 0)[0]
+            y_idx = y_idx[idx] # 해당되지 않는 부분 삭제, 자리 확정
+            td_offset = torch.randint(td_y.shape[0] - noise_time.item(), (1,)) # 뽑을 노이즈에서의 랜덤 offset
+            td_y_idx = idx + td_offset # 뽑을 노이즈 index
+            
+
+            x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in y_idx])
+
+            td_x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in td_y_idx])
+
+            x[i][..., x_idx] = (x_[..., x_idx] + td_x[..., td_x_idx]).cpu()
+            y[i][y_idx] = (y_[y_idx] + td_y[td_y_idx]).cpu() # 레이블 부분 완료
+    
+    # with ThreadPoolExecutor() as pool:
+    #     list(pool.map(add_noise, tqdm(range(len(x)))))
+    # with ProcessPoolExecutor(cpu_count() // 2) as pool:
+    #     list(pool.map(add_noise, tqdm(range(len(x)))))
+    list(map(add_noise, tqdm(range(len(x)))))
+    return x, y
+
+
+def get_preprocessed_x(wav, sample_rate, mode='foa', n_mels=64,
+                       multiplier=5, max_label_length=600, **kwargs):
+    device = get_device()
+    melscale = torchaudio.transforms.MelScale(
+        n_mels=n_mels, sample_rate=sample_rate).to(device)
+    spec = complex_spec(wav.to(device), **kwargs)
+
+    mel_spec = torchaudio.functional.complex_norm(spec, power=2.)
+    mel_spec = melscale(mel_spec)
+    mel_spec = torchaudio.functional.amplitude_to_DB(
+        mel_spec,
+        multiplier=10.,
+        amin=1e-10,
+        db_multiplier=np.log10(max(1., 1e-10)), # log10(max(ref, amin))
+        top_db=80.,
+    )
+
+    features = [mel_spec]
+    if mode == 'foa':
+        foa = foa_intensity_vectors(spec)
+        foa = melscale(foa)
+        features.append(foa)
+    elif mode == 'mic':
+        gcc = gcc_features(spec, n_mels=n_mels)
+        features.append(gcc)
+    else:
+        raise ValueError('invalid mode')
+
+    features = torch.cat(features, axis=0)
+
+    # [chan, freq, time] -> [time, freq, chan]
+    features = torch.transpose(features, 0, 2)
+    cur_len = features.shape[0]
+    max_len = max_label_length * multiplier
+    if cur_len < max_len: 
+        features = np.pad(features, 
+                          ((0, max_len-cur_len), (0,0), (0,0)),
+                          'constant')
+    else:
+        features = features[:max_len]
+
+    return features
 
 
 if __name__ == '__main__':
