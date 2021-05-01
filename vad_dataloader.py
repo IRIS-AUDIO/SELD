@@ -79,21 +79,26 @@ def get_vad_dataset_from_pairs(feat_label_pairs, window):
 
     n_mels, n_chan = feat_label_pairs[0][0].shape[1:]
 
-    def window_generator():
+    def generator():
         for feat, label in feat_label_pairs:
-            n_frames = len(label)
-            offset = tf.random.uniform(shape=[], 
-                                       maxval=n_frames-win_size,
-                                       dtype=tf.int32)
-            yield tf.gather(feat, window+offset), \
-                  tf.gather(label, window+offset)
+            yield feat, label
+
+    def windowing(feats, labels):
+        n_frames = tf.shape(labels)[0]
+        offset = tf.random.uniform(shape=[],
+                                   maxval=n_frames-win_size,
+                                   dtype=tf.int32)
+        return (tf.gather(feats, window+offset), 
+                tf.gather(labels, window+offset))
 
     dataset = tf.data.Dataset.from_generator(
-        window_generator,
+        generator,
         output_signature=(
-            tf.TensorSpec(shape=(len(window), n_mels, n_chan), 
+            tf.TensorSpec(shape=(None, n_mels, n_chan), 
                           dtype=tf.float32),
-            tf.TensorSpec(shape=(len(window),), dtype=tf.float32)))
+            tf.TensorSpec(shape=(None,), dtype=tf.float32)))
+    dataset = dataset.cache()
+    dataset = dataset.map(windowing)
 
     return dataset
 
