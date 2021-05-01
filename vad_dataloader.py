@@ -27,13 +27,8 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
                     n_fft=1024, n_mels=80, sr=16000, **kwargs):
     n_samples = len(wav_fnames)
     assert n_samples == len(label_fnames)
-    
-    if isinstance(window, int):
-        window = tf.range(window)
-    window = tf.convert_to_tensor(window, dtype=tf.int32)
-    window -= tf.reduce_min(window)
-    win_size = max(window)
 
+    window = preprocess_window(window)
     n_fft = tf.cast(n_fft, tf.int32)
     mel_scale = get_mel_scale(n_fft, n_mels, sr)
 
@@ -42,14 +37,6 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
             yield extract_feat_label(
                 wav_fnames[i], label_fnames[i],
                 n_fft=n_fft, n_mels=n_mels, mel_scale=mel_scale, **kwargs)
-
-    def windowing(feats, labels):
-        n_frames = tf.shape(labels)[0]
-        offset = tf.random.uniform(shape=[],
-                                   maxval=n_frames-win_size,
-                                   dtype=tf.int32)
-        return (tf.gather(feats, window+offset), 
-                tf.gather(labels, window+offset))
 
     args = (wav_fnames, label_fnames, n_fft)
     dataset = tf.data.Dataset.from_generator(
@@ -60,31 +47,18 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
                           dtype=tf.float32),
             tf.TensorSpec(shape=(None,), dtype=tf.float32)))
     dataset = dataset.cache()
-    dataset = dataset.map(windowing)
+    dataset = dataset.map(apply_window(window))
 
     return dataset
 
 
 def get_vad_dataset_from_pairs(feat_label_pairs, window):
-    if isinstance(window, int):
-        window = tf.range(window)
-    window = tf.convert_to_tensor(window, dtype=tf.int32)
-    window -= tf.reduce_min(window)
-    win_size = max(window)
-
     n_mels, n_chan = feat_label_pairs[0][0].shape[1:]
+    window = preprocess_window(window)
 
     def generator():
         for feat, label in feat_label_pairs:
             yield feat, label
-
-    def windowing(feats, labels):
-        n_frames = tf.shape(labels)[0]
-        offset = tf.random.uniform(shape=[],
-                                   maxval=n_frames-win_size,
-                                   dtype=tf.int32)
-        return (tf.gather(feats, window+offset), 
-                tf.gather(labels, window+offset))
 
     dataset = tf.data.Dataset.from_generator(
         generator,
@@ -93,7 +67,7 @@ def get_vad_dataset_from_pairs(feat_label_pairs, window):
                           dtype=tf.float32),
             tf.TensorSpec(shape=(None,), dtype=tf.float32)))
     dataset = dataset.cache()
-    dataset = dataset.map(windowing)
+    dataset = dataset.map(apply_window(window))
 
     return dataset
 
@@ -138,6 +112,27 @@ def get_mel_scale(n_fft, n_mels, sr):
         sample_rate=sr,
         lower_edge_hertz=0,
         upper_edge_hertz=sr//2)
+
+
+def preprocess_window(window):
+    if isinstance(window, int):
+        window = tf.range(window)
+    window = tf.convert_to_tensor(window, dtype=tf.int32)
+    window -= tf.reduce_min(window)
+    return window
+
+
+def apply_window(window):
+    win_size = max(window)
+
+    def _apply(feats, labels):
+        n_frames = tf.shape(labels)[0]
+        offset = tf.random.uniform(shape=[],
+                                   maxval=n_frames-win_size,
+                                   dtype=tf.int32)
+        return (tf.gather(feats, window+offset), 
+                tf.gather(labels, window+offset))
+    return _apply
 
 
 def search_sub_dirs(path, ext='wav'):
