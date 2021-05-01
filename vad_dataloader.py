@@ -24,7 +24,6 @@ def extract_feat_label(wav_fname, label_fname, **kwargs):
 
 
 def get_vad_dataset(wav_fnames, label_fnames, window, 
-                    samples_per_wav, shuffle_wavs=False,
                     n_fft=1024, n_mels=80, sr=16000, **kwargs):
     n_samples = len(wav_fnames)
     assert n_samples == len(label_fnames)
@@ -33,39 +32,35 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
         window = tf.range(window)
     window = tf.convert_to_tensor(window, dtype=tf.int32)
     window -= tf.reduce_min(window)
+    win_size = max(window)
 
     n_fft = tf.cast(n_fft, tf.int32)
     mel_scale = get_mel_scale(n_fft, n_mels, sr)
 
-    def window_generator(wav_fnames, label_fnames, n_fft):
-        # shuffle fnames
-        if shuffle_wavs:
-            order = np.random.permutation(len(wav_fnames))
-            wav_fnames = np.array(wav_fnames)[order].tolist()
-            label_fnames = np.array(label_fnames)[order].tolist()
-
+    def generator(wav_fnames, label_fnames, n_fft):
         for i in range(n_samples):
-            wav, label = extract_feat_label(
+            yield extract_feat_label(
                 wav_fnames[i], label_fnames[i],
                 n_fft=n_fft, n_mels=n_mels, mel_scale=mel_scale, **kwargs)
 
-            n_frames = len(label)
-            win_size = max(window)
-
-            for _ in range(samples_per_wav):
-                offset = tf.random.uniform(shape=[], 
-                                           maxval=n_frames-win_size,
-                                           dtype=tf.int32)
-                yield tf.gather(wav, window+offset), \
-                      tf.gather(label, window+offset)
+    def windowing(feats, labels):
+        n_frames = tf.shape(labels)[0]
+        offset = tf.random.uniform(shape=[],
+                                   maxval=n_frames-win_size,
+                                   dtype=tf.int32)
+        return (tf.gather(feats, window+offset), 
+                tf.gather(labels, window+offset))
 
     args = (wav_fnames, label_fnames, n_fft)
     dataset = tf.data.Dataset.from_generator(
-        window_generator,
+        generator,
         args=args,
         output_signature=(
-            tf.TensorSpec(shape=(len(window), n_mels, 1), dtype=tf.float32),
-            tf.TensorSpec(shape=(len(window),), dtype=tf.float32)))
+            tf.TensorSpec(shape=(None, n_mels, 1), 
+                          dtype=tf.float32),
+            tf.TensorSpec(shape=(None,), dtype=tf.float32)))
+    dataset = dataset.cache()
+    dataset = dataset.map(windowing)
 
     return dataset
 
@@ -175,17 +170,15 @@ if __name__ == "__main__":
 
     # VAL
     # TIMIT_NoiseX92 - VAL
+    '''
     WAV_PATH = '/datasets/datasets/ai_challenge/TIMIT_NOISEX_extended/TEST/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/TIMIT_SoundIdea/VALIDATION/LABEL'
+    '''
 
     # TEST
     # LibriSpeech_Aurora - TEST
     WAV_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/DATASET/WAV'
     LABEL_PATH = '/datasets/datasets/ai_challenge/LibriSpeech_ext_Aurora/LABEL'
-
-    wav_fnames, label_fnames = extract_vad_fnames(WAV_PATH, LABEL_PATH)
-    for fname in wav_fnames + label_fnames:
-        assert os.path.exists(fname)
 
     mel_scale = get_mel_scale(1024, 80, 16000)
 
@@ -196,12 +189,13 @@ if __name__ == "__main__":
     joblib.dump(feats_labels, 'libri_aurora_test.jl')
     '''
 
+    wav_fnames, label_fnames = extract_vad_fnames(WAV_PATH, LABEL_PATH)
     window = [-19, -10, -1, 0, 1, 10, 19]
-    # vad_dataset = get_vad_dataset(wav_fnames, label_fnames, window, 
-    #                               samples_per_wav=32, shuffle_wavs=True, 
-    #                               n_fft=1024)
+    dataset = get_vad_dataset(wav_fnames, label_fnames, window, n_fft=1024)
+    '''
     dataset = get_vad_dataset_from_pairs(
         joblib.load('timit_soundidea_train.jl'), window=window)
+    '''
     dataset = data_loader(dataset, loop_time=1, batch_size=256)
 
     for x, y in dataset.take(2):
