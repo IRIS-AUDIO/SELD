@@ -1,5 +1,6 @@
 import argparse
 import joblib
+import json
 import tensorflow as tf
 import tensorflow.keras.backend as K
 import tensorflow_addons as tfa
@@ -15,7 +16,7 @@ from vad_dataloader import get_vad_dataset_from_pairs
 
 args = argparse.ArgumentParser()
 
-args.add_argument('--json_fname', type=str, default='results.json')
+args.add_argument('--json_fname', type=str, default='vad_results.json')
 args.add_argument('--n_samples', type=int, default=128)
 args.add_argument('--n_blocks', type=int, default=3)
 args.add_argument('--min_flops', type=int, default=500_000)
@@ -134,8 +135,6 @@ def sample_constraint(min_flops=None, max_flops=None,
     return _contraint
 
 
-
-
 def prepare_dataset(pairs, window, batch_size, train=False, n_repeat=1):
     dataset = get_vad_dataset_from_pairs(pairs, window)
 
@@ -156,15 +155,16 @@ def train_and_eval(train_config,
 
     model.compile(optimizer=optimizer,
                   loss=tf.keras.losses.MSE,
-                  metrics=['auc', 'accuracy', 
-                           tfa.metrics.F1Score(num_classes=1)])
+                  metrics=['AUC', 'accuracy'])
+    #                        tfa.metrics.F1Score(num_classes=1)])
 
     history = model.fit(trainset, 
                         validation_data=testset)
 
     performances = {
         **history.history,
-        **(vad_architecture_complexity(model_config, input_shape)[0])
+        **(model_complexity.vad_architecture_complexity(model_config, 
+                                                        input_shape)[0])
     }
     del model, optimizer, history
     return performances
@@ -176,7 +176,6 @@ if __name__=='__main__':
     window = [-19, -10, -1, 0, 1, 10, 19]
     input_shape = [len(window), 80, 1]
 
-    '''
     trainset = prepare_dataset(joblib.load('timit_soundidea_train.jl'),
                                window, 
                                train_config.batch_size, 
@@ -184,7 +183,6 @@ if __name__=='__main__':
                                n_repeat=train_config.n_repeat)
     testset = prepare_dataset(joblib.load('libri_aurora_test.jl'),
                               window, train_config.batch_size, train=False)
-    '''
 
     default_config = {
         'flatten': False,
@@ -195,7 +193,6 @@ if __name__=='__main__':
     results = {'train_config': vars(train_config)}
     start_idx = 0
 
-    '''
     # resume past results
     if os.path.exists(train_config.json_fname):
         with open(train_config.json_fname, 'r') as f:
@@ -216,36 +213,12 @@ if __name__=='__main__':
             input_shape=input_shape,
             default_config=default_config,
             constraint=constraint)
-        outputs = evaluate_model(
-            input_shape, 
+        outputs = train_and_eval(
             train_config, model_config, 
-            trainset_repeat, trainset_no_repeat, 
-            total_testset, metric_class)
+            input_shape, 
+            trainset, testset)
 
         results[f'{i:03d}'] = {'config': model_config, 'perf': outputs}
         with open(train_config.json_fname, 'w') as f:
             json.dump(results, f, indent=4)
-    '''
-    for i in range(200):
-        model_config = vad_architecture_sampler(
-            search_space_2d,
-            search_space_1d,
-            n_blocks=train_config.n_blocks,
-            input_shape=input_shape,
-            default_config=default_config,
-            constraint=constraint)
-
-        '''
-        results[f'{i:03d}'] = {'config': model_config, 'perf': outputs}
-        with open(train_config.json_fname, 'w') as f:
-            json.dump(results, f, indent=4)
-        '''
-
-        cx, shape = model_complexity.vad_architecture_complexity(model_config, 
-                                                                 input_shape)
-        model = models.vad_architecture(input_shape, model_config)
-        print(cx, shape)
-
-        assert model.output_shape[1:] == tuple(shape)
-        assert cx['params'] == sum([K.count_params(p) for p in model.trainable_weights])
 
