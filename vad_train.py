@@ -156,7 +156,7 @@ def train_and_eval(train_config,
 
     model.compile(optimizer=optimizer,
                   loss=tf.keras.losses.MSE,
-                  metrics=['AUC', 'accuracy'])
+                  metrics=['AUC', 'accuracy', 'Precision', 'Recall'])
 
     history = model.fit(trainset, 
                         validation_data=testset)
