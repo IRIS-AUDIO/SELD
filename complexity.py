@@ -7,7 +7,6 @@
 # references
 # https://github.com/facebookresearch/pycls/blob/master/pycls/models/blocks.py
 import copy
-import numpy as np
 from utils import *
 
 
