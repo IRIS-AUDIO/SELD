@@ -35,9 +35,26 @@ class ConfigSamplerTest(tf.test.TestCase):
         model_config = conv_temporal_sampler(search_space_2d,
                                              search_space_1d,
                                              n_blocks=4,
+                                             input_shape=[7, 80, 1],
                                              default_config=default_config,
                                              constraint=None)
-        print(model_config)
+
+    def test_vad_architecture_sampler(self):
+        search_space_2d = {
+            'conv': {'filters': [16, 32, 64], 'use_bias': [True, False]},
+            'block': {'depth': [2, 4, 8]}
+        }
+        search_space_1d = {
+            'linear': {'activation': ['relu', None], 'units': [8, 16]},
+            'gru': {'units': [39]}
+        }
+        default_config = {'last_units': 1}
+        model_config = vad_architecture_sampler(search_space_2d,
+                                                search_space_1d,
+                                                n_blocks=4,
+                                                input_shape=[7, 80, 1],
+                                                default_config=default_config,
+                                                constraint=None)
 
     def test_search_space_sanity_check(self):
         clean = {'typeA': {'a': [1, 3, 5], 'b': (2,)}}
