@@ -3,7 +3,6 @@ import joblib
 import json
 import tensorflow as tf
 import tensorflow.keras.backend as K
-import tensorflow_addons as tfa
 
 import stage_complexity
 import model_complexity
@@ -23,7 +22,7 @@ args.add_argument('--min_flops', type=int, default=500_000)
 args.add_argument('--max_flops', type=int, default=600_000)
 
 args.add_argument('--batch_size', type=int, default=256)
-args.add_argument('--n_repeat', type=int, default=100)
+args.add_argument('--n_repeat', type=int, default=50)
 args.add_argument('--lr', type=int, default=1e-3)
 
 
@@ -142,7 +141,9 @@ def prepare_dataset(pairs, window, batch_size, train=False, n_repeat=1):
         dataset = dataset.repeat(n_repeat)
         dataset = dataset.shuffle(len(pairs))
 
-    return data_loader(dataset, loop_time=1, batch_size=batch_size)
+    dataset = data_loader(dataset, loop_time=1, batch_size=batch_size)
+    dataset = dataset.prefetch(AUTOTUNE)
+    return dataset
 
 
 def train_and_eval(train_config,
@@ -156,7 +157,6 @@ def train_and_eval(train_config,
     model.compile(optimizer=optimizer,
                   loss=tf.keras.losses.MSE,
                   metrics=['AUC', 'accuracy'])
-    #                        tfa.metrics.F1Score(num_classes=1)])
 
     history = model.fit(trainset, 
                         validation_data=testset)
