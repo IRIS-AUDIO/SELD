@@ -155,7 +155,7 @@ def train_and_eval(train_config,
     optimizer = tf.keras.optimizers.Adam(train_config.lr)
 
     model.compile(optimizer=optimizer,
-                  loss=tf.keras.losses.MSE,
+                  loss=tf.keras.losses.BinaryCrossentropy(), # MSE,
                   metrics=['AUC', 'accuracy', 'Precision', 'Recall'])
 
     history = model.fit(trainset, 
