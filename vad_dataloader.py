@@ -17,10 +17,10 @@ def extract_vad_fnames(wav_folder, label_folder):
 
 
 def extract_feat_label(wav_fname, label_fname, **kwargs):
-    wav = load_wav(wav_fname, **kwargs)
+    feat = load_wav_and_extract_feat(wav_fname, **kwargs)
     label = load_label(label_fname, **kwargs)
-    assert len(wav) == len(label)    
-    return wav, label
+    assert len(feat) == len(label), 'lengths of feats, labels are not equal'
+    return feat, label
 
 
 def get_vad_dataset(wav_fnames, label_fnames, window, 
@@ -71,8 +71,8 @@ def get_vad_dataset_from_pairs(feat_label_pairs, window):
     return dataset
 
 
-def load_wav(name, n_fft=1024, n_mels=80, 
-             mel_scale=None, logmel=True, normalize=True):
+def load_wav_and_extract_feat(name, n_fft=1024, n_mels=80,
+                              mel_scale=None, logmel=True, normalize=True):
     wav, sr = tf.audio.decode_wav(tf.io.read_file(name))
     wav = tf.transpose(wav, (1, 0)) # to [chan, frames]
 
