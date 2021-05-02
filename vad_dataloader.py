@@ -29,7 +29,6 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
     assert n_samples == len(label_fnames)
 
     window = preprocess_window(window)
-    n_fft = tf.cast(n_fft, tf.int32)
     mel_scale = get_mel_scale(n_fft, n_mels, sr)
 
     def generator(wav_fnames, label_fnames, n_fft):
@@ -97,12 +96,11 @@ def load_wav(name, n_fft=1024, n_mels=80,
 
 
 def load_label(name, n_fft=1024, **kwargs):
+    n_fft = tf.cast(n_fft, tf.int32)
     label = tf.convert_to_tensor(np.load(name), dtype=tf.float32)
-    label = tf.nn.avg_pool1d(tf.reshape(label, (1, -1, 1)),
-                             n_fft,
-                             n_fft//2, 
-                             padding='VALID')
-    return tf.squeeze(tf.round(label))
+    label = tf.signal.frame(label, n_fft, tf.cast(n_fft//2, tf.int32))
+    label = tf.reduce_mean(label, -1)
+    return tf.round(label)
 
 
 def get_mel_scale(n_fft, n_mels, sr):
