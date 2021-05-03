@@ -80,6 +80,45 @@ def conv_temporal_sampler(search_space_2d: dict,
             print(f'{i}th iters. check constraint')
 
 
+def vad_architecture_sampler(search_space_2d: dict, 
+                             search_space_1d: dict,
+                             n_blocks: int,
+                             input_shape,
+                             default_config=None,
+                             constraint=None):
+    search_space_sanity_check(search_space_2d)
+    search_space_sanity_check(search_space_1d)
+
+    search_space_total = copy.deepcopy(search_space_2d)
+    search_space_total.update(search_space_1d)
+    
+    modules_2d = search_space_2d.keys()
+    modules_1d = search_space_1d.keys()
+
+    if default_config is None:
+        default_config = {}
+
+    i = 0
+    while True:
+        model_config = copy.deepcopy(default_config)
+
+        n_2d = random.randint(0, n_blocks)
+        for i in range(n_blocks):
+            pool = modules_2d if i < n_2d else modules_1d
+            module = random.sample(pool, 1)[0]
+            model_config[f'BLOCK{i}'] = module
+            model_config[f'BLOCK{i}_ARGS'] = {
+                k: random.sample(v, 1)[0]
+                for k, v in search_space_total[module].items()}
+
+        if constraint is None or constraint(model_config, input_shape):
+            return model_config
+
+        i += 1
+        if (i % 1000) == 0:
+            print(f'{i}th iters. check constraint')
+
+
 def search_space_sanity_check(search_space: dict):
     for name in search_space:
         # check whether each value is valid
