@@ -173,15 +173,15 @@ def seldnet_data_to_dataloader(features: [list, tuple],
 
 def get_TDMset(TDM_PATH):
     from glob import glob
-    tdm_path = TDM_PATH + 'foa_dev_tdm/'
+    tdm_path = os.path.join(TDM_PATH, 'foa_dev_tdm')
     class_num = len(glob(tdm_path + '/*label_*.joblib'))
     device = get_device()
 
     def load_data(cls):
-        return joblib.load(open(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'), 'rb'))
+        return joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))
 
     def load_label(cls):
-        return joblib.load(open(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'), 'rb'))
+        return joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'))
     
     with ThreadPoolExecutor() as pool:
         tdm_x = list(pool.map(load_data, range(class_num)))
@@ -189,33 +189,40 @@ def get_TDMset(TDM_PATH):
     return tdm_x, tdm_y
 
 
-def TDM_aug(x, y, tdm_x, tdm_y):
+def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1):
+    '''
+        x: list(torch.Tensor): shape(sample number, channel(4), frame(1440000))
+        y: list(np.ndarray): shape(sample number, time(600), class+cartesian(14+42))
+        tdm_x: list(np.ndarray): shape(class_num, channel(4), frame)
+        tdm_y: list(np.ndarray): shape(class_num, time, class+cartesian(14+42))
+    '''
     class_num = y[0].shape[-1] // 4
     max_noise_num = 5 # total number of added noise per a sample
-    min_noise_seconds = 1
-    max_noise_seconds = 5
-    sr = 24000 / 10
+    max_noise_per_frame = 2 # maximum number of class per a frame
+    min_noise_time = 1 * int(1 / label_resolution) # 
+    max_noise_time = 5 * int(1 / label_resolution) # 
+    sr = int(sr * label_resolution)
     
 
     weight = 1 / torch.tensor([i.shape[0] for i in tdm_y])
     weight /= weight.sum()
-    weight = torch.tensor([weight[:i+1].sum() for i in range(len(weight))]) # weighted sum of serial
-
+    weight = weight.cumsum(-1)
     def add_noise(i):
-        x_, y_ = x[i], torch.from_numpy(y[i])
-        ran = torch.rand((max_noise_num,))
+        selected_cls = weight.multinomial(max_noise_num, replacement=True) # (max_noise_num,)
 
-        selected_cls = torch.where(weight < torch.unsqueeze(ran, -1), 1, 0).sum(-1) - 1 # (max_noise_num,)
         # selected_cls = torch.randint(class_num, (max_noise_num,)) # no weight per class
 
         for cls in selected_cls:
-            td_x = torch.from_numpy(tdm_x[cls]).type(x_.dtype)
-            td_y = torch.from_numpy(tdm_y[cls]).type(y_.dtype)
-            noise_time = torch.randint(min_noise_seconds, max_noise_seconds, (1,)) * 10 # to milli second
-            offset = torch.randint(y_.shape[-1] - noise_time.item(), (1,)) # offset as label
+            xs, ys = x[i], torch.from_numpy(y[i])
 
-            nondup_class = y_[...,:class_num].argmax(-1) != cls # 프레임 중 class가 겹치지 않는 부분 찾기
-            valid_index = torch.where(torch.logical_and(y_[...,:class_num].sum(-1) < max_noise_num, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            td_x = torch.from_numpy(tdm_x[cls]).type(xs.dtype)
+            td_y = torch.from_numpy(tdm_y[cls]).type(ys.dtype)
+            noise_time = torch.randint(min_noise_time, max_noise_time, (1,)) # to milli second
+            offset = torch.randint(ys.shape[-1] - noise_time.item(), (1,)) # offset as label
+
+            nondup_class = 1 - torch.from_numpy(y[i])[..., cls]# 프레임 중 class가 겹치지 않는 부분 찾기
+            valid_index = torch.where(torch.logical_and(ys[...,:class_num].sum(-1) < max_noise_per_frame, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+
             frame_idx = torch.arange(noise_time.item()) # noise_time 크기만한 frame idx 생성
             y_idx = frame_idx + offset # 합칠 프레임들 전체
             con = (torch.unsqueeze(y_idx, -1) == valid_index).sum(-1) # valid_index 중 y_idx에 있는 idx만 찾기, masking 방식의 결과
@@ -232,8 +239,8 @@ def TDM_aug(x, y, tdm_x, tdm_y):
 
             td_x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in td_y_idx])
 
-            x[i][..., x_idx] = (x_[..., x_idx] + td_x[..., td_x_idx]).cpu()
-            y[i][y_idx] = (y_[y_idx] + td_y[td_y_idx]).cpu() # 레이블 부분 완료
+            x[i][..., x_idx] = (xs[..., x_idx] + td_x[..., td_x_idx]).cpu()
+            y[i][y_idx] = (ys[y_idx] + td_y[td_y_idx]).cpu() # 레이블 부분 완료
     
     # with ThreadPoolExecutor() as pool:
     #     list(pool.map(add_noise, tqdm(range(len(x)))))
