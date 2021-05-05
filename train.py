@@ -234,9 +234,6 @@ def main(config):
         trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
     testset = get_dataset(config, 'test')
-    # trainset = get_both_dataset(config, 'train')
-    # valset = get_both_dataset(config, 'val')
-    # testset = get_both_dataset(config, 'test')
 
     # extract data size
     x, y = [(x, y) for x, y in trainset.take(1)][0]
