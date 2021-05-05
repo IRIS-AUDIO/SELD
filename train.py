@@ -106,8 +106,8 @@ def get_dataset(config, mode:str='train'):
                              mode=mode, n_freq_bins=64)
     if mode == 'train':
         sample_transforms = [
-            # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
-            # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
         ]
     else:
         sample_transforms = []
@@ -183,11 +183,8 @@ def get_tdm_dataset(config, tdm_x, tdm_y):
                          hop_length=480,
                          n_fft=1024) for x_ in x] 
     device = get_device()
-    m = torch.from_numpy(np.load('mean.npy')).to(device=device)
-    s = torch.from_numpy(np.load('std.npy')).to(device=device)
     x = torch.stack(x)
-    # x = (x - x.mean(0)) / x.std(0) # tdm
-    x = (x - m) / s # tdm2
+    x = (x - x.mean(0)) / x.std(0) # tdm
     x = tf.convert_to_tensor(x.cpu().numpy())
 
     if not 'nomask' in config.name:
@@ -200,8 +197,8 @@ def get_tdm_dataset(config, tdm_x, tdm_y):
 
     # seldnet_data_to_dataloader
     batch_transforms = [split_total_labels_to_sed_doa]
-    # if config.foa_aug:
-    #     batch_transforms.insert(0, foa_intensity_vec_aug)
+    if config.foa_aug:
+        batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
         train=True,
@@ -229,7 +226,7 @@ def main(config):
         os.makedirs(model_path)
 
     # data load
-    if config.tdm:
+    if config.use_tdm:
         TDM_PATH = './'
         tdm_x, tdm_y = get_TDMset(TDM_PATH)
         trainset = get_tdm_dataset(config, tdm_x, tdm_y)
@@ -274,7 +271,7 @@ def main(config):
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
         if config.tdm_epoch:
-            if config.tdm:
+            if config.use_tdm:
                 trainset = get_tdm_dataset(config, tdm_x, tdm_y)
             else:
                 trainset = get_dataset(config, 'train')
@@ -291,7 +288,7 @@ def main(config):
     for epoch in range(config.epoch):
         # tdm
         if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0 and epoch != 0:
-            if config.tdm:
+            if config.use_tdm:
                 trainset = get_tdm_dataset(config, tdm_x, tdm_y)
             
         # train loop
