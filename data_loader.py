@@ -114,7 +114,6 @@ def get_preprocessed_wave(feat_path, label_path, mode='train'):
     l_paths = [f for f in l_paths 
             if int(f[f.rfind(os.path.sep)+5]) in splits[mode]]
 
-
     if len(f_paths) != len(l_paths):
         raise ValueError('# of features and labels are not matched')
     
@@ -189,7 +188,7 @@ def get_TDMset(TDM_PATH):
     return tdm_x, tdm_y
 
 
-def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1):
+def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=5, min_overlap_time=1, max_overlap_time=5):
     '''
         x: list(torch.Tensor): shape(sample number, channel(4), frame(1440000))
         y: list(np.ndarray): shape(sample number, time(600), class+cartesian(14+42))
@@ -197,31 +196,27 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1):
         tdm_y: list(np.ndarray): shape(class_num, time, class+cartesian(14+42))
     '''
     class_num = y[0].shape[-1] // 4
-    max_noise_num = 5 # total number of added noise per a sample
-    max_noise_per_frame = 2 # maximum number of class per a frame
-    min_noise_time = 1 * int(1 / label_resolution) # 
-    max_noise_time = 5 * int(1 / label_resolution) # 
+    min_overlap_time *= int(1 / label_resolution) #  
+    max_overlap_time *= int(1 / label_resolution) # 
     sr = int(sr * label_resolution)
     
-
     weight = 1 / torch.tensor([i.shape[0] for i in tdm_y])
     weight /= weight.sum()
     weight = weight.cumsum(-1)
     def add_noise(i):
-        selected_cls = weight.multinomial(max_noise_num, replacement=True) # (max_noise_num,)
-
-        # selected_cls = torch.randint(class_num, (max_noise_num,)) # no weight per class
+        selected_cls = weight.multinomial(max_overlap_num, replacement=True) # (max_overlap_num,)
 
         for cls in selected_cls:
             xs, ys = x[i], torch.from_numpy(y[i])
 
             td_x = torch.from_numpy(tdm_x[cls]).type(xs.dtype)
             td_y = torch.from_numpy(tdm_y[cls]).type(ys.dtype)
-            noise_time = torch.randint(min_noise_time, max_noise_time, (1,)) # to milli second
+            noise_time = torch.randint(min_overlap_time, max_overlap_time, (1,)) # to milli second
             offset = torch.randint(ys.shape[-1] - noise_time.item(), (1,)) # offset as label
 
-            nondup_class = 1 - torch.from_numpy(y[i])[..., cls]# 프레임 중 class가 겹치지 않는 부분 찾기
-            valid_index = torch.where(torch.logical_and(ys[...,:class_num].sum(-1) < max_noise_per_frame, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            nondup_class = 1 - ys[..., cls] # 프레임 중 class가 겹치지 않는 부분 찾기
+            
+            valid_index = torch.where(torch.logical_and(ys[...,:class_num].sum(-1) < max_overlap_per_frame, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
 
             frame_idx = torch.arange(noise_time.item()) # noise_time 크기만한 frame idx 생성
             y_idx = frame_idx + offset # 합칠 프레임들 전체
