@@ -188,7 +188,7 @@ def get_TDMset(TDM_PATH):
     return tdm_x, tdm_y
 
 
-def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=5, min_overlap_time=1, max_overlap_time=5):
+def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_time=1, max_overlap_time=5):
     '''
         x: list(torch.Tensor): shape(sample number, channel(4), frame(1440000))
         y: list(np.ndarray): shape(sample number, time(600), class+cartesian(14+42))
