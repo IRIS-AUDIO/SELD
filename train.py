@@ -104,7 +104,7 @@ def get_dataset(config, mode:str='train'):
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
-    if mode == 'train':
+    if config.use_tfm and mode == 'train':
         sample_transforms = [
             lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size), y),
             lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
@@ -112,8 +112,8 @@ def get_dataset(config, mode:str='train'):
     else:
         sample_transforms = []
     batch_transforms = [split_total_labels_to_sed_doa]
-    # if config.foa_aug and mode == 'train':
-    #     batch_transforms.insert(0, foa_intensity_vec_aug)
+    if config.use_acs and mode == 'train':
+        batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
         train= mode == 'train',
@@ -136,7 +136,7 @@ def get_both_dataset(config, mode:str='train'):
                              mode=mode, n_freq_bins=64)
     x = np.concatenate([x, mic_x], -1)
 
-    if mode == 'train' and not 'nomask' in config.name:
+    if mode == 'train' and config.use_tfm:
         sample_transforms = [
             # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
             # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
@@ -144,8 +144,8 @@ def get_both_dataset(config, mode:str='train'):
     else:
         sample_transforms = []
     batch_transforms = [split_total_labels_to_sed_doa]
-    # if config.foa_aug and mode == 'train':
-    #     batch_transforms.insert(0, acs_aug)
+    if config.use_acs and mode == 'train':
+        batch_transforms.insert(0, acs_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
         train= mode == 'train',
@@ -163,7 +163,6 @@ def get_tdm_dataset(config, tdm_x, tdm_y):
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
-    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
     sr = 24000
     
     x, y = get_preprocessed_wave(FEATURE_PATH,
@@ -187,17 +186,17 @@ def get_tdm_dataset(config, tdm_x, tdm_y):
     x = (x - x.mean(0)) / x.std(0) # tdm
     x = tf.convert_to_tensor(x.cpu().numpy())
 
-    if not 'nomask' in config.name:
+    if config.use_tfm:
         sample_transforms = [
-            # lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
-            # lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
         ]
     else:
         sample_transforms = []
 
     # seldnet_data_to_dataloader
     batch_transforms = [split_total_labels_to_sed_doa]
-    if config.foa_aug:
+    if config.use_acs:
         batch_transforms.insert(0, foa_intensity_vec_aug)
     dataset = seldnet_data_to_dataloader(
         x, y,
