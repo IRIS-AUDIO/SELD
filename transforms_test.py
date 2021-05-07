@@ -94,6 +94,13 @@ class TransformsTest(tf.test.TestCase):
 
         # self.assertAllEqual(x_flip, y_flip)
 
+    def test_mcs_aug(self):
+        x = tf.random.uniform((3,7,4,2)) # (batch, time, freq, chan)
+        y = tf.random.uniform((3,7,12)) # (batch, time, 4*classes) 
+        new_x, new_y = mcs_aug(2)(x, y)
+        self.assertAllEqual(x.shape, new_x.shape)
+        self.assertAllEqual(y.shape, new_y.shape)
+
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'

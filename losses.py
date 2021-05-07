@@ -34,3 +34,4 @@ class Focal_Loss:
                 - (1-y_true) * self.alpha * tf.pow(y_pred, self.gamma) * tf.math.log(1-y_pred)
 
         return tf.reduce_mean(focal)
+        
