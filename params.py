@@ -32,9 +32,9 @@ def get_param(known=None):
     args.add_argument('--freq_mask_size', type=int, default=30)
     args.add_argument('--time_mask_size', type=int, default=35)
     args.add_argument('--tfm_period', type=int, default=100)
-    args.add_argument('--use_acs', type=bool, default=True)
-    args.add_argument('--use_tdm', type=bool, default=False)
-    args.add_argument('--use_tfm', type=bool, default=True)
+    args.add_argument('--use_acs', action='store_true')
+    args.add_argument('--use_tdm', action='store_true')
+    args.add_argument('--use_tfm', action='store_true')
     args.add_argument('--loop_time', type=int, default=5, 
                       help='times of train dataset iter for an epoch')
     args.add_argument('--tdm_epoch', type=int, default=5,
