@@ -8,8 +8,7 @@ def mask(specs, axis, max_mask_size=None, period=100, n_mask=1):
     if max_mask_size is None:
         max_mask_size = total
         
-    def _mask(inputs):
-        specs, max_mask_size = inputs[0], inputs[1]
+    def _mask(specs):
         def make_shape(size):
             # returns (1, ..., size, ..., 1)
             shape = [1] * len(specs.shape)
@@ -36,9 +35,10 @@ def mask(specs, axis, max_mask_size=None, period=100, n_mask=1):
         return specs * mask
 
     shape = tf.shape(specs)
+    if shape[0] % period != 0:
+        raise ValueError('(spec time length / period)\' rest must be 0')
     specs = tf.signal.frame(specs, period, period, axis=0)
-    max_mask_size = tf.repeat(max_mask_size, tf.shape(specs)[0])
-    specs = tf.map_fn(_mask, (specs, max_mask_size), dtype=(tf.float32, tf.int32), fn_output_signature=tf.float32)
+    specs = tf.map_fn(_mask, specs)
     specs = tf.reshape(specs, shape)
     return specs
 
