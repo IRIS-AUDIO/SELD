@@ -206,6 +206,7 @@ if __name__=='__main__':
 
     # start training
     for i in range(start_idx, train_config.n_samples):
+        '''
         model_config = vad_architecture_sampler(
             search_space_2d,
             search_space_1d,
@@ -213,6 +214,18 @@ if __name__=='__main__':
             input_shape=input_shape,
             default_config=default_config,
             constraint=constraint)
+        '''
+        model_config = {
+            'flatten': True,
+            'last_unit': len(window),
+            'BLOCK0': 'simple_dense_stage',
+            'BLOCK0_ARGS': {
+                'depth': 2,
+                'units': 512,
+                'activation': 'relu',
+                'dropout_rate': 0.2,
+            }
+        }
         outputs = train_and_eval(
             train_config, model_config, 
             input_shape, 
