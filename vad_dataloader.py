@@ -24,11 +24,11 @@ def extract_feat_label(wav_fname, label_fname, **kwargs):
 
 
 def get_vad_dataset(wav_fnames, label_fnames, window, 
-                    n_fft=1024, n_mels=80, sr=16000, **kwargs):
+                    n_fft=1024, n_mels=80, sr=16000, use_window=True, 
+                    **kwargs):
     n_samples = len(wav_fnames)
     assert n_samples == len(label_fnames)
 
-    window = preprocess_window(window)
     mel_scale = get_mel_scale(n_fft, n_mels, sr)
 
     def generator(wav_fnames, label_fnames, n_fft):
@@ -46,7 +46,10 @@ def get_vad_dataset(wav_fnames, label_fnames, window,
                           dtype=tf.float32),
             tf.TensorSpec(shape=(None,), dtype=tf.float32)))
     dataset = dataset.cache()
-    dataset = dataset.map(apply_window(window))
+
+    if use_window:
+        window = preprocess_window(window)
+        dataset = dataset.map(apply_window(window))
 
     return dataset
 
