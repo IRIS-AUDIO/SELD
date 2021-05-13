@@ -57,14 +57,17 @@ def res_basic_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     strides = safe_tuple(model_config['strides'])
 
-    groups = model_config.get('groups', 1)
+    groups_coef = model_config.get('groups', 0)
 
     shape = input_shape
     cx = {}
 
+    groups = max(int(groups_coef * shape[-1]), 1)
     cx, shape = conv2d_complexity(shape, filters, 3, strides=strides,
                                   groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
+
+    groups = max(int(groups_coef * shape[-1]), 1)
     cx, shape = conv2d_complexity(shape, filters, 3, 
                                   groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
@@ -81,7 +84,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     strides = model_config['strides']
 
-    groups = model_config.get('groups', 1)
+    groups_coef = model_config.get('groups', 0)
     bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
 
     strides = safe_tuple(strides, 2)
@@ -94,6 +97,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     cx, shape = conv2d_complexity(input_shape, btn_size, 1, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
+    groups = max(int(groups_coef * shape[-1]), 1)
     cx, shape = conv2d_complexity(
         shape, btn_size, 3, strides, groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
