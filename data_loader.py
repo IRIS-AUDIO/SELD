@@ -1,10 +1,12 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 from feature_extractor import *
 import random as rnd
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from multiprocessing import cpu_count
 from tqdm import tqdm
+import tensorflow_io as tfio
 import joblib
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -122,12 +124,11 @@ def get_preprocessed_wave(feat_path, label_path, mode='train'):
         max_len = max_label_length
 
         if cur_len < max_len: 
-            labels = np.pad(labels, ((0, max_len-cur_len), (0,0)), 'constant')
+            labels = tf.pad(labels, ((0, max_len-cur_len), (0,0)))
         else:
             labels = labels[:max_len]
         return labels
-    
-    x = list(map(lambda x: torchaudio.load(x)[0], f_paths))
+    x = list(map(lambda x: tf.audio.decode_wav(tf.io.read_file(x))[0], f_paths))
     y = list(map(lambda x: preprocess_label(extract_labels(x)), l_paths))
     return x, y
 
@@ -174,20 +175,12 @@ def get_TDMset(TDM_PATH):
     from glob import glob
     tdm_path = os.path.join(TDM_PATH, 'foa_dev_tdm')
     class_num = len(glob(tdm_path + '/*label_*.joblib'))
-    device = get_device()
 
     def load_data(cls):
-<<<<<<< HEAD
-        return torch.from_numpy(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))).to(device)
+        return tf.cast(tf.transpose(tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))), (1,0)), tf.float32)
 
     def load_label(cls):
-        return torch.from_numpy(joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'))).to(device)
-=======
-        return joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))
-
-    def load_label(cls):
-        return joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'))
->>>>>>> 5c38398d184b12d7b2ccb8b8571141413eff99e6
+        return tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib')))
     
     with ThreadPoolExecutor() as pool:
         tdm_x = list(pool.map(load_data, range(class_num)))
@@ -197,108 +190,80 @@ def get_TDMset(TDM_PATH):
 
 def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_time=1, max_overlap_time=5):
     '''
-        x: list(torch.Tensor): shape(sample number, channel(4), frame(1440000))
-        y: list(np.ndarray): shape(sample number, time(600), class+cartesian(14+42))
-        tdm_x: list(np.ndarray): shape(class_num, channel(4), frame)
-        tdm_y: list(np.ndarray): shape(class_num, time, class+cartesian(14+42))
+        x: list(tf.Tensor): shape(sample number, frame(1440000), channel(4))
+        y: list(tf.Tensor): shape(sample number, time(600), class+cartesian(14+42))
+        tdm_x: list(tf.Tensor): shape(class_num, frame, channel(4))
+        tdm_y: list(tf.Tensor): shape(class_num, time, class+cartesian(14+42))
     '''
     class_num = y[0].shape[-1] // 4
-    min_overlap_time *= int(1 / label_resolution) #  
-    max_overlap_time *= int(1 / label_resolution) # 
+    min_overlap_time *= int(1 / label_resolution) 
+    max_overlap_time *= int(1 / label_resolution)
     sr = int(sr * label_resolution)
-<<<<<<< HEAD
-    device = get_device()
-    if tdm_x[0].device != device:
-        tdm_x = list(map(lambda x: x.to(device), tdm_x))
-        tdm_y = list(map(lambda x: x.to(device), tdm_y))
 
-=======
-    
->>>>>>> 5c38398d184b12d7b2ccb8b8571141413eff99e6
-    weight = 1 / torch.tensor([i.shape[0] for i in tdm_y])
-    weight /= weight.sum()
-    weight = weight.cumsum(-1)
+    weight = 1 / tf.convert_to_tensor([i.shape[0] for i in tdm_y])
+    weight /= tf.reduce_sum(weight)
+    # weight = tf.math.cumsum(weight)
     def add_noise(i):
-        selected_cls = weight.multinomial(max_overlap_num, replacement=True) # (max_overlap_num,)
-<<<<<<< HEAD
+        selected_cls = tf.random.categorical(weight[tf.newaxis,...], max_overlap_num)[0] # (max_overlap_num,)
 
         def _add_noise(cls):
-            xs, ys = x[i].to(device), torch.from_numpy(y[i]).to(device)
+            frame_y_num = y[i].shape[0]
 
-            td_x = tdm_x[cls].type(xs.dtype)
-            td_y = tdm_y[cls].type(ys.dtype)
-            sample_time = torch.randint(min_overlap_time, max_overlap_time, (1,), device=xs.device) # to milli second
-            offset = torch.randint(ys.shape[0] - sample_time.item(), (1,), device=xs.device) # offset as label
+            td_x = tdm_x[cls]
+            td_y = tdm_y[cls]
+            sample_time = tf.random.uniform((),min_overlap_time, max_overlap_time,dtype=tf.int64) # to milli second
+            offset = tf.random.uniform((), 0, frame_y_num - sample_time, dtype=tf.int64) # offset as label
 
-            nondup_class = 1 - ys[..., cls] # 프레임 중 class가 겹치지 않는 부분 찾기
+            nondup_class = 1 - y[i][..., cls] # 프레임 중 class가 겹치지 않는 부분 찾기
             
-            valid_index = torch.where(torch.logical_and(ys[...,:class_num].sum(-1) < max_overlap_per_frame, nondup_class))[0].to(xs.device) # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            valid_index = (tf.cast(tf.reduce_sum(y[i][...,:class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class)[..., tf.newaxis] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
 
-            frame_idx = torch.arange(sample_time.item(), device=xs.device) # sample_time 크기만한 frame idx 생성
-            y_idx = frame_idx + offset # 합칠 프레임들 전체
-            con = (torch.unsqueeze(y_idx, -1) == valid_index).sum(-1) # valid_index 중 y_idx에 있는 idx만 찾기, masking 방식의 결과
-            if con.sum() == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
-                return
+            frame_y = tf.pad(tf.ones((sample_time, 1)), ((offset, frame_y_num - offset - sample_time), (0,0))) # 샘플과 동일한 크기 생성
+            frame_y *= valid_index # valid한 프레임만 남기기
+            if tf.reduce_sum(frame_y) == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
+                return tf.zeros((), dtype=tf.int64) # dummy return for using tf.map_fn
             
-            idx = torch.where(con > 0)[0].to(xs.device)
-            y_idx = y_idx[idx].cpu() # 해당되지 않는 부분 삭제, 자리 확정
-            td_offset = torch.randint(td_y.shape[0] - sample_time.item(), (1,), device=xs.device) # 뽑을 노이즈에서의 랜덤 offset
-            td_y_idx = idx + td_offset # 뽑을 노이즈 index
-            
-            x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long, device=xs.device) for i in y_idx]).cpu()
-            td_x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long, device=xs.device) for i in td_y_idx])
-
-            x[i][..., x_idx] = (xs[..., x_idx] + td_x[..., td_x_idx]).cpu()
-            y[i][y_idx] = (ys[y_idx] + td_y[td_y_idx]).cpu() # 레이블 부분 완료
+            td_offset = tf.random.uniform((),0, td_y.shape[0] - frame_y_num, dtype=sample_time.dtype) # 뽑을 노이즈에서의 랜덤 offset
+            y[i] += td_y[td_offset:td_offset+frame_y_num] * frame_y # 레이블 부분 완료
+            x[i] += tf.repeat(tf.cast(frame_y, dtype=x[i].dtype), sr, axis=0) * td_x[td_offset * sr: (td_offset + frame_y_num) * sr]
+            return tf.zeros((), dtype=tf.int64) # dummy return for using tf.map_fn
         
-        list(map(_add_noise, selected_cls))
-    # with ThreadPoolExecutor(5) as pool:
-    #     list(pool.map(add_noise, tqdm(range(len(x)))))
-    list(map(add_noise, tqdm(range(len(x)))))
-    if tdm_x[0].device != 'cpu':
-        tdm_x = list(map(lambda x: x.cpu(), tdm_x))
-        tdm_y = list(map(lambda x: x.cpu(), tdm_y))
-=======
+        tf.map_fn(_add_noise, selected_cls)
+        return tf.zeros((), dtype=tf.int32) # dummy return for using tf.map_fn
 
-        for cls in selected_cls:
-            xs, ys = x[i], torch.from_numpy(y[i])
-
-            td_x = torch.from_numpy(tdm_x[cls]).type(xs.dtype)
-            td_y = torch.from_numpy(tdm_y[cls]).type(ys.dtype)
-            noise_time = torch.randint(min_overlap_time, max_overlap_time, (1,)) # to milli second
-            offset = torch.randint(ys.shape[-1] - noise_time.item(), (1,)) # offset as label
-
-            nondup_class = 1 - ys[..., cls] # 프레임 중 class가 겹치지 않는 부분 찾기
-            
-            valid_index = torch.where(torch.logical_and(ys[...,:class_num].sum(-1) < max_overlap_per_frame, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
-
-            frame_idx = torch.arange(noise_time.item()) # noise_time 크기만한 frame idx 생성
-            y_idx = frame_idx + offset # 합칠 프레임들 전체
-            con = (torch.unsqueeze(y_idx, -1) == valid_index).sum(-1) # valid_index 중 y_idx에 있는 idx만 찾기, masking 방식의 결과
-            if con.sum() == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
-                continue
-            
-            idx = torch.where(con > 0)[0]
-            y_idx = y_idx[idx] # 해당되지 않는 부분 삭제, 자리 확정
-            td_offset = torch.randint(td_y.shape[0] - noise_time.item(), (1,)) # 뽑을 노이즈에서의 랜덤 offset
-            td_y_idx = idx + td_offset # 뽑을 노이즈 index
-            
-
-            x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in y_idx])
-
-            td_x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in td_y_idx])
-
-            x[i][..., x_idx] = (xs[..., x_idx] + td_x[..., td_x_idx]).cpu()
-            y[i][y_idx] = (ys[y_idx] + td_y[td_y_idx]).cpu() # 레이블 부분 완료
-    
-    # with ThreadPoolExecutor() as pool:
-    #     list(pool.map(add_noise, tqdm(range(len(x)))))
-    # with ProcessPoolExecutor(cpu_count() // 2) as pool:
-    #     list(pool.map(add_noise, tqdm(range(len(x)))))
-    list(map(add_noise, tqdm(range(len(x)))))
->>>>>>> 5c38398d184b12d7b2ccb8b8571141413eff99e6
+    tf.map_fn(add_noise, tf.range(len(x)))
     return x, y
 
+
+def foa_intensity_vectors_tf(spectrogram, eps=1e-8):
+    # complex_specs: [chan, time, freq]
+    conj_zero = tf.math.conj(spectrogram[0])
+    IVx = tf.math.real(conj_zero * spectrogram[3])
+    IVy = tf.math.real(conj_zero * spectrogram[1])
+    IVz = tf.math.real(conj_zero * spectrogram[2])
+
+    norm = tf.math.sqrt(IVx**2 + IVy**2 + IVz**2)
+    norm = tf.math.maximum(norm, tf.zeros_like(norm)+eps)
+    IVx = IVx / norm
+    IVy = IVy / norm
+    IVz = IVz / norm
+
+    # apply mel matrix without db ...
+    return tf.stack([IVx, IVy, IVz], axis=0)
+
+
+def gcc_features_tf(complex_specs, n_mels):
+    n_chan = complex_specs.shape[0]
+    gcc_feat = []
+    for m in range(n_chan):
+        for n in range(m+1, n_chan):
+            R = tf.math.conj(complex_specs[m]) * complex_specs[n]
+            print(R.shape)
+            cc = tf.signal.irfft(tf.math.exp(1.j*tf.complex(tf.math.angle(R),0.0)))
+            cc = tf.concat([cc[-n_mels//2:], cc[:(n_mels+1)//2]], axis=0)
+            gcc_feat.append(cc)
+
+    return tf.stack(gcc_feat, axis=0)
 
 def get_preprocessed_x(wav, sample_rate, mode='foa', n_mels=64,
                        multiplier=5, max_label_length=600, **kwargs):
@@ -342,6 +307,49 @@ def get_preprocessed_x(wav, sample_rate, mode='foa', n_mels=64,
         features = features[:max_len]
 
     return features
+
+def get_preprocessed_x_tf(wav, sr, mode='foa', n_mels=64,
+                          multiplier=5, max_label_length=600, win_length=960,
+                          hop_length=480, n_fft=1024):
+    mel_mat = tf.signal.linear_to_mel_weight_matrix(num_mel_bins=n_mels,
+                                                    num_spectrogram_bins=n_fft//2+1,
+                                                    sample_rate=sr,
+                                                    lower_edge_hertz=0,
+                                                    upper_edge_hertz=sr//2)
+
+
+    spectrogram = tf.signal.stft(tf.transpose(wav), win_length, hop_length, n_fft, pad_end=True)
+    norm_spec = tf.math.abs(spectrogram)
+    mel_spec = tf.matmul(norm_spec, mel_mat)
+    mel_spec = tfio.experimental.audio.dbscale(mel_spec, top_db=80)
+    features = [mel_spec]
+        
+    if mode == 'foa':
+        foa = foa_intensity_vectors_tf(spectrogram)
+        foa = tf.matmul(foa, mel_mat)
+        foa = tfio.experimental.audio.dbscale(foa, top_db=80)
+        features.append(foa)
+        
+    elif mode == 'mic':
+        gcc = gcc_features_tf(spectrogram, n_mels=n_mels)
+        features.append(gcc)
+    
+    else:
+        raise ValueError('invalid mode')
+    
+    features = tf.concat(features, axis=0)
+    features = tf.transpose(features, perm=[1, 2, 0])
+    
+    cur_len = features.shape[0]
+    max_len = max_label_length * multiplier
+    
+    if cur_len < max_len: 
+        pad = tf.constant([[0, max_len-cur_len], [0,0], [0,0]])
+        features = tf.pad(features, pad, 'constant')
+    else:
+        features = features[:max_len]
+    return features
+
 
 
 if __name__ == '__main__':
