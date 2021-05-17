@@ -377,7 +377,7 @@ def mother_block(model_config: dict):
             for i in range(len(connect2)):
                 if connect2[i] == 1:
                     skip = outputs[i]
-                    if connect2[-1] == 1 and i < 2:
+                    if connect2[-1] == 1 and tuple(strides) != (1, 1) and i < 2:
                         # connect with strided outputs
                         skip = Conv2D(skip.shape[-1], 1, strides=strides)(skip)
                     out.append(skip)
