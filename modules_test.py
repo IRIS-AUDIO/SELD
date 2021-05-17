@@ -462,7 +462,6 @@ class ModulesTest(tf.test.TestCase):
         inputs = tf.keras.layers.Input(exp_input_shape[1:])
         outputs = block_fn(model_config)(inputs)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
-        model.summary()
 
         x = tf.zeros(exp_input_shape)
         y = model(x)
