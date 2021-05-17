@@ -5,6 +5,30 @@ from modules import *
 
 
 class ModulesTest(tf.test.TestCase):
+    def test_mother_stage(self):
+        model_config = {
+            'depth': 2,
+            'filters0': 3,
+            'filters1': 3,
+            'filters2': 6,
+            'kernel_size0': 1,
+            'kernel_size1': 3,
+            'kernel_size2': 1,
+            'connect0': [0],
+            'connect1': [0, 0],
+            'connect2': [1, 0, 0],
+            'strides': [2, 2],
+            'activation': 'relu',
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 16, 16, 6
+
+        self.block_test(mother_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_simple_conv_stage(self):
         model_config = {
             'filters': 128,
@@ -183,6 +207,29 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 100, 64 # batch, time, feat
     
         self.block_test(conformer_encoder_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_mother_block(self):
+        model_config = {
+            'filters0': 6,
+            'filters1': 8,
+            'filters2': 0,
+            'kernel_size0': 3,
+            'kernel_size1': 3,
+            'kernel_size2': 0,
+            'connect0': [0],
+            'connect1': [0, 1],
+            'connect2': [1, 0, 1],
+            'strides': [1, 2],
+            'activation': 'relu',
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 32, 16, 11
+
+        self.block_test(mother_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
@@ -415,6 +462,7 @@ class ModulesTest(tf.test.TestCase):
         inputs = tf.keras.layers.Input(exp_input_shape[1:])
         outputs = block_fn(model_config)(inputs)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        model.summary()
 
         x = tf.zeros(exp_input_shape)
         y = model(x)
