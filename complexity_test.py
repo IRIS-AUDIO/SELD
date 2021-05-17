@@ -30,17 +30,6 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
-    def test_res_basic_stage_complexity(self):
-        model_config = {
-            'depth': 4,
-            'strides': 2,
-            'filters': 24,
-        }
-        self.complexity_test(res_basic_stage_complexity,
-                             res_basic_stage,
-                             model_config,
-                             [32, 32, 16])
-
     def test_res_basic_block_complexity(self):
         model_config = {
             'strides': 2,
@@ -50,19 +39,6 @@ class ComplexityTest(tf.test.TestCase):
                              res_basic_block,
                              model_config,
                              [32, 32, 3])
-
-    def test_res_bottleneck_stage_complexity(self):
-        model_config = {
-            'depth': 4,
-            'strides': 2,
-            'filters': 24,
-            'groups': 2,
-            'bottleneck_ratio': 2
-        }
-        self.complexity_test(res_bottleneck_stage_complexity,
-                             res_bottleneck_stage,
-                             model_config,
-                             [32, 32, 16])
 
     def test_res_bottleneck_block_complexity(self):
         model_config = {
@@ -92,6 +68,7 @@ class ComplexityTest(tf.test.TestCase):
     def test_sepformer_block_complexity(self):
         model_config = {
             'n_head': 8,
+            'key_dim': 16,
             'ff_multiplier': 4,
             'kernel_size': 3,
         }
@@ -133,6 +110,7 @@ class ComplexityTest(tf.test.TestCase):
     def test_transformer_encoder_block_complexity(self):
         model_config = {
             'n_head': 4,
+            'key_dim': 16,
             'ff_multiplier': 2,
             'kernel_size': 3,
         }
@@ -313,17 +291,12 @@ class ComplexityTest(tf.test.TestCase):
                                  prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
     
-    def test_safe_tuple(self):
-        self.assertEqual((1, 1), safe_tuple(1, 2))
-        self.assertEqual((1, 3), safe_tuple((1, 3), 2))
-        with self.assertRaises(ValueError):
-            safe_tuple((1, 2, 3), 2)
-
     def complexity_test(self, 
                         complexity_fn,
                         block_fn,
                         model_config: dict,
-                        exp_input_shape: list):
+                        exp_input_shape: list,
+                        verbose=False):
         '''
         complexity_fn: a func that calculates the complexity
                        of given block(stage)
@@ -338,6 +311,8 @@ class ComplexityTest(tf.test.TestCase):
         inputs = tf.keras.layers.Input(exp_input_shape)
         outputs = block_fn(model_config)(inputs)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        if verbose:
+            model.summary()
 
         cx, output_shape = complexity_fn(model_config, exp_input_shape)
 

@@ -7,44 +7,7 @@
 # references
 # https://github.com/facebookresearch/pycls/blob/master/pycls/models/blocks.py
 import copy
-from utils import dict_add
-
-
-def conv_temporal_complexity(model_config, input_shape):
-     filters = model_config.get('filters', 32)
-     first_kernel_size = model_config.get('first_kernel_size', 7)
-     first_pool_size = model_config.get('first_pool_size', [5, 1])
-     n_classes = model_config.get('n_classes', 14)
-
-     shape = input_shape[-3:]
-     total_cx = {}
-
-     total_cx, shape = conv2d_complexity(shape, filters, first_kernel_size,
-                                         padding='same', prev_cx=total_cx)
-     total_cx, shape = norm_complexity(shape, prev_cx=total_cx)
-     total_cx, shape = pool2d_complexity(shape, first_pool_size, padding='same',
-                                         prev_cx=total_cx)
-
-     blocks = [key for key in model_config.keys()
-               if key.startswith('BLOCK') and not key.endswith('_ARGS')]
-     blocks.sort()
-
-     for block in blocks:
-         cx, shape = globals()[f'{model_config[block]}_complexity'](
-             model_config[f'{block}_ARGS'], shape)
-         total_cx = dict_add(total_cx, cx)
-
-     cx, sed_shape = globals()[f'{model_config["SED"]}_complexity'](
-         model_config['SED_ARGS'], shape)
-     cx, sed_shape = linear_complexity(sed_shape, n_classes, prev_cx=cx)
-     total_cx = dict_add(total_cx, cx)
-
-     cx, doa_shape = globals()[f'{model_config["DOA"]}_complexity'](
-         model_config['DOA_ARGS'], shape)
-     cx, doa_shape = linear_complexity(doa_shape, 3*n_classes, prev_cx=cx)
-     total_cx = dict_add(total_cx, cx)
-
-     return total_cx, (sed_shape, doa_shape)
+from utils import *
 
 
 '''            module complexities            '''
@@ -89,22 +52,6 @@ def another_conv_block_complexity(model_config, input_shape):
     return cx, shape
 
 
-def res_basic_stage_complexity(model_config, input_shape):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-
-    model_config = copy.deepcopy(model_config)
-    shape = input_shape
-    total_cx = {}
-
-    for i in range(depth):
-        cx, shape = res_basic_block_complexity(model_config, shape)
-        total_cx = dict_add(total_cx, cx)
-        model_config['strides'] = 1
-    return total_cx, shape
-
-
 def res_basic_block_complexity(model_config, input_shape):
     # mandatory parameters
     filters = model_config['filters']
@@ -122,27 +69,11 @@ def res_basic_block_complexity(model_config, input_shape):
                                   groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
-    if input_shape[-1] != filters:
+    if strides not in [(1, 1), [1, 1]] or input_shape[-1] != filters:
         cx, _ = conv2d_complexity(input_shape, filters, 1, strides=strides, 
                                   prev_cx=cx)
         cx, _ = norm_complexity(shape, prev_cx=cx)
     return cx, shape
-
-
-def res_bottleneck_stage_complexity(model_config, input_shape):
-    # mandatory parameters
-    depth = model_config['depth']
-    strides = model_config['strides']
-
-    model_config = copy.deepcopy(model_config)
-    shape = input_shape
-    total_cx = {}
-
-    for i in range(depth):
-        cx, shape = res_bottleneck_block_complexity(model_config, shape)
-        total_cx = dict_add(total_cx, cx)
-        model_config['strides'] = 1
-    return total_cx, shape
 
 
 def res_bottleneck_block_complexity(model_config, input_shape):
@@ -332,6 +263,7 @@ def bidirectional_GRU_block_complexity(model_config, input_shape):
 def transformer_encoder_block_complexity(model_config, input_shape):
     # mandatory parameters
     n_head = model_config['n_head']
+    key_dim = model_config['key_dim']
     ff_multiplier = model_config['ff_multiplier'] # default to 4 
     kernel_size = model_config['kernel_size'] # default to 1
 
@@ -347,7 +279,7 @@ def transformer_encoder_block_complexity(model_config, input_shape):
 
     cx = {}
     cx, shape = multi_head_attention_complexity(
-        shape, n_head, d_model//n_head, prev_cx=cx)
+        shape, n_head, key_dim, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
     cx, shape = conv1d_complexity(shape, ff_dim, kernel_size, prev_cx=cx)
@@ -602,28 +534,6 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
         {'flops': flops, 'params': params},
         prev_cx if prev_cx else {})
     return complexity, output_shape
-
-# utils
-def safe_tuple(tuple_or_scalar, length=2):
-    if isinstance(tuple_or_scalar, (int, float)):
-        tuple_or_scalar = (tuple_or_scalar, ) * length
-
-    tuple_or_scalar = tuple(tuple_or_scalar)
-    count = len(tuple_or_scalar)
-    if count == 1:
-        tuple_or_scalar = tuple_or_scalar * length
-    elif count != length:
-        raise ValueError("length of input must be one or required length")
-    return tuple_or_scalar
-
-
-def force_1d_shape(shape):
-    # shape must not have batch dim
-    if len(shape) == 3:
-        shape = [shape[0], shape[1] * shape[2]]
-    elif len(shape) > 3:
-        raise ValueError(f'invalid shape: {shape}')
-    return shape
 
 
 if __name__ == '__main__':

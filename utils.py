@@ -32,6 +32,28 @@ def dict_add(first: dict, second: dict):
     return output
 
 
+def safe_tuple(tuple_or_scalar, length=2):
+    if isinstance(tuple_or_scalar, (int, float)):
+        tuple_or_scalar = (tuple_or_scalar, ) * length
+
+    tuple_or_scalar = tuple(tuple_or_scalar)
+    count = len(tuple_or_scalar)
+    if count == 1:
+        tuple_or_scalar = tuple_or_scalar * length
+    elif count != length:
+        raise ValueError("length of input must be one or required length")
+    return tuple_or_scalar
+
+
+def force_1d_shape(shape):
+    # shape must not have batch dim
+    if len(shape) == 3:
+        shape = [shape[0], shape[1] * shape[2]]
+    elif len(shape) > 3:
+        raise ValueError(f'invalid shape: {shape}')
+    return shape
+
+
 def get_device():
     import torch
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')

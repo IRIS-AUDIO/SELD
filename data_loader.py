@@ -177,10 +177,17 @@ def get_TDMset(TDM_PATH):
     device = get_device()
 
     def load_data(cls):
+<<<<<<< HEAD
         return torch.from_numpy(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))).to(device)
 
     def load_label(cls):
         return torch.from_numpy(joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'))).to(device)
+=======
+        return joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))
+
+    def load_label(cls):
+        return joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib'))
+>>>>>>> 5c38398d184b12d7b2ccb8b8571141413eff99e6
     
     with ThreadPoolExecutor() as pool:
         tdm_x = list(pool.map(load_data, range(class_num)))
@@ -199,16 +206,21 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
     min_overlap_time *= int(1 / label_resolution) #  
     max_overlap_time *= int(1 / label_resolution) # 
     sr = int(sr * label_resolution)
+<<<<<<< HEAD
     device = get_device()
     if tdm_x[0].device != device:
         tdm_x = list(map(lambda x: x.to(device), tdm_x))
         tdm_y = list(map(lambda x: x.to(device), tdm_y))
 
+=======
+    
+>>>>>>> 5c38398d184b12d7b2ccb8b8571141413eff99e6
     weight = 1 / torch.tensor([i.shape[0] for i in tdm_y])
     weight /= weight.sum()
     weight = weight.cumsum(-1)
     def add_noise(i):
         selected_cls = weight.multinomial(max_overlap_num, replacement=True) # (max_overlap_num,)
+<<<<<<< HEAD
 
         def _add_noise(cls):
             xs, ys = x[i].to(device), torch.from_numpy(y[i]).to(device)
@@ -246,6 +258,45 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
     if tdm_x[0].device != 'cpu':
         tdm_x = list(map(lambda x: x.cpu(), tdm_x))
         tdm_y = list(map(lambda x: x.cpu(), tdm_y))
+=======
+
+        for cls in selected_cls:
+            xs, ys = x[i], torch.from_numpy(y[i])
+
+            td_x = torch.from_numpy(tdm_x[cls]).type(xs.dtype)
+            td_y = torch.from_numpy(tdm_y[cls]).type(ys.dtype)
+            noise_time = torch.randint(min_overlap_time, max_overlap_time, (1,)) # to milli second
+            offset = torch.randint(ys.shape[-1] - noise_time.item(), (1,)) # offset as label
+
+            nondup_class = 1 - ys[..., cls] # 프레임 중 class가 겹치지 않는 부분 찾기
+            
+            valid_index = torch.where(torch.logical_and(ys[...,:class_num].sum(-1) < max_overlap_per_frame, nondup_class))[0] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+
+            frame_idx = torch.arange(noise_time.item()) # noise_time 크기만한 frame idx 생성
+            y_idx = frame_idx + offset # 합칠 프레임들 전체
+            con = (torch.unsqueeze(y_idx, -1) == valid_index).sum(-1) # valid_index 중 y_idx에 있는 idx만 찾기, masking 방식의 결과
+            if con.sum() == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
+                continue
+            
+            idx = torch.where(con > 0)[0]
+            y_idx = y_idx[idx] # 해당되지 않는 부분 삭제, 자리 확정
+            td_offset = torch.randint(td_y.shape[0] - noise_time.item(), (1,)) # 뽑을 노이즈에서의 랜덤 offset
+            td_y_idx = idx + td_offset # 뽑을 노이즈 index
+            
+
+            x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in y_idx])
+
+            td_x_idx = torch.cat([torch.arange((i * sr).item(), (i * sr + sr).item(), dtype=torch.long) for i in td_y_idx])
+
+            x[i][..., x_idx] = (xs[..., x_idx] + td_x[..., td_x_idx]).cpu()
+            y[i][y_idx] = (ys[y_idx] + td_y[td_y_idx]).cpu() # 레이블 부분 완료
+    
+    # with ThreadPoolExecutor() as pool:
+    #     list(pool.map(add_noise, tqdm(range(len(x)))))
+    # with ProcessPoolExecutor(cpu_count() // 2) as pool:
+    #     list(pool.map(add_noise, tqdm(range(len(x)))))
+    list(map(add_noise, tqdm(range(len(x)))))
+>>>>>>> 5c38398d184b12d7b2ccb8b8571141413eff99e6
     return x, y
 
 
