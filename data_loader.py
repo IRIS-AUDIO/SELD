@@ -250,7 +250,7 @@ def foa_intensity_vectors_tf(spectrogram, eps=1e-8):
     IVz = tf.math.real(conj_zero * spectrogram[2])
 
     norm = tf.math.sqrt(IVx**2 + IVy**2 + IVz**2)
-    norm = tf.math.maximum(norm, tf.zeros_like(norm)+eps)
+    norm = tf.math.maximum(norm, eps)
     IVx = IVx / norm
     IVy = IVy / norm
     IVz = IVz / norm
