@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 from feature_extractor import *
 import random as rnd
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -200,12 +199,12 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
     max_overlap_sec *= int(1 / label_resolution)
     sr = int(sr * label_resolution)
 
-    def add_noise(i, x, y):
+    def add_noise(i):
         weight = 1 / tf.convert_to_tensor([k.shape[0] for k in tdm_y])
         weight /= tf.reduce_sum(weight)
         selected_cls = tf.random.categorical(tf.math.log(weight[tf.newaxis,...]), max_overlap_num)[0] # (max_overlap_num,)
 
-        def _add_noise(i, cls, x, y):
+        def _add_noise(cls):
             frame_y_num = y[i].shape[0]
             sample_time = tf.random.uniform((), min_overlap_sec, max_overlap_sec,dtype=tf.int64) # to milli second
             offset = tf.random.uniform((), 0, frame_y_num - sample_time, dtype=tf.int64) # offset as label
@@ -218,27 +217,30 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
 
             frame_y *= valid_index[..., tf.newaxis] # valid한 프레임만 남기기
             if tf.reduce_sum(frame_y) == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
-                return x, y
+                return tf.zeros((), dtype=tf.int64)
 
             tdm_frame_y = tdm_y[cls][td_offset:td_offset+sample_time] * valid_index[...,tf.newaxis] # valid한 프레임만 남기기
             y[i] += tf.pad(tdm_frame_y * frame_y, ((offset, frame_y_num - offset - sample_time),(0,0))) # 레이블 부분 완료
 
             tdm_frame_x = tdm_x[cls][td_offset * sr: (td_offset + sample_time) * sr] * tf.repeat(tf.cast(valid_index, dtype=x[i].dtype), sr, axis=0)[...,tf.newaxis]
             x[i] += tf.pad(tdm_frame_x, ((offset * sr, x[i].shape[0] - (offset + sample_time) * sr),(0,0)))
-            return x, y
+            return tf.zeros((), dtype=tf.int64)
         
         j = tf.constant(0)
-        cond = lambda i, j, x, y: j < len(selected_cls)
-        body = lambda i, j, x, y: (i, j+1) + _add_noise(i, j, x, y)
-        _, _, x, y = tf.while_loop(cond, body, (i, j, x, y))
+        cond = lambda i, j: j < len(selected_cls)
+        def body(i, j):
+            _add_noise(selected_cls[j])
+            return i, j + 1
+        tf.while_loop(cond, body, (i, j))
         # tf.map_fn(_add_noise, selected_cls)
-        return x, y
+        return tf.zeros((), dtype=tf.int32)
 
-    i = tf.constant(0)
-    cond = lambda i, x, y: i < len(x)
-    body = lambda i, x, y: (i+1,) + add_noise(i, x, y)
-    _, x, y = tf.while_loop(cond, body, (i, x, y))
-    # x, y = tf.map_fn(add_noise, tf.range(len(x)))
+
+    # i = tf.constant(0)
+    # cond = lambda i, x, y: i < len(x)
+    # body = lambda i, x, y: (i+1,) + add_noise(i, x, y)
+    # _, x, y = tf.while_loop(cond, body, (i, x, y))
+    tf.map_fn(add_noise, tf.range(len(x)))
     return x, y
 
 
