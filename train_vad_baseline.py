@@ -41,7 +41,8 @@ def train_and_eval(model_config: dict,
                    input_shape,
                    trainset: tf.data.Dataset,
                    valset: tf.data.Dataset,
-                   epochs=1):
+                   epochs=1,
+                   name='bdnn_baseline'):
     model = models.vad_architecture(input_shape, model_config)
 
     model.compile(
@@ -53,7 +54,7 @@ def train_and_eval(model_config: dict,
         tf.keras.callbacks.EarlyStopping(monitor='val_auc',
                                          patience=16,
                                          mode='max'),
-        tf.keras.callbacks.ModelCheckpoint('bdnn_baseline.h5',
+        tf.keras.callbacks.ModelCheckpoint(f'{name}.h5',
                                            monitor='val_auc',
                                            save_best_only=True,
                                            mode='max',
@@ -64,7 +65,7 @@ def train_and_eval(model_config: dict,
                         epochs=epochs,
                         validation_data=valset,
                         callbacks=callbacks)
-    model.load_weights('bdnn_baseline.h5')
+    model.load_weights(f'{name}.h5')
 
     performances = {
         # **history.history,
@@ -122,19 +123,22 @@ if __name__=='__main__':
 
     # start training
     search_space_2d = {
-        'res_basic_stage': 
-            {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+        'res_basic_stage':
+            {'filters': [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64],
              'depth': [1, 2, 3],
-             'strides': [(1, 1), (1, 2), (1, 3)],
-             'groups': [1, 2, 4, 8, 16, 32, 64]},
-        'res_bottleneck_stage': 
-            {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+             'strides': [(1, 1), (1, 2)],
+             'groups': [0, 0.5, 1]},
+        'res_bottleneck_stage':
+            {'filters': [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64],
              'depth': [1, 2, 3],
-             'strides': [(1, 1), (1, 2), (1, 3)],
-             'groups': [1, 2, 4, 8, 16, 32, 64],
-             'bottleneck_ratio': [0.25, 0.5, 1, 2, 4]},
+             'strides': [(1, 1), (1, 2)],
+             'groups': [0, 0.5, 1],
+             'bottleneck_ratio': [0.25, 0.35, 0.5, 0.7, 1, 1.41, 2, 2.83, 4]},
     }
     search_space_1d = {
+        'simple_dense_block':
+            {'units': [[16], [24], [32], [48], [64], [96], [128], [192], [256]], 
+             'dense_activation': [None, 'relu']},
     }
 
     def sample_constraint(min_flops=None, max_flops=None, 
@@ -166,6 +170,9 @@ if __name__=='__main__':
             if model_config['BLOCK1'] != 'res_bottleneck_stage':
                 return False
 
+            if model_config['BLOCK0_ARGS']['strides'] != (1, 1):
+                return False
+
             # total complexity contraint
             if min_flops and total_cx['flops'] < min_flops:
                 return False
@@ -192,7 +199,9 @@ if __name__=='__main__':
         constraint=constraint)
 
     model, outputs = train_and_eval(model_config, input_shape, 
-                                    trainset, valset, epochs=1000)
+                                    trainset, valset, epochs=1000,
+                                    name='two')
+    print(outputs)
 
     ys = []
     ys_hat = []
