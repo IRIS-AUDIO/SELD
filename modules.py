@@ -12,6 +12,19 @@ Use only custom layers or predefined
 """
 
 """            STAGES            """
+def mother_stage(model_config: dict):
+    depth = model_config['depth']
+    strides = model_config['strides']
+    model_config = copy.deepcopy(model_config)
+
+    def stage(x):
+        for i in range(depth):
+            x = mother_block(model_config)(x)
+            model_config['strides'] = (1, 1)
+        return x
+    return stage
+
+
 def simple_conv_stage(model_config: dict):
     '''
     essential configs
@@ -273,6 +286,107 @@ def conformer_encoder_stage(model_config: dict):
 
 
 """            BLOCKS WITH 2D OUTPUTS            """
+def mother_block(model_config: dict):
+    filters0 = model_config['filters0'] # 0 if skipped
+    filters1 = model_config['filters1'] # 0 if skipped
+    filters2 = model_config['filters2'] # 0 if skipped
+    kernel_size0 = model_config['kernel_size0'] # 0 if skipped
+    kernel_size1 = model_config['kernel_size1'] # 0 if skipped
+    kernel_size2 = model_config['kernel_size2'] # 0 if skipped
+    connect0 = model_config['connect0'] # len of 1 (0: input)
+    connect1 = model_config['connect1'] # len of 2 (0: input, 1: out0)
+    connect2 = model_config['connect2'] # len of 3 (0: input, 1: out0, 2: out1)
+
+    strides = safe_tuple(model_config.get('strides', (1, 1)))
+    activation = model_config.get('activation', 'relu')
+
+    if (filters0 == 0) != (kernel_size0 == 0):
+        raise ValueError('0) skipped layer must have 0 filters, 0 kernel size')
+    if (filters1 == 0) != (kernel_size1 == 0):
+        raise ValueError('1) skipped layer must have 0 filters, 0 kernel size')
+    if (filters2 == 0) != (kernel_size2 == 0):
+        raise ValueError('2) skipped layer must have 0 filters, 0 kernel size')
+
+    if filters0 == 0 and max(connect1[1], connect2[1]):
+        raise ValueError('cannot link skipped layer (first layer)')
+    if filters1 == 0 and connect2[2] > 0:
+        raise ValueError('cannot link skipped layer (second layer)')
+
+    if (filters0 != 0) + sum(connect0) == 0:
+        raise ValueError('cannot pass zero inputs to the second layer')
+    if (filters1 != 0) + sum(connect1) == 0:
+        raise ValueError('cannot pass zero inputs to the third layer')
+    if (filters2 != 0) + sum(connect2) == 0:
+        raise ValueError('cannot pass zero inputs to the final output')
+
+    if filters1 == 0 and tuple(strides) != (1, 1):
+        raise ValueError('if strides are set, the second layer must be active')
+
+    def block(inputs):
+        outputs = [inputs]
+
+        # first layer
+        if filters0 > 0:
+            out = Conv2D(filters0, kernel_size0, padding='same')(outputs[-1])
+            out = BatchNormalization()(out)
+            if connect0[0] == 1:
+                skip = outputs[-1]
+                if skip.shape[-3:] != out.shape[-3:]:
+                    skip = Conv2D(filters0, 1)(skip)
+                out += BatchNormalization()(skip)
+            out = Activation(activation)(out)
+        else:
+            out = outputs[-1]
+        outputs.append(out)
+
+        # second layer (apply strides)
+        if filters1 > 0:
+            out = Conv2D(filters1, kernel_size1, padding='same',
+                         strides=strides)(outputs[-1])
+            out = BatchNormalization()(out)
+            for i in range(len(connect1)):
+                if connect1[i] == 1:
+                    skip = outputs[i]
+                    if skip.shape[-3:] != out.shape[-3:]:
+                        skip = Conv2D(filters1, 1, strides=strides)(skip)
+                    out += BatchNormalization()(skip)
+            out = Activation(activation)(out)
+        else:
+            out = []
+            for i in range(len(connect1)):
+                if connect1[i] == 1:
+                    out.append(outputs[i])
+            out = tf.concat(out, axis=-1)
+        outputs.append(out)
+
+        # third layer
+        if filters2 > 0:
+            out = Conv2D(filters2, kernel_size2, padding='same')(outputs[-1])
+            out = BatchNormalization()(out)
+            for i in range(len(connect2)):
+                if connect2[i] == 1:
+                    skip = outputs[i]
+                    if skip.shape[-3:] != out.shape[-3:]:
+                        skip = Conv2D(
+                            filters2, 1, 
+                            strides=(1, 1) if i == 2 else strides)(skip)
+                    out += BatchNormalization()(skip)
+            out = Activation(activation)(out)
+        else:
+            out = []
+            for i in range(len(connect2)):
+                if connect2[i] == 1:
+                    skip = outputs[i]
+                    if connect2[-1] == 1 and tuple(strides) != (1, 1) and i < 2:
+                        # connect with strided outputs
+                        skip = Conv2D(skip.shape[-1], 1, strides=strides)(skip)
+                    out.append(skip)
+            out = tf.concat(out, axis=-1)
+
+        return out
+    return block
+
+
 def simple_conv_block(model_config: dict):
     # mandatory parameters
     filters = model_config['filters']
