@@ -41,7 +41,23 @@ class ModelsTest(tf.test.TestCase):
             }
         }
         vad = vad_architecture(input_shape, model_config)
-        self.assertEqual(vad.output_shape[1:], (7, 1))
+        self.assertEqual(vad.output_shape[1:], (7,))
+
+    def test_spectro_temporal_attention_based_VAD(self):
+        input_shape = [7, 80, 1] # win_size, n_mels
+        model_config = {}
+        vad = spectro_temporal_attention_based_VAD(input_shape, model_config)
+
+        self.assertEqual(vad.output_shape[0][1:], (7, 1))
+        self.assertEqual(vad.output_shape[1][1:], (7, 1))
+        self.assertEqual(vad.output_shape[2][1:], (7,))
+
+        # test its trainability
+        x = tf.random.uniform([32, 7, 80, 1])
+        y = tf.random.uniform([32, 7], maxval=2, dtype=tf.int32)
+
+        vad.compile('adam', loss=tf.keras.losses.BinaryCrossentropy())
+        vad.fit(x, y)
 
 
 if __name__ == '__main__':

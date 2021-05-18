@@ -97,5 +97,68 @@ def vad_architecture(input_shape, model_config):
 
     x = layers.force_1d_inputs()(x)
     x = Dense(last_unit, activation='sigmoid')(x)
+    if x.shape[-1] == 1:
+        x = x[..., 0]
     return tf.keras.Model(inputs=inputs, outputs=x)
+
+
+def spectro_temporal_attention_based_VAD(input_shape, model_config):
+    T = model_config.get('T', 4) # depth of spectral attention stage
+    Nc = model_config.get('Nc', 16) # filters in spectral attention stage
+    fc = model_config.get('fc', 3) # kernel_size in spectral attention stage
+    Np = model_config.get('Np', 256) # units in pipe-net
+    Nt = model_config.get('Nt', 128) # units in temporal attention stage
+    H = model_config.get('H', 4) # n_heads in temporal attention stage
+
+    dropout_rate = model_config.get('dropout_rate', 0.5)
+
+    inputs = Input(shape=input_shape)
+    x = inputs
+
+    # spectral attention
+    for i in range(T):
+        x = layers.conv2d_bn(Nc*(2**i), fc, activation=None)(x) \
+          * layers.conv2d_bn(Nc*(2**i), fc, activation='sigmoid')(x)
+        x = MaxPooling2D(pool_size=[1, 2])(x)
+    x = Reshape((x.shape[-3], -1))(x)
+
+    # pipe net
+    for i in range(2):
+        x = Dense(Np)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = Dropout(dropout_rate)(x)
+    pipe = Dense(1, activation='sigmoid')(x)
+
+    # temporal attention
+    # q: [batch, Nt], k: [batch, time, Nt], v: [batch, time, Nt]
+    query = Dense(Nt, use_bias=False)(tf.reduce_mean(x, axis=-2))
+    query = BatchNormalization()(query)
+    query = Activation('sigmoid')(query)
+    key = Dense(Nt, use_bias=False)(x)
+    key = BatchNormalization()(key)
+    key = Activation('sigmoid')(key)
+    value = Dense(Nt, use_bias=False)(x)
+    value = BatchNormalization()(value)
+    value = Activation('sigmoid')(value)
+
+    scale = 1 / tf.sqrt(tf.cast(Nt, dtype=tf.float32))
+    query = Reshape((*query.shape[1:-1], Nt//H, H))(query)
+    key = Reshape((*key.shape[1:-1], Nt//H, H))(key)
+    value = Reshape((*value.shape[1:-1], Nt//H, H))(value)
+    
+    score = tf.reduce_sum(query[:, tf.newaxis, ...] * key, axis=-2) * scale
+    x = value * tf.nn.softmax(score[..., tf.newaxis, :], axis=-3)
+    x = Reshape((*x.shape[1:-2], Nt))(x)
+    score = tf.nn.softmax(tf.reduce_sum(score, axis=-1), axis=-1)
+
+    # post net
+    for i in range(1):
+        x = Dense(Np)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = Dropout(dropout_rate)(x)
+    x = Dense(1, activation='sigmoid')(x)
+
+    return tf.keras.Model(inputs=inputs, outputs=[x, pipe, score])
 
