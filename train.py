@@ -158,7 +158,9 @@ def get_both_dataset(config, mode:str='train'):
     return dataset
 
 
-def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_time=1, max_overlap_time=5):
+def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_sec=1, max_overlap_sec=5):
+    from time import time
+    st = time()
     mode = 'foa'
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
@@ -175,11 +177,11 @@ def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_over
     x, y = TDM_aug(x, y, tdm_x, tdm_y, 
                    max_overlap_num=max_overlap_num, 
                    max_overlap_per_frame=max_overlap_per_frame, 
-                   min_overlap_time=min_overlap_time, 
-                   max_overlap_time=max_overlap_time)
+                   min_overlap_sec=min_overlap_sec, 
+                   max_overlap_sec=max_overlap_sec)
     del tdm_x, tdm_y
     print('TDM convert wave to feature')
-    x = list(map(lambda x_: get_preprocessed_x(x_, sr, mode=mode,
+    x = list(map(lambda x_: get_preprocessed_x_tf(x_, sr, mode=mode,
                          n_mels=64, 
                          multiplier=5,
                          max_label_length=600,
@@ -210,6 +212,7 @@ def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_over
         sample_transforms=sample_transforms,
         loop_time=config.loop_time
     )
+    print(f'tdm dataset time: {time() - st:.4}')
     return dataset
 
 
@@ -304,9 +307,9 @@ def main(config):
                 trainset = get_tdm_dataset(config, 
                                            max_overlap_num=overlap_num, 
                                            max_overlap_per_frame=2, 
-                                           min_overlap_time=1, 
+                                           min_overlap_sec=1, 
                                         #    min_overlap_time=overlap_time - 1, 
-                                           max_overlap_time=overlap_time)
+                                           max_overlap_sec=overlap_time)
             
         # train loop
         metric_class.reset_states()
