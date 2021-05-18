@@ -177,7 +177,7 @@ def get_TDMset(TDM_PATH):
     class_num = len(glob(tdm_path + '/*label_*.joblib'))
 
     def load_data(cls):
-        return tf.cast(tf.transpose(tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib'))), (1,0)), tf.float32)
+        return tf.transpose(tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib')), dtype=tf.float32))
 
     def load_label(cls):
         return tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib')))
@@ -188,7 +188,7 @@ def get_TDMset(TDM_PATH):
     return tdm_x, tdm_y
 
 
-def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_time=1, max_overlap_time=5):
+def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_sec=1, max_overlap_sec=5):
     '''
         x: list(tf.Tensor): shape(sample number, frame(1440000), channel(4))
         y: list(tf.Tensor): shape(sample number, time(600), class+cartesian(14+42))
@@ -196,42 +196,49 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
         tdm_y: list(tf.Tensor): shape(class_num, time, class+cartesian(14+42))
     '''
     class_num = y[0].shape[-1] // 4
-    min_overlap_time *= int(1 / label_resolution) 
-    max_overlap_time *= int(1 / label_resolution)
+    min_overlap_sec *= int(1 / label_resolution) 
+    max_overlap_sec *= int(1 / label_resolution)
     sr = int(sr * label_resolution)
 
-    weight = 1 / tf.convert_to_tensor([i.shape[0] for i in tdm_y])
-    weight /= tf.reduce_sum(weight)
-    # weight = tf.math.cumsum(weight)
-    def add_noise(i):
-        selected_cls = tf.random.categorical(weight[tf.newaxis,...], max_overlap_num)[0] # (max_overlap_num,)
+    def add_noise(i, x, y):
+        weight = 1 / tf.convert_to_tensor([k.shape[0] for k in tdm_y])
+        weight /= tf.reduce_sum(weight)
+        selected_cls = tf.random.categorical(tf.math.log(weight[tf.newaxis,...]), max_overlap_num)[0] # (max_overlap_num,)
 
-        def _add_noise(cls):
+        def _add_noise(i, cls, x, y):
             frame_y_num = y[i].shape[0]
-
-            td_x = tdm_x[cls]
-            td_y = tdm_y[cls]
-            sample_time = tf.random.uniform((),min_overlap_time, max_overlap_time,dtype=tf.int64) # to milli second
+            sample_time = tf.random.uniform((), min_overlap_sec, max_overlap_sec,dtype=tf.int64) # to milli second
             offset = tf.random.uniform((), 0, frame_y_num - sample_time, dtype=tf.int64) # offset as label
-
-            nondup_class = 1 - y[i][..., cls] # 프레임 중 class가 겹치지 않는 부분 찾기
+            td_offset = tf.random.uniform((),0, tdm_y[cls].shape[0] - sample_time, dtype=sample_time.dtype) # 뽑을 노이즈에서의 랜덤 offset
             
-            valid_index = (tf.cast(tf.reduce_sum(y[i][...,:class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class)[..., tf.newaxis] # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            frame_y = y[i][offset:offset+sample_time] # (sample_time, 56)
+            nondup_class = 1 - frame_y[..., cls]
 
-            frame_y = tf.pad(tf.ones((sample_time, 1)), ((offset, frame_y_num - offset - sample_time), (0,0))) # 샘플과 동일한 크기 생성
-            frame_y *= valid_index # valid한 프레임만 남기기
+            valid_index = tf.cast(tf.reduce_sum(frame_y[...,:class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+
+            frame_y *= valid_index[..., tf.newaxis] # valid한 프레임만 남기기
             if tf.reduce_sum(frame_y) == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
-                return tf.zeros((), dtype=tf.int64) # dummy return for using tf.map_fn
-            
-            td_offset = tf.random.uniform((),0, td_y.shape[0] - frame_y_num, dtype=sample_time.dtype) # 뽑을 노이즈에서의 랜덤 offset
-            y[i] += td_y[td_offset:td_offset+frame_y_num] * frame_y # 레이블 부분 완료
-            x[i] += tf.repeat(tf.cast(frame_y, dtype=x[i].dtype), sr, axis=0) * td_x[td_offset * sr: (td_offset + frame_y_num) * sr]
-            return tf.zeros((), dtype=tf.int64) # dummy return for using tf.map_fn
-        
-        tf.map_fn(_add_noise, selected_cls)
-        return tf.zeros((), dtype=tf.int32) # dummy return for using tf.map_fn
+                return x, y
 
-    tf.map_fn(add_noise, tf.range(len(x)))
+            tdm_frame_y = tdm_y[cls][td_offset:td_offset+sample_time] * valid_index[...,tf.newaxis] # valid한 프레임만 남기기
+            y[i] += tf.pad(tdm_frame_y * frame_y, ((offset, frame_y_num - offset - sample_time),(0,0))) # 레이블 부분 완료
+
+            tdm_frame_x = tdm_x[cls][td_offset * sr: (td_offset + sample_time) * sr] * tf.repeat(tf.cast(valid_index, dtype=x[i].dtype), sr, axis=0)[...,tf.newaxis]
+            x[i] += tf.pad(tdm_frame_x, ((offset * sr, x[i].shape[0] - (offset + sample_time) * sr),(0,0)))
+            return x, y
+        
+        j = tf.constant(0)
+        cond = lambda i, j, x, y: j < len(selected_cls)
+        body = lambda i, j, x, y: (i, j+1) + _add_noise(i, j, x, y)
+        _, _, x, y = tf.while_loop(cond, body, (i, j, x, y))
+        # tf.map_fn(_add_noise, selected_cls)
+        return x, y
+
+    i = tf.constant(0)
+    cond = lambda i, x, y: i < len(x)
+    body = lambda i, x, y: (i+1,) + add_noise(i, x, y)
+    _, x, y = tf.while_loop(cond, body, (i, x, y))
+    # x, y = tf.map_fn(add_noise, tf.range(len(x)))
     return x, y
 
 
