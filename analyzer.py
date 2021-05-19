@@ -49,7 +49,8 @@ def print_ks_test_values(values, stats, min_samples=1, a=0.05):
             pvalue = ks_2samp(stats[j], stats[k]).pvalue
             print(values[j], values[k], pvalue, sep='\t')
             if min(pvalue, 1-pvalue) < a and j != k:
-                print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}')
+                print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}\t'
+                      f'({len(stats[j])}\t{len(stats[k])})')
     print()
 
 
