@@ -8,11 +8,12 @@ from scipy.stats import ks_2samp
 args = argparse.ArgumentParser()
 args.add_argument('--results', type=str, default='vad_6-0_results.json')
 args.add_argument('--keyword', type=str, default='val_auc')
-args.add_argument('--stage', type=str, default=None)
 args.add_argument('--count1d', action='store_true')
 args.add_argument('--stagewise', action='store_true')
 args.add_argument('--filters', action='store_true')
+args.add_argument('--var_of_interest', type=str, default=None)
 args.add_argument('--black_list', type=str, default='')
+args.add_argument('--a', type=float, default=0.05)
 args.add_argument('--min_samples', type=int, default=1)
 
 
@@ -171,25 +172,53 @@ if __name__ == '__main__':
     # 3. value
     table = {k: np.array(v) for k, v in table.items()}
 
+    if config.var_of_interest is not None:
+        groups = np.unique(table[config.var_of_interest])
+        comb = list(combinations(range(len(groups)), 2))
+
     for rv in table.keys():
         if rv == keyword:
             continue
 
-        print(rv)
-        stats = []
+        print(f'--------        {rv}        --------')
         unique_values = np.unique(table[rv])
-        for value in unique_values:
-            stats.append(table[keyword][table[rv] == value])
 
-        comb = list(combinations(range(len(unique_values)), 2))
+        if config.var_of_interest is None:
+            stats = [table[keyword][table[rv] == value]
+                     for value in unique_values]
 
-        for j, k in comb:
-            if len(stats[j]) >= config.min_samples \
-                and len(stats[k]) >= config.min_samples:
-                pvalue = ks_2samp(stats[j], stats[k]).pvalue
-                print(unique_values[j], unique_values[k], pvalue, sep='\t')
-                if (pvalue < 0.05 or pvalue > 0.95) and j != k:
-                    print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}')
-                
+            comb = list(combinations(range(len(unique_values)), 2))
+
+            for j, k in comb:
+                if len(stats[j]) >= config.min_samples \
+                    and len(stats[k]) >= config.min_samples:
+                    pvalue = ks_2samp(stats[j], stats[k]).pvalue
+                    print(unique_values[j], unique_values[k], pvalue, sep='\t')
+                    if min(pvalue, 1-pvalue) < config.a and j != k:
+                        print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}')
+            print()
+        else:
+            if rv == config.var_of_interest:
+                continue
+
+            if len(unique_values) == 1:
+                continue
+
+            for value in unique_values:
+                print(f'{rv} == {value}')
+                stats = [
+                    table[keyword][(table[rv] == value)
+                                   * (table[config.var_of_interest] == group)]
+                    for group in groups]
+
+                for j, k in comb:
+                    if len(stats[j]) >= config.min_samples \
+                        and len(stats[k]) >= config.min_samples:
+                        pvalue = ks_2samp(stats[j], stats[k]).pvalue
+                        print(groups[j], groups[k], pvalue, sep='\t')
+                        if min(pvalue, 1-pvalue) < config.a and j != k:
+                            print(f'{stats[j].mean():.4f}\t'
+                                  f'{stats[k].mean():.4f}')
+                print()
         print()
 
