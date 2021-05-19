@@ -10,6 +10,8 @@ args.add_argument('--results', type=str, default='vad_6-0_results.json')
 args.add_argument('--keyword', type=str, default='val_auc')
 args.add_argument('--stage', type=str, default=None)
 args.add_argument('--count1d', action='store_true')
+args.add_argument('--stagewise', action='store_true')
+args.add_argument('--filters', action='store_true')
 args.add_argument('--black_list', type=str, default='')
 args.add_argument('--min_samples', type=int, default=1)
 
@@ -38,10 +40,8 @@ def get_block_keys(config):
                    if key.startswith('BLOCK') and not key.endswith('ARGS')])
 
 
-def count_blocks(config, criteria=is_1d, include_seddoa=False):
+def count_blocks(config, criteria=is_1d):
     keys = get_block_keys(config)
-    if include_seddoa:
-        keys.extend(['SED', 'DOA'])
     return sum([criteria(config[key]) for key in keys])
 
 
@@ -63,8 +63,10 @@ def sort_pairs(pairs, keyword='test_f'):
 
 if __name__ == '__main__':
     config = args.parse_args()
+    keyword = config.keyword
     pairs = []
 
+    # 1. load results
     for j_file in config.results.split(','):
         if not j_file.endswith('.json'):
             j_file = f'{j_file}.json'
@@ -76,22 +78,20 @@ if __name__ == '__main__':
             if key.isdigit():
                 pairs.append(results[key])
 
-    # add f1score
+    # 1.1 black list
+    for stage in config.black_list.split(','):
+        pairs = filter_fn(
+            pairs,
+            lambda x: count_blocks(x['config'], lambda x: x == stage) == 0)
+
+    # 1.2 add f1score
     for pair in pairs:
         precision = pair['perf']['val_precision'][0]
         recall = pair['perf']['val_recall'][0]
         f1 = 2 * precision * recall / (precision + recall + 1e-8)
         pair['perf']['val_f1score'] = f1
 
-    keyword = config.keyword
-
-    # black list
-    for stage in config.black_list.split(','):
-        pairs = filter_fn(
-            pairs,
-            lambda x: count_blocks(x['config'], lambda x: x == stage) == 0)
-
-    # common feature extractor
+    # 2. common feature extractor
     feats = {}
     for pair in pairs:
         c = pair['config']
@@ -108,6 +108,7 @@ if __name__ == '__main__':
                 else:
                     feats[key] = set([c[key]])
 
+    # 2.1 features from *_ARGS
     keys = tuple(feats.keys())
     for key in keys:
         if not isinstance(feats[key], set):
@@ -127,7 +128,7 @@ if __name__ == '__main__':
 
     print(feats)
 
-    # make table
+    # 2.2 make table
     table = {feat: [] for feat in feats}
     table[keyword] = []
 
@@ -149,9 +150,31 @@ if __name__ == '__main__':
             k_value = k_value[-1]
         table[keyword].append(k_value)
 
+    # 2.3 add features
+    if config.count1d:
+        table['count1d'] = [count_blocks(p['config']) for p in pairs]
+
+    if config.stagewise:
+        total = [v for k, v in feats.items() if k.startswith('BLOCK')]
+        stages = total[0]
+        for s in total[1:]:
+            stages = stages.union(s)
+
+        for stage in stages:
+            table[stage] = [count_blocks(p['config'], lambda p: p == stage)
+                            for p in pairs]
+
+    if config.filters:
+        table['filters'] = np.sign(np.array(table['BLOCK1_ARGS.filters']) 
+                                   -np.array(table['BLOCK0_ARGS.filters']))
+
+    # 3. value
     table = {k: np.array(v) for k, v in table.items()}
 
-    for rv in feats.keys():
+    for rv in table.keys():
+        if rv == keyword:
+            continue
+
         print(rv)
         stats = []
         unique_values = np.unique(table[rv])
@@ -160,13 +183,13 @@ if __name__ == '__main__':
 
         comb = list(combinations(range(len(unique_values)), 2))
 
-        # import pdb; pdb.set_trace()
-
         for j, k in comb:
-            if len(stats[j]) > config.min_samples \
-                and len(stats[k]) > config.min_samples:
+            if len(stats[j]) >= config.min_samples \
+                and len(stats[k]) >= config.min_samples:
                 pvalue = ks_2samp(stats[j], stats[k]).pvalue
-                # if (pvalue < 0.1 or pvalue > 0.9) and j != k:
                 print(unique_values[j], unique_values[k], pvalue, sep='\t')
+                if (pvalue < 0.05 or pvalue > 0.95) and j != k:
+                    print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}')
+                
         print()
 
