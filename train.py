@@ -159,8 +159,6 @@ def get_both_dataset(config, mode:str='train'):
 
 
 def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_sec=1, max_overlap_sec=5):
-    from time import time
-    st = time()
     mode = 'foa'
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
@@ -180,7 +178,6 @@ def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_over
                    min_overlap_sec=min_overlap_sec, 
                    max_overlap_sec=max_overlap_sec)
     del tdm_x, tdm_y
-    print('TDM convert wave to feature')
     x = list(map(lambda x_: get_preprocessed_x_tf(x_, sr, mode=mode,
                          n_mels=64, 
                          multiplier=5,
@@ -212,7 +209,6 @@ def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_over
         sample_transforms=sample_transforms,
         loop_time=config.loop_time
     )
-    print(f'tdm dataset time: {time() - st:.4}')
     return dataset
 
 
@@ -232,7 +228,15 @@ def main(config):
 
     # data load
     if config.use_tdm:
-        trainset = get_tdm_dataset(config)
+        overlap_num = 1
+        overlap_time = 1  
+        max_overlap_num = 5
+        max_overlap_time = 5
+        trainset = get_tdm_dataset(config, 
+                                max_overlap_num=overlap_num, 
+                                max_overlap_per_frame=2, 
+                                min_overlap_sec=0.5, 
+                                max_overlap_sec=overlap_time)
     else:
         trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
@@ -282,34 +286,32 @@ def main(config):
     metric_class = SELDMetrics(
         doa_threshold=config.lad_doa_thresh)
 
-
-    # overlap_num = 1
-    # overlap_time = 1
-    overlap_num = 5
-    overlap_time = 5
-
-    
-    max_overlap_num = 5
-    max_overlap_time = 5
     for epoch in range(config.epoch):
         # tdm
-        if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
-            if config.use_tdm:
-                if epoch % 2 == 0 and epoch > 20:
+        if config.use_tdm and config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
+            if epoch % 2 == 0 and epoch > 20:
+                # TDMv2
+                if overlap_num < max_overlap_num:
+                    overlap_num += 1
+                else:
                     if overlap_time < max_overlap_time:
                         overlap_time += 1
-                    else:
-                        if overlap_num < max_overlap_num:
-                            overlap_time = 1
-                            overlap_num += 1
-                    print(f'current_max_overlap_time: {overlap_time}, current_max_overlap_num: {overlap_num}')
+                        overlap_num = 1
 
-                trainset = get_tdm_dataset(config, 
-                                           max_overlap_num=overlap_num, 
-                                           max_overlap_per_frame=2, 
-                                           min_overlap_sec=1, 
-                                        #    min_overlap_time=overlap_time - 1, 
-                                           max_overlap_sec=overlap_time)
+                # TDMv1
+                # if overlap_time < max_overlap_time:
+                #     overlap_time += 1
+                # else:
+                #     if overlap_num < max_overlap_num:
+                #         overlap_time = 1
+                #         overlap_num += 1
+                print(f'current_max_overlap_time: {overlap_time}, current_max_overlap_num: {overlap_num}')
+
+            trainset = get_tdm_dataset(config, 
+                                        max_overlap_num=overlap_num, 
+                                        max_overlap_per_frame=2, 
+                                        min_overlap_sec=0.5, 
+                                        max_overlap_sec=overlap_time)
             
         # train loop
         metric_class.reset_states()

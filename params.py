@@ -37,7 +37,7 @@ def get_param(known=None):
     args.add_argument('--use_tfm', action='store_true')
     args.add_argument('--loop_time', type=int, default=5, 
                       help='times of train dataset iter for an epoch')
-    args.add_argument('--tdm_epoch', type=int, default=5,
+    args.add_argument('--tdm_epoch', type=int, default=2,
                       help='epochs of applying tdm augmentation. If 0, don\'t use it.')
 
     # metric

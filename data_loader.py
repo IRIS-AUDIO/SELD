@@ -127,7 +127,7 @@ def get_preprocessed_wave(feat_path, label_path, mode='train'):
         else:
             labels = labels[:max_len]
         return labels
-    x = list(map(lambda x: tf.audio.decode_wav(tf.io.read_file(x))[0], f_paths))
+    x = list(map(lambda x: tf.transpose(tf.audio.decode_wav(tf.io.read_file(x))[0]), f_paths))
     y = list(map(lambda x: preprocess_label(extract_labels(x)), l_paths))
     return x, y
 
@@ -176,7 +176,7 @@ def get_TDMset(TDM_PATH):
     class_num = len(glob(tdm_path + '/*label_*.joblib'))
 
     def load_data(cls):
-        return tf.transpose(tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib')), dtype=tf.float32))
+        return tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_noise_{cls}.joblib')), dtype=tf.float32)
 
     def load_label(cls):
         return tf.convert_to_tensor(joblib.load(os.path.join(tdm_path, f'tdm_label_{cls}.joblib')))
@@ -189,14 +189,14 @@ def get_TDMset(TDM_PATH):
 
 def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_sec=1, max_overlap_sec=5):
     '''
-        x: list(tf.Tensor): shape(sample number, frame(1440000), channel(4))
+        x: list(tf.Tensor): shape(sample number, channel(4), frame(1440000))
         y: list(tf.Tensor): shape(sample number, time(600), class+cartesian(14+42))
-        tdm_x: list(tf.Tensor): shape(class_num, frame, channel(4))
+        tdm_x: list(tf.Tensor): shape(class_num, channel(4), frame)
         tdm_y: list(tf.Tensor): shape(class_num, time, class+cartesian(14+42))
     '''
     class_num = y[0].shape[-1] // 4
-    min_overlap_sec *= int(1 / label_resolution) 
-    max_overlap_sec *= int(1 / label_resolution)
+    min_overlap_sec = int(min_overlap_sec / label_resolution) 
+    max_overlap_sec = int(max_overlap_sec / label_resolution)
     sr = int(sr * label_resolution)
 
     def add_noise(i):
@@ -220,10 +220,9 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
                 return tf.zeros((), dtype=tf.int64)
 
             tdm_frame_y = tdm_y[cls][td_offset:td_offset+sample_time] * valid_index[...,tf.newaxis] # valid한 프레임만 남기기
-            y[i] += tf.pad(tdm_frame_y * frame_y, ((offset, frame_y_num - offset - sample_time),(0,0))) # 레이블 부분 완료
-
-            tdm_frame_x = tdm_x[cls][td_offset * sr: (td_offset + sample_time) * sr] * tf.repeat(tf.cast(valid_index, dtype=x[i].dtype), sr, axis=0)[...,tf.newaxis]
-            x[i] += tf.pad(tdm_frame_x, ((offset * sr, x[i].shape[0] - (offset + sample_time) * sr),(0,0)))
+            y[i] += tf.pad(tdm_frame_y, ((offset, frame_y_num - offset - sample_time),(0,0))) # 레이블 부분 완료
+            tdm_frame_x = tdm_x[cls][..., td_offset * sr: (td_offset + sample_time) * sr] * tf.repeat(tf.cast(valid_index, dtype=x[i].dtype), sr, axis=0)[tf.newaxis, ...]
+            x[i] += tf.pad(tdm_frame_x, ((0,0), (offset * sr, x[i].shape[-1] - (offset + sample_time) * sr)))
             return tf.zeros((), dtype=tf.int64)
         
         j = tf.constant(0)
@@ -232,14 +231,9 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
             _add_noise(selected_cls[j])
             return i, j + 1
         tf.while_loop(cond, body, (i, j))
-        # tf.map_fn(_add_noise, selected_cls)
         return tf.zeros((), dtype=tf.int32)
 
 
-    # i = tf.constant(0)
-    # cond = lambda i, x, y: i < len(x)
-    # body = lambda i, x, y: (i+1,) + add_noise(i, x, y)
-    # _, x, y = tf.while_loop(cond, body, (i, x, y))
     tf.map_fn(add_noise, tf.range(len(x)))
     return x, y
 
@@ -318,7 +312,7 @@ def get_preprocessed_x(wav, sample_rate, mode='foa', n_mels=64,
     return features
 
 def get_preprocessed_x_tf(wav, sr, mode='foa', n_mels=64,
-                          multiplier=5, max_label_length=600, win_length=960,
+                          multiplier=5, max_label_length=600, win_length=1024,
                           hop_length=480, n_fft=1024):
     mel_mat = tf.signal.linear_to_mel_weight_matrix(num_mel_bins=n_mels,
                                                     num_spectrogram_bins=n_fft//2+1,
@@ -327,7 +321,7 @@ def get_preprocessed_x_tf(wav, sr, mode='foa', n_mels=64,
                                                     upper_edge_hertz=sr//2)
 
 
-    spectrogram = tf.signal.stft(tf.transpose(wav), win_length, hop_length, n_fft, pad_end=True)
+    spectrogram = tf.signal.stft(wav, win_length, hop_length, n_fft, pad_end=True)
     norm_spec = tf.math.abs(spectrogram)
     mel_spec = tf.matmul(norm_spec, mel_mat)
     mel_spec = tfio.experimental.audio.dbscale(mel_spec, top_db=80)
@@ -336,7 +330,6 @@ def get_preprocessed_x_tf(wav, sr, mode='foa', n_mels=64,
     if mode == 'foa':
         foa = foa_intensity_vectors_tf(spectrogram)
         foa = tf.matmul(foa, mel_mat)
-        foa = tfio.experimental.audio.dbscale(foa, top_db=80)
         features.append(foa)
         
     elif mode == 'mic':
