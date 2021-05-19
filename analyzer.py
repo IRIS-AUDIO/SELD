@@ -41,6 +41,43 @@ def filter_fn(pairs, fn):
     return [pair for pair in pairs if fn(pair)]
 
 
+def extract_feats_from_pairs(pairs):
+    feats = {}
+    for pair in pairs:
+        c = pair['config']
+        for key in c.keys():
+            if isinstance(c[key], dict):
+                if key in feats:
+                    feats[key] = [
+                        feats[key][0].intersection(set(c[key].keys()))]
+                else:
+                    feats[key] = [set(c[key].keys())]
+            else:
+                if key in feats:
+                    feats[key] = feats[key].union([c[key]])
+                else:
+                    feats[key] = set([c[key]])
+
+    # features from *_ARGS
+    keys = tuple(feats.keys())
+    for key in keys:
+        if not isinstance(feats[key], set):
+            if len(feats[key][0]) > 0:
+                for name in feats[key][0]:
+                    new_name = f'{key}.{name}'
+                    for pair in pairs:
+                        value = pair['config'][key][name]
+                        if isinstance(value, list):
+                            value = str(value)
+                        value = set([value])
+                        if new_name in feats:
+                            feats[new_name] = feats[new_name].union(value)
+                        else:
+                            feats[new_name] = value
+            del feats[key]
+    return feats
+
+
 def print_ks_test_values(values, stats, min_samples=1, a=0.05):
     comb = list(combinations(range(len(values)), 2))
 
@@ -85,41 +122,7 @@ if __name__ == '__main__':
         pair['perf']['val_f1score'] = f1
 
     # 2. common feature extractor
-    feats = {}
-    for pair in pairs:
-        c = pair['config']
-        for key in c.keys():
-            if isinstance(c[key], dict):
-                if key in feats:
-                    feats[key] = [
-                        feats[key][0].intersection(set(c[key].keys()))]
-                else:
-                    feats[key] = [set(c[key].keys())]
-            else:
-                if key in feats:
-                    feats[key] = feats[key].union([c[key]])
-                else:
-                    feats[key] = set([c[key]])
-
-    # 2.1 features from *_ARGS
-    keys = tuple(feats.keys())
-    for key in keys:
-        if not isinstance(feats[key], set):
-            if len(feats[key][0]) > 0:
-                for name in feats[key][0]:
-                    new_name = f'{key}.{name}'
-                    for pair in pairs:
-                        value = pair['config'][key][name]
-                        if isinstance(value, list):
-                            value = str(value)
-                        value = set([value])
-                        if new_name in feats:
-                            feats[new_name] = feats[new_name].union(value)
-                        else:
-                            feats[new_name] = value
-            del feats[key]
-
-    print(feats)
+    feats = extract_feats_from_pairs(pairs)
 
     # 2.2 make table
     table = {feat: [] for feat in feats}
