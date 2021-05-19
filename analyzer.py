@@ -21,15 +21,6 @@ stages_1d = ['bidirectional_GRU_stage',
              'transformer_encoder_stage',
              'simple_dense_stage',
              'conformer_encoder_stage']
-stages_2d = ['simple_conv_stage',
-             'another_conv_stage',
-             'res_basic_stage',
-             'res_bottleneck_stage',
-             'dense_net_stage', 
-             'sepformer_stage',
-             'xception_basic_stage',
-             'identity_block']
-stages_total = stages_1d + stages_2d
 
 
 def is_1d(block):
@@ -50,16 +41,16 @@ def filter_fn(pairs, fn):
     return [pair for pair in pairs if fn(pair)]
 
 
-def plot_pairs(pairs, keyword='test_f', label=None, plot=None):
-    if plot is None:
-        plot = plt
-    plot.plot([x['perf'][keyword] for x in pairs], 
-             np.linspace(0, 1, len(pairs)),
-             label=label)
+def print_ks_test_values(values, stats, min_samples=1, a=0.05):
+    comb = list(combinations(range(len(values)), 2))
 
-
-def sort_pairs(pairs, keyword='test_f'):
-    return sorted(pairs, key=lambda x: x['perf'][keyword], reverse=True)
+    for j, k in comb:
+        if len(stats[j]) >= min_samples and len(stats[k]) >= min_samples:
+            pvalue = ks_2samp(stats[j], stats[k]).pvalue
+            print(values[j], values[k], pvalue, sep='\t')
+            if min(pvalue, 1-pvalue) < a and j != k:
+                print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}')
+    print()
 
 
 if __name__ == '__main__':
@@ -174,7 +165,7 @@ if __name__ == '__main__':
 
     if config.var_of_interest is not None:
         groups = np.unique(table[config.var_of_interest])
-        comb = list(combinations(range(len(groups)), 2))
+        print(groups)
 
     for rv in table.keys():
         if rv == keyword:
@@ -187,16 +178,8 @@ if __name__ == '__main__':
             stats = [table[keyword][table[rv] == value]
                      for value in unique_values]
 
-            comb = list(combinations(range(len(unique_values)), 2))
-
-            for j, k in comb:
-                if len(stats[j]) >= config.min_samples \
-                    and len(stats[k]) >= config.min_samples:
-                    pvalue = ks_2samp(stats[j], stats[k]).pvalue
-                    print(unique_values[j], unique_values[k], pvalue, sep='\t')
-                    if min(pvalue, 1-pvalue) < config.a and j != k:
-                        print(f'{stats[j].mean():.4f}\t{stats[k].mean():.4f}')
-            print()
+            print_ks_test_values(unique_values, stats, 
+                                 min_samples=config.min_samples, a=config.a)
         else:
             if rv == config.var_of_interest:
                 continue
@@ -211,14 +194,7 @@ if __name__ == '__main__':
                                    * (table[config.var_of_interest] == group)]
                     for group in groups]
 
-                for j, k in comb:
-                    if len(stats[j]) >= config.min_samples \
-                        and len(stats[k]) >= config.min_samples:
-                        pvalue = ks_2samp(stats[j], stats[k]).pvalue
-                        print(groups[j], groups[k], pvalue, sep='\t')
-                        if min(pvalue, 1-pvalue) < config.a and j != k:
-                            print(f'{stats[j].mean():.4f}\t'
-                                  f'{stats[k].mean():.4f}')
-                print()
+                print_ks_test_values(groups, stats, 
+                                     min_samples=config.min_samples, a=config.a)
         print()
 
