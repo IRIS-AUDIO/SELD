@@ -204,58 +204,13 @@ if __name__ == '__main__':
             min_samples=config.min_samples, a=config.a)
         n_samples = [len(p) for p in perfs]
 
-        min_pvalues = [min(pv) for pv in pvalues if len(pv) > 0]
-        max_pvalues = [max(pv) for pv in pvalues if len(pv) > 0]
-
-        if len(min_pvalues) == 0:
-            continue
-
-        if max(min_pvalues) > 1-config.a:
-            same_candidates.append(
-                (rv, unique_values, perfs, pvalues, n_samples))
-        if min(max_pvalues) < config.a:
-            diff_candidates.append(
-                (rv, unique_values, perfs, pvalues, n_samples))
-
-    # 3.2 similar groups 
-    print([rv for rv, *_ in same_candidates])
-
-    # 3.3 different groups
-    print([rv for rv, *_ in diff_candidates])
-    for rv, unique_values, perfs, pvalues, *_ in diff_candidates:
-        controlled_pvalues = [[] for _ in range(len(unique_values))]
-
-        # collect conditional pvalues
-        for control in table.keys():
-            if control == keyword or control == rv:
-                continue
-
-            unique_c_values = np.unique(table[control])
-            if len(unique_c_values) == 1:
-                continue # var with single category
-
-            for c_value in unique_c_values:
-                c_perfs = [
-                    table[keyword][(table[control] == c_value)
-                                   * (table[rv] == value)]
-                    for value in unique_values]
-                c_pvalues = get_ks_test_values(
-                    unique_values, c_perfs, 
-                    min_samples=config.min_samples, a=config.a)
-                
-                for i, pv in enumerate(c_pvalues):
-                    if len(pv) > 0 and max(pv) > 0.5:
-                        print(rv, unique_values[i], control, c_value)
-                    controlled_pvalues[i].extend(pv)
-        
-        print(f'Var of interest: {rv}')
-        for i, v in enumerate(unique_values):
-            if len(controlled_pvalues[i]) > 0:
-                print(f'{v}: [{min(controlled_pvalues[i]):.5f},'
-                      f'{max(controlled_pvalues[i]):.5f}] '
-                      f'({np.mean(controlled_pvalues[i]):.5f})')
-                print(f'prev pvalues: [{min(pvalues[i]):.5f}, '
-                      f'{max(pvalues[i]):.5f}]')
-                print(f'perfs: {np.mean(perfs[i]):.5f}')
+        print(f'{rv}')
+        for i, pv in enumerate(pvalues):
+            if len(pv) > 0:
+                print(f'{unique_values[i]}: '
+                      f'[{min(pv):.5f}, {max(pv):.5f}] '
+                      f'({np.mean(pv):.5f}) '
+                      f'n_samples={len(perfs[i])}, '
+                      f'avg {keyword}={np.mean(perfs[i]):.5f}')
         print()
 
