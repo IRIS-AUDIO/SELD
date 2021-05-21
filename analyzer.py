@@ -6,11 +6,13 @@ from scipy.stats import ks_2samp
 
 
 args = argparse.ArgumentParser()
-args.add_argument('--results', type=str, default='vad_6-0_results.json')
+args.add_argument('--results', type=str, 
+                  default='vad_6-0_results,vad_6-1_results')
 args.add_argument('--keyword', type=str, default='val_auc')
 args.add_argument('--count1d', action='store_true')
 args.add_argument('--stagewise', action='store_true')
 args.add_argument('--filters', action='store_true')
+args.add_argument('--verbose', action='store_true')
 args.add_argument('--var_of_interest', type=str, default=None)
 args.add_argument('--black_list', type=str, default='')
 args.add_argument('--a', type=float, default=0.05)
@@ -104,6 +106,13 @@ def get_ks_test_values(values, perfs, min_samples=1, a=0.05, verbose=False):
             pvalue = ks_2samp(perfs[j], perfs[k]).pvalue
             pvalues[j].append(pvalue)
             pvalues[k].append(pvalue)
+
+            if verbose:
+                print(f'{values[j]}({len(perfs[j])})    vs    '
+                      f'{values[k]}({len(perfs[k])}): {pvalue:.5f}')
+
+    if verbose:
+        print()
     return pvalues
 
 
@@ -197,14 +206,14 @@ if __name__ == '__main__':
         if len(unique_values) == 1:
             continue
 
+        print(f'{rv}')
         perfs = [table[keyword][table[rv] == value]
                  for value in unique_values]
         pvalues = get_ks_test_values(
             unique_values, perfs, 
-            min_samples=config.min_samples, a=config.a)
+            min_samples=config.min_samples, a=config.a, verbose=config.verbose)
         n_samples = [len(p) for p in perfs]
 
-        print(f'{rv}')
         for i, pv in enumerate(pvalues):
             if len(pv) > 0:
                 print(f'{unique_values[i]}: '
