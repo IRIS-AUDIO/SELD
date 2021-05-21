@@ -20,19 +20,21 @@ def get_param(known=None):
     
     # training
     args.add_argument('--lr', type=float, default=0.001)
-    args.add_argument('--decay', type=float, default=0.9)
+    args.add_argument('--decay', type=float, default=0.5)
     args.add_argument('--batch', type=int, default=256)
     args.add_argument('--agc', type=bool, default=False)
-    args.add_argument('--foa_aug', type=bool, default=True)
     args.add_argument('--epoch', type=int, default=1000)
     args.add_argument('--loss_weight', type=str, default='1,1000')
-    args.add_argument('--lr_patience', type=int, default=5, 
+    args.add_argument('--lr_patience', type=int, default=80, 
                       help='learning rate decay patience for plateau')
-    args.add_argument('--patience', type=int, default=5, 
+    args.add_argument('--patience', type=int, default=100, 
                       help='early stop patience')
-    args.add_argument('--freq_mask_size', type=int, default=16)
-    args.add_argument('--time_mask_size', type=int, default=24)
-    args.add_argument('--use_tdm', type=bool, default=False)
+    args.add_argument('--freq_mask_size', type=int, default=30)
+    args.add_argument('--time_mask_size', type=int, default=35)
+    args.add_argument('--tfm_period', type=int, default=100)
+    args.add_argument('--use_acs', action='store_true')
+    args.add_argument('--use_tdm', action='store_true')
+    args.add_argument('--use_tfm', action='store_true')
     args.add_argument('--loop_time', type=int, default=5, 
                       help='times of train dataset iter for an epoch')
     args.add_argument('--tdm_epoch', type=int, default=5,

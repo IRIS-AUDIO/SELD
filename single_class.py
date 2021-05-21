@@ -5,24 +5,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import soundfile as sf
-from tqdm import tqdm 
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 
-file_list = sorted(glob('./normal/DCASE2020/feat_label/foa_dev_label/*'))
-sound_list = sorted(glob('/dataset/DCASE2020/foa_dev/*'))
+file_list = sorted(glob('./DCASE2020/feat_label/foa_dev_label/*'))
+sound_list = sorted(glob('/root/datasets/DCASE2020/foa_dev/*'))
 os.makedirs('./single_sound', exist_ok=True)
 os.makedirs('./single_label', exist_ok=True)
 
 train = [3,4,5,6]
+class_num = 14
+
 file_list = [f for f in file_list
             if int(f[f.rfind(os.path.sep)+5]) in train] 
 sound_list = [f for f in sound_list
             if int(f[f.rfind(os.path.sep)+5]) in train]
 
-sound_file = [[] for i in range (14)]
-label_file = [[] for i in range (14)]
-num_single_class = [0 for i in range (14)]
+num_single_class = [0 for i in range(class_num)]
 
-for file, sound in tqdm(zip(file_list, sound_list)):
+def process(inputs):
+    file, sound = inputs
     data, sr = sf.read(sound)
     temp_npy = np.load(file)
     label_answer = temp_npy[:,:14]
@@ -66,3 +68,7 @@ for file, sound in tqdm(zip(file_list, sound_list)):
         save_npy = np.copy(temp_npy[index[0]:index[0]+index[1],:])
         np.save('single_label/single_' + str(num_single_class[index[2]]) + '_'\
                 + str(index[1]) +'_' + str(index[2]) + '.npy', save_npy)
+
+with ThreadPoolExecutor() as pool:
+    list(map(process, tqdm(zip(file_list, sound_list))))
+    
