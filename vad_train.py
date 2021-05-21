@@ -16,8 +16,8 @@ from vad_dataloader import get_vad_dataset_from_pairs
 args = argparse.ArgumentParser()
 
 args.add_argument('--json_fname', type=str, default='vad_results.json')
-args.add_argument('--n_samples', type=int, default=128)
-args.add_argument('--n_blocks', type=int, default=3)
+args.add_argument('--n_samples', type=int, default=256)
+args.add_argument('--n_blocks', type=int, default=2)
 args.add_argument('--min_flops', type=int, default=500_000)
 args.add_argument('--max_flops', type=int, default=600_000)
 
@@ -26,7 +26,32 @@ args.add_argument('--n_repeat', type=int, default=50)
 args.add_argument('--lr', type=int, default=1e-3)
 
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+print(gpus)
+if gpus:
+    try:
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=10240)])
+    except RuntimeError as e:
+        print(e)
+
+
 '''            SEARCH SPACES           '''
+search_space_2d = {
+    'res_basic_stage':
+        {'filters': [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64],
+         'depth': [1, 2],
+         'strides': [(1, 1)],
+         'groups': [1]},
+    'res_bottleneck_stage':
+        {'filters': [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64],
+         'depth': [1, 2],
+         'strides': [(1, 1), (1, 2)],
+         'groups': [1],
+         'bottleneck_ratio': [0.25, 0.35, 0.5, 0.7, 1, 1.41, 2, 2.83, 4]},
+}
+'''
 search_space_2d = {
     'simple_conv_stage': 
         {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
@@ -68,7 +93,7 @@ search_space_2d = {
     'identity_block': 
         {},
 }
-
+'''
 search_space_1d = {
     'bidirectional_GRU_stage':
         {'depth': [1, 2, 3],
@@ -121,6 +146,11 @@ def sample_constraint(min_flops=None, max_flops=None,
             except ValueError as e:
                 return False
 
+        if model_config['BLOCK0'] != 'res_basic_stage':
+            return False
+        if model_config['BLOCK1'] != 'res_bottleneck_stage':
+            return False
+
         # total complexity contraint
         if min_flops and total_cx['flops'] < min_flops:
             return False
@@ -156,7 +186,7 @@ def train_and_eval(train_config,
 
     model.compile(optimizer=optimizer,
                   loss=tf.keras.losses.BinaryCrossentropy(), # MSE,
-                  metrics=['AUC', 'accuracy', 'Precision', 'Recall'])
+                  metrics=['AUC', 'binary_accuracy', 'Precision', 'Recall'])
 
     history = model.fit(trainset, 
                         validation_data=testset)
@@ -206,7 +236,6 @@ if __name__=='__main__':
 
     # start training
     for i in range(start_idx, train_config.n_samples):
-        '''
         model_config = vad_architecture_sampler(
             search_space_2d,
             search_space_1d,
@@ -226,6 +255,7 @@ if __name__=='__main__':
                 'dropout_rate': 0.2,
             }
         }
+        '''
         outputs = train_and_eval(
             train_config, model_config, 
             input_shape, 
