@@ -333,7 +333,8 @@ def mother_block(model_config: dict):
                 skip = outputs[-1]
                 if skip.shape[-3:] != out.shape[-3:]:
                     skip = Conv2D(filters0, 1)(skip)
-                out += BatchNormalization()(skip)
+                    skip = BatchNormalization()(skip)
+                out += skip
             out = Activation(activation)(out)
         else:
             out = outputs[-1]
@@ -349,7 +350,8 @@ def mother_block(model_config: dict):
                     skip = outputs[i]
                     if skip.shape[-3:] != out.shape[-3:]:
                         skip = Conv2D(filters1, 1, strides=strides)(skip)
-                    out += BatchNormalization()(skip)
+                        skip = BatchNormalization()(skip)
+                    out += skip
             out = Activation(activation)(out)
         else:
             out = []
@@ -370,7 +372,8 @@ def mother_block(model_config: dict):
                         skip = Conv2D(
                             filters2, 1, 
                             strides=(1, 1) if i == 2 else strides)(skip)
-                    out += BatchNormalization()(skip)
+                        skip = BatchNormalization()(skip)
+                    out += skip
             out = Activation(activation)(out)
         else:
             out = []
