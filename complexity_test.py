@@ -9,6 +9,24 @@ class ComplexityTest(tf.test.TestCase):
     def setUp(self):
         self.prev_cx = {'flops': 456, 'params': 123}
 
+    def test_mother_block_complexity(self):
+        model_config = {
+            'filters0': 32,
+            'filters1': 32,
+            'filters2': 0,
+            'kernel_size0': 3,
+            'kernel_size1': 5,
+            'kernel_size2': 0,
+            'connect0': [1],
+            'connect1': [1, 1],
+            'connect2': [0, 0, 1],
+            'strides': (1, 1),
+        }
+        self.complexity_test(mother_block_complexity,
+                             mother_block,
+                             model_config,
+                             [32, 32, 16])
+
     def test_simple_conv_block_complexity(self):
         model_config = {
             'filters': [32, 32],
