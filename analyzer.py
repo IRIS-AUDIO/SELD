@@ -202,10 +202,6 @@ if __name__ == '__main__':
     table = {k: np.array(v) for k, v in table.items()}
 
     # 3.1 find significant variables
-    # [(var, values, perfs, pvalues, n_samples)]
-    same_candidates = []
-    diff_candidates = []
-
     for rv in table.keys():
         if rv == keyword:
             continue
