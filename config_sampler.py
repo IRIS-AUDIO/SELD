@@ -85,6 +85,7 @@ def vad_architecture_sampler(search_space_2d: dict,
                              n_blocks: int,
                              input_shape,
                              default_config=None,
+                             config_postprocess_fn=None,
                              constraint=None):
     search_space_sanity_check(search_space_2d)
     search_space_sanity_check(search_space_1d)
@@ -103,6 +104,8 @@ def vad_architecture_sampler(search_space_2d: dict,
         model_config = copy.deepcopy(default_config)
 
         n_2d = random.randint(0, n_blocks)
+        n_2d = random.choices(list(range(n_blocks+1)),
+                              [6**i for i in range(n_blocks+1)])[0]
         for i in range(n_blocks):
             pool = modules_2d if i < n_2d else modules_1d
             module = random.sample(pool, 1)[0]
@@ -110,6 +113,9 @@ def vad_architecture_sampler(search_space_2d: dict,
             model_config[f'BLOCK{i}_ARGS'] = {
                 k: random.sample(v, 1)[0]
                 for k, v in search_space_total[module].items()}
+
+        if config_postprocess_fn:
+            model_config = config_postprocess_fn(model_config)
 
         if constraint is None or constraint(model_config, input_shape):
             return model_config
