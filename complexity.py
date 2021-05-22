@@ -85,7 +85,7 @@ def mother_block_complexity(model_config, input_shape):
                                       padding='same', prev_cx=cx)
         cx, shape = norm_complexity(shape, prev_cx=cx)
         for i in range(3):
-            if connect1[i] == 1:
+            if connect2[i] == 1:
                 skip = shapes[i]
                 if skip[-3:] != shape[-3:]:
                     cx, skip = conv2d_complexity(
