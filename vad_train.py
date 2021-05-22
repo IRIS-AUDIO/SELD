@@ -2,6 +2,7 @@ import argparse
 import copy
 import joblib
 import json
+import time
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
@@ -272,10 +273,12 @@ if __name__=='__main__':
             }
         }
         '''
+        start = time.time()
         outputs = train_and_eval(
             train_config, model_config, 
             input_shape, 
             trainset, testset)
+        outputs['time'] = time.time() - start
 
         results[f'{i:03d}'] = {'config': model_config, 'perf': outputs}
         with open(train_config.json_fname, 'w') as f:
