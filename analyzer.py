@@ -228,6 +228,7 @@ if __name__ == '__main__':
                       f'[{min(pv):.5f}, {max(pv):.5f}] '
                       f'({np.mean(pv):.5f}) '
                       f'n_samples={len(perfs[i])}, '
-                      f'avg {keyword}={np.mean(perfs[i]):.5f}')
+                      f'{keyword}(mean={np.mean(perfs[i]):.5f}, '
+                      f'median={np.median(perfs[i]):.5f})')
         print()
 
