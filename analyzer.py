@@ -133,6 +133,14 @@ if __name__ == '__main__':
             if key.isdigit():
                 pairs.append(results[key])
 
+                # temp
+                for i in range(3):
+                    if results[key]['config'][f'BLOCK{i}'] == 'mother_stage':
+                        if results[key]['config'][f'BLOCK{i}_ARGS']['filters0'] \
+                         + results[key]['config'][f'BLOCK{i}_ARGS']['filters1'] \
+                         + results[key]['config'][f'BLOCK{i}_ARGS']['filters2'] == 0:
+                             results[key]['config'][f'BLOCK{i}'] = 'identity_stage'
+
     # 1.1 black list
     for stage in config.black_list.split(','):
         pairs = filter_fn(
