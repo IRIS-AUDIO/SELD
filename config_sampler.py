@@ -105,7 +105,7 @@ def vad_architecture_sampler(search_space_2d: dict,
 
         n_2d = random.randint(0, n_blocks)
         n_2d = random.choices(list(range(n_blocks+1)),
-                              [6**i for i in range(n_blocks+1)])[0]
+                              [int(4**i) for i in range(n_blocks+1)])[0]
         for i in range(n_blocks):
             pool = modules_2d if i < n_2d else modules_1d
             module = random.sample(pool, 1)[0]

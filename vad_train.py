@@ -97,27 +97,11 @@ search_space_2d = {
      'mid_ratio': [0.5, 1, 2, 4]},
 '''
 search_space_1d = {
-    'bidirectional_GRU_stage':
-        {'depth': [1, 2, 3],
-         'units': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128]}, 
-    'transformer_encoder_stage':
-        {'depth': [1, 2, 3],
-         'n_head': [1, 2, 4, 8, 16],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
-         'kernel_size': [1, 3, 5]},
     'simple_dense_stage':
         {'depth': [1, 2, 3],
          'units': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128],
          'dense_activation': [None, 'relu'],
          'dropout_rate': [0., 0.2, 0.5]},
-    'conformer_encoder_stage':
-        {'depth': [1, 2, 3],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'n_head': [1, 2, 4, 8, 16],
-         'kernel_size': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128],
-         'multiplier': [1, 2, 4],
-         'pos_encoding': [None, 'basic', 'rff']},
 }
 
 
