@@ -95,7 +95,7 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
     return features, labels
 
 
-def get_preprocessed_wave(feat_path, label_path, mode='train'):
+def load_wav_and_label(feat_path, label_path, mode='train'):
     '''
         output
         x: wave form -> (data_num, channel(4), time)
@@ -187,6 +187,21 @@ def get_TDMset(TDM_PATH):
     return tdm_x, tdm_y
 
 
+@tf.function
+def get_mixed_data(x, y, tdm_x, tdm_y, offset, sample_time, max_overlap_per_frame=2):
+    class_num = tdm_y.shape[-1] // 4
+    sr = tdm_x.shape[-1] // tdm_y.shape[0]
+    cls = tf.reduce_max(tf.argmax(tdm_y[...,:class_num], -1))
+
+    nondup_class = 1 - y[offset:offset+sample_time][..., cls]
+
+    valid_index = tf.cast(tf.reduce_sum(y[offset:offset+sample_time][..., :class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+
+    y += tdm_y * tf.pad(valid_index[...,tf.newaxis], ((offset, tdm_y.shape[0] - offset - sample_time),(0,0)))
+    x += tdm_x * tf.pad(tf.repeat(valid_index, sr)[tf.newaxis,...], ((0,0),(offset * sr, (tdm_y.shape[0] - offset - sample_time) * sr)))
+    return x, y
+
+
 def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_sec=1, max_overlap_sec=5):
     '''
         x: list(tf.Tensor): shape(sample number, channel(4), frame(1440000))
@@ -195,44 +210,57 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
         tdm_y: list(tf.Tensor): shape(class_num, time, class+cartesian(14+42))
     '''
     class_num = y[0].shape[-1] // 4
-    min_overlap_sec = int(min_overlap_sec / label_resolution) 
-    max_overlap_sec = int(max_overlap_sec / label_resolution)
+    lab_len = y[0].shape[0]
+    min_overlap_frame = int(min_overlap_sec / label_resolution) 
+    max_overlap_frame = int(max_overlap_sec / label_resolution)
     sr = int(sr * label_resolution)
 
-    def add_noise(i):
-        weight = 1 / tf.convert_to_tensor([k.shape[0] for k in tdm_y])
-        weight /= tf.reduce_sum(weight)
-        selected_cls = tf.random.categorical(tf.math.log(weight[tf.newaxis,...]), max_overlap_num)[0] # (max_overlap_num,)
+    stacked_y = tf.stack(y)[..., :class_num]
+    weight_logit = 1 / tf.reduce_sum(stacked_y, (-3,-2))
+    weight_logit /= tf.reduce_sum(weight_logit)
+    
+    # stacked_y = tf.stack(y)[..., :class_num]
+    # total_y_frames = tf.reduce_sum(stacked_y)
+    # estimated_n_frames = len(y) * max_overlap_num * (max_overlap_sec - min_overlap_sec)/2 * 0.8
+    # target_n_frames_per_cls = (estimated_n_frames + total_y_frames) / class_num
 
-        def _add_noise(cls):
-            frame_y_num = y[i].shape[0]
-            sample_time = tf.random.uniform((), min_overlap_sec, max_overlap_sec,dtype=tf.int64) # to milli second
-            offset = tf.random.uniform((), 0, frame_y_num - sample_time, dtype=tf.int64) # offset as label
-            td_offset = tf.random.uniform((),0, tdm_y[cls].shape[0] - sample_time, dtype=sample_time.dtype) # 뽑을 노이즈에서의 랜덤 offset
-            
-            frame_y = y[i][offset:offset+sample_time] # (sample_time, 56)
-            nondup_class = 1 - frame_y[..., cls]
+    # frames_per_cls = tf.reduce_sum(stacked_y, axis=(0, 1))
+    # weights = tf.nn.relu(target_n_frames_per_cls - frames_per_cls)
+    # weight_logit = tf.keras.utils.normalize(weights, order=1)[0]
+    
+    def add_noise(_):
+        def select_random_cls(max_overlap_num):
+            classes = [i for i in tf.random.categorical(tf.math.log(weight_logit[tf.newaxis,...]), max_overlap_num)]
+            return tf.reshape(tf.concat(classes, -1), (-1,))
 
-            valid_index = tf.cast(tf.reduce_sum(frame_y[...,:class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
-
-            frame_y *= valid_index[..., tf.newaxis] # valid한 프레임만 남기기
-            if tf.reduce_sum(frame_y) == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
-                return tf.zeros((), dtype=tf.int64)
-
-            tdm_frame_y = tdm_y[cls][td_offset:td_offset+sample_time] * valid_index[...,tf.newaxis] # valid한 프레임만 남기기
-            y[i] += tf.pad(tdm_frame_y, ((offset, frame_y_num - offset - sample_time),(0,0))) # 레이블 부분 완료
-            tdm_frame_x = tdm_x[cls][..., td_offset * sr: (td_offset + sample_time) * sr] * tf.repeat(tf.cast(valid_index, dtype=x[i].dtype), sr, axis=0)[tf.newaxis, ...]
-            x[i] += tf.pad(tdm_frame_x, ((0,0), (offset * sr, x[i].shape[-1] - (offset + sample_time) * sr)))
-            return tf.zeros((), dtype=tf.int64)
+        selected_cls = select_random_cls(max_overlap_num)
         
-        j = tf.constant(0)
-        cond = lambda i, j: j < len(selected_cls)
-        def body(i, j):
-            _add_noise(selected_cls[j])
-            return i, j + 1
-        tf.while_loop(cond, body, (i, j))
-        return tf.zeros((), dtype=tf.int32)
+        def get_tdm_frame(cls):
+            cls = tf.reshape(cls, ())
+            sample_time = tf.random.uniform((), min_overlap_frame, max_overlap_frame, dtype=cls.dtype) # tdmset에서 뽑을 sample의 길이
+            td_offset = tf.random.uniform((), 0, tdm_y[cls].shape[0] - sample_time, dtype=cls.dtype) # tdmset에서 뽑을 sample의 offset
 
+            using_offset = tf.random.uniform((), 0, lab_len - sample_time, dtype=cls.dtype) # 합성될 위치
+            x = tdm_x[cls][..., td_offset * sr:(td_offset + sample_time) * sr]
+            y = tdm_y[cls][td_offset:td_offset + sample_time]
+
+            x = tf.pad(x, ((0,0), (using_offset * sr, (lab_len -  sample_time - using_offset) * sr)))
+            y = tf.pad(y, ((using_offset, lab_len - sample_time - using_offset), (0,0)))
+            return x, y, using_offset, sample_time
+        
+        selected_tdms = tf.map_fn(get_tdm_frame, selected_cls, 
+                    fn_output_signature=(tf.TensorSpec(shape=(4, lab_len * sr), dtype=tf.float32),
+                                         tf.TensorSpec(shape=(lab_len, 56), dtype=tf.float32),
+                                         tf.TensorSpec(shape=(), dtype=selected_cls.dtype),
+                                         tf.TensorSpec(shape=(), dtype=selected_cls.dtype)))
+
+        i = tf.constant(0)
+        cond = lambda i, j: i < max_overlap_num
+        def body(i, selected_tdms):
+            x[i], y[i] = get_mixed_data(x[i], y[i], selected_tdms[0][i], selected_tdms[1][i], selected_tdms[2][i], selected_tdms[3][i])
+            return i + 1, selected_tdms
+        tf.while_loop(cond, body, (i, selected_tdms), parallel_iterations=selected_cls.shape[0])
+        return tf.zeros((), dtype=tf.int32)
 
     tf.map_fn(add_noise, tf.range(len(x)))
     return x, y
