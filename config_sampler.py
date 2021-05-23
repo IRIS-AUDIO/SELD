@@ -99,13 +99,11 @@ def vad_architecture_sampler(search_space_2d: dict,
     if default_config is None:
         default_config = {}
 
-    i = 0
+    count = 0
+    n_2d = random.randint(0, n_blocks)
     while True:
         model_config = copy.deepcopy(default_config)
 
-        n_2d = random.randint(0, n_blocks)
-        n_2d = random.choices(list(range(n_blocks+1)),
-                              [int(4**i) for i in range(n_blocks+1)])[0]
         for i in range(n_blocks):
             pool = modules_2d if i < n_2d else modules_1d
             module = random.sample(pool, 1)[0]
@@ -120,9 +118,10 @@ def vad_architecture_sampler(search_space_2d: dict,
         if constraint is None or constraint(model_config, input_shape):
             return model_config
 
-        i += 1
-        if (i % 1000) == 0:
-            print(f'{i}th iters. check constraint')
+        count += 1
+        if (count % 10000) == 0:
+            n_2d = random.randint(0, n_blocks)
+            print(f'{count}th iters. check constraint')
 
 
 def search_space_sanity_check(search_space: dict):
