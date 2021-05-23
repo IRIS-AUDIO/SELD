@@ -11,6 +11,7 @@ args.add_argument('--results', type=str,
 args.add_argument('--keyword', type=str, default='val_auc')
 args.add_argument('--count1d', action='store_true')
 args.add_argument('--stagewise', action='store_true')
+args.add_argument('--stagewise_exist', action='store_true')
 args.add_argument('--filters', action='store_true')
 args.add_argument('--verbose', action='store_true')
 args.add_argument('--var_of_interest', type=str, default=None)
@@ -194,6 +195,17 @@ if __name__ == '__main__':
             table[stage] = [count_blocks(p['config'], lambda p: p == stage)
                             for p in pairs]
 
+    if config.stagewise_exist:
+        total = [v for k, v in feats.items() if k.startswith('BLOCK')]
+        stages = total[0]
+        for s in total[1:]:
+            stages = stages.union(s)
+
+        for stage in stages:
+            table[f'{stage}_exist'] = [
+                count_blocks(p['config'], lambda p: p == stage) > 0
+                for p in pairs]
+
     if config.filters:
         table['filters'] = np.sign(np.array(table['BLOCK1_ARGS.filters']) 
                                    -np.array(table['BLOCK0_ARGS.filters']))
@@ -224,7 +236,9 @@ if __name__ == '__main__':
                       f'[{min(pv):.5f}, {max(pv):.5f}] '
                       f'({np.mean(pv):.5f}) '
                       f'n_samples={len(perfs[i])}, '
-                      f'{keyword}(mean={np.mean(perfs[i]):.5f}, '
-                      f'median={np.median(perfs[i]):.5f})')
+                      f'{keyword}(min={np.min(perfs[i]):.5f}, '
+                      f'mean={np.mean(perfs[i]):.5f}, '
+                      f'median={np.median(perfs[i]):.5f}, '
+                      f'max={np.max(perfs[i]):.5f})')
         print()
 
