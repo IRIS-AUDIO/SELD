@@ -164,7 +164,7 @@ def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_over
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
     sr = 24000
-    x, y = get_preprocessed_wave(FEATURE_PATH,
+    x, y = load_wav_and_label(FEATURE_PATH,
                                  LABEL_PATH)
 
     # 데이터 훑어서 aug용 데이터 뽑기
@@ -229,14 +229,14 @@ def main(config):
     # data load
     if config.use_tdm:
         overlap_num = 1
-        overlap_time = 1  
+        overlap_sec = 1
         max_overlap_num = 5
-        max_overlap_time = 5
+        max_overlap_sec = 5
         trainset = get_tdm_dataset(config, 
                                 max_overlap_num=overlap_num, 
                                 max_overlap_per_frame=2, 
                                 min_overlap_sec=0.5, 
-                                max_overlap_sec=overlap_time)
+                                max_overlap_sec=overlap_sec)
     else:
         trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
@@ -290,28 +290,19 @@ def main(config):
         # tdm
         if config.use_tdm and config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
             if epoch % 2 == 0 and epoch > 20:
-                # TDMv2
-                if overlap_num < max_overlap_num:
-                    overlap_num += 1
+                if overlap_sec < max_overlap_sec:
+                    overlap_sec += 1
                 else:
-                    if overlap_time < max_overlap_time:
-                        overlap_time += 1
-                        overlap_num = 1
-
-                # TDMv1
-                # if overlap_time < max_overlap_time:
-                #     overlap_time += 1
-                # else:
-                #     if overlap_num < max_overlap_num:
-                #         overlap_time = 1
-                #         overlap_num += 1
-                print(f'current_max_overlap_time: {overlap_time}, current_max_overlap_num: {overlap_num}')
+                    if overlap_num < max_overlap_num:
+                        overlap_sec = 1
+                        overlap_num += 1
+                print(f'current_max_overlap_sec: {overlap_sec}, current_max_overlap_num: {overlap_num}')
 
             trainset = get_tdm_dataset(config, 
                                         max_overlap_num=overlap_num, 
                                         max_overlap_per_frame=2, 
                                         min_overlap_sec=0.5, 
-                                        max_overlap_sec=overlap_time)
+                                        max_overlap_sec=overlap_sec)
             
         # train loop
         metric_class.reset_states()
