@@ -228,9 +228,9 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
     # weights = tf.nn.relu(target_n_frames_per_cls - frames_per_cls)
     # weight_logit = tf.keras.utils.normalize(weights, order=1)[0]
     
-    def add_noise(_):
+    def do_tdm(_):
         def select_random_cls(max_overlap_num):
-            classes = [i for i in tf.random.categorical(tf.math.log(weight_logit[tf.newaxis,...]), max_overlap_num)]
+            classes = list(map(lambda x: tf.random.categorical(tf.math.log(weight_logit[tf.newaxis,...]), max_overlap_num), range(max_overlap_num)))
             return tf.reshape(tf.concat(classes, -1), (-1,))
 
         selected_cls = select_random_cls(max_overlap_num)
@@ -262,7 +262,7 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
         tf.while_loop(cond, body, (i, selected_tdms), parallel_iterations=selected_cls.shape[0])
         return tf.zeros((), dtype=tf.int32)
 
-    tf.map_fn(add_noise, tf.range(len(x)))
+    tf.map_fn(do_tdm, tf.range(len(x)))
     return x, y
 
 
