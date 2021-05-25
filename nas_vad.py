@@ -96,9 +96,7 @@ def sample_constraint(min_flops=None, max_flops=None,
                                + (args['filters1'] > 0)
                                + (args['filters2'] > 0))
 
-                    if n_convs == 0: # remove identity stage
-                        return False
-                    elif n_convs == 1:
+                    if n_convs == 1:
                         if args['filters1'] == 0:
                             return False
                     elif n_convs == 2:
