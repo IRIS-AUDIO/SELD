@@ -9,12 +9,12 @@ args = argparse.ArgumentParser()
 args.add_argument('--results', type=str, 
                   default='vad_6-0_results,vad_6-1_results')
 args.add_argument('--keyword', type=str, default='val_auc')
+args.add_argument('--n_stages', type=int, default=3)
 args.add_argument('--count1d', action='store_true')
 args.add_argument('--stagewise', action='store_true')
 args.add_argument('--stagewise_exist', action='store_true')
 args.add_argument('--filters', action='store_true')
 args.add_argument('--verbose', action='store_true')
-args.add_argument('--var_of_interest', type=str, default=None)
 args.add_argument('--black_list', type=str, default='')
 args.add_argument('--a', type=float, default=0.05)
 args.add_argument('--min_samples', type=int, default=1)
@@ -135,7 +135,7 @@ if __name__ == '__main__':
                 pairs.append(results[key])
 
                 # temp
-                for i in range(3):
+                for i in range(config.n_stages):
                     c = results[key]['config']
                     if c[f'BLOCK{i}'] == 'mother_stage':
                         c_args = c[f'BLOCK{i}_ARGS']
