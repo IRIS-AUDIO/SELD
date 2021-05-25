@@ -191,7 +191,7 @@ if __name__ == '__main__':
                 value = pair['config'][front][end]
             else:
                 value = pair['config'][feat]
-            if isinstance(value, list):
+            if not isinstance(value, (int, float, str)):
                 value = str(value)
 
             table[feat].append(value)
