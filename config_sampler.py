@@ -25,6 +25,7 @@ def conv_temporal_sampler(search_space_2d: dict,
                           n_blocks: int,
                           input_shape,
                           default_config=None,
+                          config_postprocess_fn=None,
                           constraint=None):
     '''
     search_space_2d: modules with 2D outputs
@@ -80,6 +81,9 @@ def conv_temporal_sampler(search_space_2d: dict,
             model_config[f'{head}_ARGS'] = {
                 k: random.sample(v, 1)[0]
                 for k, v in search_space_total[module].items()}
+
+        if config_postprocess_fn:
+            model_config = config_postprocess_fn(model_config)
 
         if constraint is None or constraint(model_config, input_shape):
             return model_config
