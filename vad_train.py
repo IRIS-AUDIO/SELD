@@ -34,7 +34,8 @@ if gpus:
     try:
         tf.config.experimental.set_virtual_device_configuration(
             gpus[0],
-            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=10240)])
+            [tf.config.experimental.VirtualDeviceConfiguration(
+                memory_limit=10240)])
     except RuntimeError as e:
         print(e)
 
@@ -43,9 +44,12 @@ if gpus:
 search_space_2d = {
     'mother_stage':
         {'depth': [1, 2, 3],
-         'filters0': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'filters1': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'filters2': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'filters0': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+                      3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'filters1': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+                      3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'filters2': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+                      3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
          'kernel_size0': [1, 3, 5],
          'kernel_size1': [1, 3, 5],
          'kernel_size2': [1, 3, 5],
@@ -54,48 +58,7 @@ search_space_2d = {
          'connect2': [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1],
                       [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]],
          'strides': [(1, 1), (1, 2), (1, 3)]},
-    # 'identity_block': 
-    #     {},
 }
-'''
-'simple_conv_stage': 
-    {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-     'depth': [1, 2, 3],
-     'pool_size': [(1, 1), (1, 2), (1, 3)]},
-'another_conv_stage': 
-    {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-     'depth': [1, 2, 3],
-     'pool_size': [(1, 1), (1, 2), (1, 3)]},
-'res_basic_stage': 
-    {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-     'depth': [1, 2, 3],
-     'strides': [(1, 1), (1, 2), (1, 3)],
-     'groups': [0, 1]},
-'res_bottleneck_stage': 
-    {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-     'depth': [1, 2, 3],
-     'strides': [(1, 1), (1, 2), (1, 3)],
-     'groups': [0, 1],
-     'bottleneck_ratio': [0.25, 0.5, 1, 2, 4]},
-'dense_net_stage': 
-    {'growth_rate': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-     'depth': [1, 2, 3],
-     'strides': [(1, 1), (1, 2), (1, 4)],
-     'bottleneck_ratio': [0.25, 0.5, 1, 2, 4],
-     'reduction_ratio': [0.5, 1, 2]},
-'sepformer_stage': 
-    {'depth': [1, 2, 3],
-     'pos_encoding': [None, 'basic', 'rff'],
-     'n_head': [1, 2, 4, 8, 16],
-     'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-     'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
-     'kernel_size': [1, 3, 5]},
-'xception_basic_stage':
-    {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-     'depth': [1, 2, 3],
-     'strides': [(1, 1), (1, 2), (1, 3)],
-     'mid_ratio': [0.5, 1, 2, 4]},
-'''
 search_space_1d = {
     'simple_dense_stage':
         {'depth': [1, 2, 3],
@@ -127,10 +90,22 @@ def sample_constraint(min_flops=None, max_flops=None,
                     model_config[f'{block}_ARGS'], shape)
                 total_cx = dict_add(total_cx, cx)
 
-                # no identity stage
-                args = model_config[f'{block}_ARGS']
-                if args['filters0'] + args['filters1'] + args['filters2'] == 0:
-                    return False
+                if model_config[block] == 'mother_stage':
+                    args = model_config[f'{block}_ARGS']
+                    n_convs = ((args['filters0'] > 0)
+                               + (args['filters1'] > 0)
+                               + (args['filters2'] > 0))
+
+                    if n_convs == 0: # remove identity stage
+                        return False
+                    elif n_convs == 1:
+                        if args['filters1'] == 0:
+                            return False
+                    elif n_convs == 2:
+                        if args['filters1'] > 0 \
+                                and list(args['strides']) == [1, 1]:
+                            return False
+
             except ValueError as e:
                 return False
 
@@ -256,19 +231,7 @@ if __name__=='__main__':
             default_config=default_config,
             config_postprocess_fn=postprocess_fn,
             constraint=constraint)
-        '''
-        model_config = {
-            'flatten': True,
-            'last_unit': len(window),
-            'BLOCK0': 'simple_dense_stage',
-            'BLOCK0_ARGS': {
-                'depth': 2,
-                'units': 512,
-                'activation': 'relu',
-                'dropout_rate': 0.2,
-            }
-        }
-        '''
+
         start = time.time()
         outputs = train_and_eval(
             train_config, model_config, 
