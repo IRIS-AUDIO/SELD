@@ -148,9 +148,12 @@ if __name__ == '__main__':
                         
                         if c_args['filters0'] == 0:
                             c_args['kernel_size0'] = 0
+                            c_args['connect1'][1] = 0
+                            c_args['connect2'][1] = 0
                         if c_args['filters1'] == 1:
                             c_args['kernel_size1'] = 0
                             c_args['strides'] = [1, 1]
+                            c_args['connect2'][2] = 0
                         if c_args['filters2'] == 2:
                             c_args['kernel_size2'] = 0
 
