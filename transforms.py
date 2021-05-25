@@ -3,7 +3,9 @@ from numpy import pi
 from utils import safe_div
 
 
-def mask(specs, axis, max_mask_size=None, period=100, n_mask=1):
+def mask(specs, axis, max_mask_size=None, period=None, n_mask=1):
+    if period is None:
+        period = tf.shape(specs)[axis]
     total = tf.shape(specs[:period])[axis]
     if max_mask_size is None:
         max_mask_size = total
@@ -41,6 +43,7 @@ def mask(specs, axis, max_mask_size=None, period=100, n_mask=1):
     specs = tf.map_fn(_mask, specs)
     specs = tf.reshape(specs, shape)
     return specs
+
 
 def foa_intensity_vec_aug(x, y):
     # x : [batch, time, freq, 7]
