@@ -2,16 +2,14 @@ import joblib
 import tensorflow as tf
 import tqdm
 
-import model_complexity
 import layers
+import model_complexity
 import models
+import stage_complexity
 from config_sampler import vad_architecture_sampler
 from data_loader import *
 from utils import dict_add, AdaBelief
 from vad_dataloader import get_vad_dataset_from_pairs, preprocess_window
-
-import stage_complexity
-from config_sampler import vad_architecture_sampler
 
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
