@@ -34,7 +34,7 @@ def mask(specs, axis, max_mask_size=None, period=100, n_mask=1):
         _, mask = tf.while_loop(cond, body, (i, mask))
         return specs * mask
 
-    shape = tf.shape(specs)
+    shape = specs.shape
     if shape[0] % period != 0:
         raise ValueError('(spec time length / period)\' rest must be 0')
     specs = tf.signal.frame(specs, period, period, axis=0)
@@ -81,6 +81,7 @@ def foa_intensity_vec_aug(x, y):
     x = tf.identity(x)
     y = tf.identity(y)
     batch_size = tf.shape(x)[0]
+
     # [batch, time, 4*n_classes] to [batch, time, 4, n_classes]
     y = tf.reshape(y, [-1] + [*y.shape[1:-1]] + [4, y.shape[-1]//4])
 
@@ -100,14 +101,12 @@ def foa_intensity_vec_aug(x, y):
     perm = tf.concat([perm, tf.ones_like(perm), 2-perm], axis=-1)
 
     # x,y,z축 회전
-    # perm = tf.map_fn(tf.random.shuffle, correct_shape)
-    
     check = tf.reduce_sum(tf.cast(perm != correct_shape, tf.int32), -1, keepdims=True)
     feat_perm = (perm + check) % 3
 
     intensity_vectors = tf.gather(intensity_vectors, feat_perm, axis=-1, batch_dims=1)
     cartesian = tf.gather(cartesian, feat_perm, axis=-2, batch_dims=1)
-    
+
     x = tf.concat([x[..., :1], tf.gather(x[..., 1:4], perm, axis=-1, batch_dims=1), intensity_vectors], axis=-1)
     
     y = tf.concat([y[..., :-3, :], cartesian], axis=-2)
