@@ -136,11 +136,28 @@ if __name__ == '__main__':
 
                 # temp
                 for i in range(3):
-                    if results[key]['config'][f'BLOCK{i}'] == 'mother_stage':
-                        if results[key]['config'][f'BLOCK{i}_ARGS']['filters0'] \
-                         + results[key]['config'][f'BLOCK{i}_ARGS']['filters1'] \
-                         + results[key]['config'][f'BLOCK{i}_ARGS']['filters2'] == 0:
-                             results[key]['config'][f'BLOCK{i}'] = 'identity_stage'
+                    c = results[key]['config']
+                    if c[f'BLOCK{i}'] == 'mother_stage':
+                        c_args = c[f'BLOCK{i}_ARGS']
+                        if c_args['filters2'] == 0:
+                            if c_args['connect2'][2] == 0:
+                                c_args['filters1'] = 0
+
+                                if c_args['connect2'][1] == 0:
+                                    c_args['filters0'] = 0
+                        
+                        if c_args['filters0'] == 0:
+                            c_args['kernel_size0'] = 0
+                        if c_args['filters1'] == 1:
+                            c_args['kernel_size1'] = 0
+                            c_args['strides'] = [1, 1]
+                        if c_args['filters2'] == 2:
+                            c_args['kernel_size2'] = 0
+
+                        if c_args['filters0'] \
+                         + c_args['filters1'] \
+                         + c_args['filters2'] == 0:
+                             c[f'BLOCK{i}'] = 'identity_stage'
 
     # 1.1 black list
     for stage in config.black_list.split(','):
