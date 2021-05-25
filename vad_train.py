@@ -126,6 +126,11 @@ def sample_constraint(min_flops=None, max_flops=None,
                 cx, shape = get_complexity(model_config[block])(
                     model_config[f'{block}_ARGS'], shape)
                 total_cx = dict_add(total_cx, cx)
+
+                # no identity stage
+                args = model_config[f'{block}_ARGS']
+                if args['filters0'] + args['filters1'] + args['filters2'] == 0:
+                    return False
             except ValueError as e:
                 return False
 
@@ -151,16 +156,23 @@ def postprocess_fn(model_config):
         stage_type = model_config[block]
         
         if stage_type == 'mother_stage':
-            if model_config[f'{block}_ARGS']['filters0'] == 0:
-                model_config[f'{block}_ARGS']['kernel_size0'] = 0
-                model_config[f'{block}_ARGS']['connect1'][1] = 0
-                model_config[f'{block}_ARGS']['connect2'][1] = 0
-            if model_config[f'{block}_ARGS']['filters1'] == 0:
-                model_config[f'{block}_ARGS']['kernel_size1'] = 0
-                model_config[f'{block}_ARGS']['connect2'][2] = 0
-                model_config[f'{block}_ARGS']['strides'] = [1, 1]
-            if model_config[f'{block}_ARGS']['filters2'] == 0:
-                model_config[f'{block}_ARGS']['kernel_size2'] = 0
+            args = model_config[f'{block}_ARGS']
+            if args['filters2'] == 0:
+                if args['filters1'] != 0:
+                    args['connect2'][2] = 1
+                elif args['filters0'] != 0:
+                    args['connect2'][1] = 1
+
+            if args['filters0'] == 0:
+                args['kernel_size0'] = 0
+                args['connect1'][1] = 0
+                args['connect2'][1] = 0
+            if args['filters1'] == 0:
+                args['kernel_size1'] = 0
+                args['connect2'][2] = 0
+                args['strides'] = [1, 1]
+            if args['filters2'] == 0:
+                args['kernel_size2'] = 0
     return model_config
 
 
