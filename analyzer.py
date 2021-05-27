@@ -13,7 +13,6 @@ args.add_argument('--n_stages', type=int, default=3)
 args.add_argument('--count1d', action='store_true')
 args.add_argument('--stagewise', action='store_true')
 args.add_argument('--stagewise_exist', action='store_true')
-args.add_argument('--filters', action='store_true')
 args.add_argument('--verbose', action='store_true')
 args.add_argument('--black_list', type=str, default='')
 args.add_argument('--a', type=float, default=0.05)
@@ -157,10 +156,14 @@ if __name__ == '__main__':
                         if c_args['filters2'] == 2:
                             c_args['kernel_size2'] = 0
 
-                        if c_args['filters0'] \
-                         + c_args['filters1'] \
-                         + c_args['filters2'] == 0:
-                             c[f'BLOCK{i}'] = 'identity_stage'
+                        n_convs = ((c_args['filters0'] > 0)
+                                   + (c_args['filters1'] > 0)
+                                   + (c_args['filters2'] > 0))
+
+                        if n_convs == 0:
+                            c[f'BLOCK{i}'] = 'identity_stage'
+                            c_args['depth'] = 1
+                        c[f'BLOCK{i}_ARGS']['n_convs'] = n_convs
 
     # 1.1 black list
     for stage in config.black_list.split(','):
@@ -168,12 +171,24 @@ if __name__ == '__main__':
             pairs,
             lambda x: count_blocks(x['config'], lambda x: x == stage) == 0)
 
-    # 1.2 add f1score
     for pair in pairs:
+        # 1.2 add f1score
         precision = pair['perf']['val_precision'][0]
         recall = pair['perf']['val_recall'][0]
         f1 = 2 * precision * recall / (precision + recall + 1e-8)
         pair['perf']['val_f1score'] = f1
+
+        # 1.3 add first stage
+        for i in range(config.n_stages):
+            first_stage = pair['config'][f'BLOCK{i}']
+
+            if not first_stage.startswith('identity'):
+                break
+        pair['config']['first_stage'] = first_stage
+
+    pairs = filter_fn(
+        pairs,
+        lambda x: x['config']['first_stage'] == 'mother_stage')
 
     # 2. common feature extractor
     feats = extract_feats_from_pairs(pairs)
@@ -225,10 +240,6 @@ if __name__ == '__main__':
             table[f'{stage}_exist'] = [
                 count_blocks(p['config'], lambda p: p == stage) > 0
                 for p in pairs]
-
-    if config.filters:
-        table['filters'] = np.sign(np.array(table['BLOCK1_ARGS.filters']) 
-                                   -np.array(table['BLOCK0_ARGS.filters']))
 
     # 3. value
     table = {k: np.array(v) for k, v in table.items()}
