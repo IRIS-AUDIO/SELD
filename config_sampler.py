@@ -82,7 +82,7 @@ def conv_temporal_sampler(search_space_2d: dict,
                 k: random.sample(v, 1)[0]
                 for k, v in search_space_total[module].items()}
 
-        if config_postprocess_fn:
+        if config_postprocess_fn is not None:
             model_config = config_postprocess_fn(model_config)
 
         if constraint is None or constraint(model_config, input_shape):
@@ -130,7 +130,7 @@ def vad_architecture_sampler(search_space_2d: dict,
                 k: random.sample(v, 1)[0]
                 for k, v in search_space_total[module].items()}
 
-        if config_postprocess_fn:
+        if config_postprocess_fn is not None:
             model_config = config_postprocess_fn(model_config)
 
         if constraint is None or constraint(model_config, input_shape):
