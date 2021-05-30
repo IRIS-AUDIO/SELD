@@ -29,8 +29,8 @@ def get_param(known=None):
                       help='learning rate decay patience for plateau')
     args.add_argument('--patience', type=int, default=100, 
                       help='early stop patience')
-    args.add_argument('--freq_mask_size', type=int, default=30)
-    args.add_argument('--time_mask_size', type=int, default=35)
+    args.add_argument('--freq_mask_size', type=int, default=16)
+    args.add_argument('--time_mask_size', type=int, default=24)
     args.add_argument('--tfm_period', type=int, default=100)
     args.add_argument('--use_acs', action='store_true')
     args.add_argument('--use_tdm', action='store_true')
