@@ -186,10 +186,6 @@ if __name__ == '__main__':
                 break
         pair['config']['first_stage'] = first_stage
 
-    pairs = filter_fn(
-        pairs,
-        lambda x: x['config']['first_stage'] == 'mother_stage')
-
     # 2. common feature extractor
     feats = extract_feats_from_pairs(pairs)
     print(feats)
