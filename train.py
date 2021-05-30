@@ -190,7 +190,7 @@ def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_over
 
     if config.use_tfm:
         sample_transforms = [
-            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size), y),
             lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
         ]
     else:
@@ -230,8 +230,8 @@ def main(config):
     if config.use_tdm:
         overlap_num = 1
         overlap_sec = 1
-        max_overlap_num = 5
-        max_overlap_sec = 5
+        max_overlap_num = 3
+        max_overlap_sec = 3
         trainset = get_tdm_dataset(config, 
                                 max_overlap_num=overlap_num, 
                                 max_overlap_per_frame=2, 
