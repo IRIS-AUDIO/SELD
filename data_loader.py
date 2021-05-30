@@ -213,11 +213,10 @@ def TDM_aug(x: list, y: list, tdm_x, tdm_y, sr=24000, label_resolution=0.1, max_
             frame_y = y[i][offset:offset+sample_time] # (sample_time, 56)
             nondup_class = 1 - frame_y[..., cls]
 
-            # valid_index = tf.cast(tf.reduce_sum(frame_y[...,:class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
-            valid_index = tf.cast(tf.reduce_sum(frame_y[...,:class_num], -1) == max_overlap_per_frame - 1, nondup_class.dtype) * nondup_class # 겹치는 부분만  겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            valid_index = tf.cast(tf.reduce_sum(frame_y[...,:class_num], -1) < max_overlap_per_frame, nondup_class.dtype) * nondup_class # 1프레임당 최대 클래스 개수보다 작으면서 겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
+            # valid_index = tf.cast(tf.reduce_sum(frame_y[...,:class_num], -1) == max_overlap_per_frame - 1, nondup_class.dtype) * nondup_class # 겹치는 부분만  겹치지 않는 노이즈를 넣을 수 있는 공간 찾기
 
-            frame_y *= valid_index[..., tf.newaxis] # valid한 프레임만 남기기
-            if tf.reduce_sum(frame_y) == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
+            if tf.reduce_sum(valid_index) == 0: # 만약 넣을 수 없다면 이번에는 노이즈 안 넣음
                 return tf.zeros((), dtype=tf.int64)
 
             tdm_frame_y = tdm_y[cls][td_offset:td_offset+sample_time] * valid_index[...,tf.newaxis] # valid한 프레임만 남기기
