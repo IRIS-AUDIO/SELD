@@ -1,13 +1,15 @@
 import argparse
+import copy
 import joblib
 import json
+import time
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
-import stage_complexity
-import model_complexity
 import layers
+import model_complexity
 import models
+import stage_complexity
 from config_sampler import vad_architecture_sampler
 from data_loader import *
 from utils import dict_add
@@ -16,7 +18,7 @@ from vad_dataloader import get_vad_dataset_from_pairs
 args = argparse.ArgumentParser()
 
 args.add_argument('--json_fname', type=str, default='vad_results.json')
-args.add_argument('--n_samples', type=int, default=128)
+args.add_argument('--n_samples', type=int, default=256)
 args.add_argument('--n_blocks', type=int, default=3)
 args.add_argument('--min_flops', type=int, default=500_000)
 args.add_argument('--max_flops', type=int, default=600_000)
@@ -26,71 +28,43 @@ args.add_argument('--n_repeat', type=int, default=50)
 args.add_argument('--lr', type=int, default=1e-3)
 
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+print(gpus)
+if gpus:
+    try:
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(
+                memory_limit=10240)])
+    except RuntimeError as e:
+        print(e)
+
+
 '''            SEARCH SPACES           '''
 search_space_2d = {
-    'simple_conv_stage': 
-        {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'depth': [1, 2, 3],
-         'pool_size': [(1, 1), (1, 2), (1, 3)]},
-    'another_conv_stage': 
-        {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'depth': [1, 2, 3],
-         'pool_size': [(1, 1), (1, 2), (1, 3)]},
-    'res_basic_stage': 
-        {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'depth': [1, 2, 3],
-         'strides': [(1, 1), (1, 2), (1, 3)],
-         'groups': [1, 2, 4, 8, 16, 32, 64]},
-    'res_bottleneck_stage': 
-        {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'depth': [1, 2, 3],
-         'strides': [(1, 1), (1, 2), (1, 3)],
-         'groups': [1, 2, 4, 8, 16, 32, 64],
-         'bottleneck_ratio': [0.25, 0.5, 1, 2, 4]},
-    'dense_net_stage': 
-        {'growth_rate': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'depth': [1, 2, 3],
-         'strides': [(1, 1), (1, 2), (1, 4)],
-         'bottleneck_ratio': [0.25, 0.5, 1, 2, 4],
-         'reduction_ratio': [0.5, 1, 2]},
-    'sepformer_stage': 
+    'mother_stage':
         {'depth': [1, 2, 3],
-         'pos_encoding': [None, 'basic', 'rff'],
-         'n_head': [1, 2, 4, 8, 16],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
-         'kernel_size': [1, 3, 5]},
-    'xception_basic_stage':
-        {'filters': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'depth': [1, 2, 3],
-         'strides': [(1, 1), (1, 2), (1, 3)],
-         'mid_ratio': [0.5, 1, 2, 4]},
-    'identity_block': 
-        {},
+         'filters0': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+                      3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'filters1': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+                      3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'filters2': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+                      3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'kernel_size0': [1, 3, 5],
+         'kernel_size1': [1, 3, 5],
+         'kernel_size2': [1, 3, 5],
+         'connect0': [[0], [1]],
+         'connect1': [[0, 0], [0, 1], [1, 0], [1, 1]],
+         'connect2': [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1],
+                      [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]],
+         'strides': [(1, 1), (1, 2), (1, 3)]},
 }
-
 search_space_1d = {
-    'bidirectional_GRU_stage':
-        {'depth': [1, 2, 3],
-         'units': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256]}, 
-    'transformer_encoder_stage':
-        {'depth': [1, 2, 3],
-         'n_head': [1, 2, 4, 8, 16],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
-         'kernel_size': [1, 3, 5]},
     'simple_dense_stage':
         {'depth': [1, 2, 3],
-         'units': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+         'units': [3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
          'dense_activation': [None, 'relu'],
          'dropout_rate': [0., 0.2, 0.5]},
-    'conformer_encoder_stage':
-        {'depth': [1, 2, 3],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'n_head': [1, 2, 4, 8, 16],
-         'kernel_size': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'multiplier': [1, 2, 4],
-         'pos_encoding': [None, 'basic', 'rff']},
 }
 
 
@@ -111,13 +85,25 @@ def sample_constraint(min_flops=None, max_flops=None,
                          if b.startswith('BLOCK') and not b.endswith('_ARGS')])
 
         for block in blocks:
-            if model_config[block] not in search_space_1d and len(shape) != 3:
-                return False
-
             try:
                 cx, shape = get_complexity(model_config[block])(
                     model_config[f'{block}_ARGS'], shape)
                 total_cx = dict_add(total_cx, cx)
+
+                if model_config[block] == 'mother_stage':
+                    args = model_config[f'{block}_ARGS']
+                    n_convs = ((args['filters0'] > 0)
+                               + (args['filters1'] > 0)
+                               + (args['filters2'] > 0))
+
+                    if n_convs == 1:
+                        if args['filters1'] == 0:
+                            return False
+                    elif n_convs == 2:
+                        if args['filters1'] > 0 \
+                                and list(args['strides']) == [1, 1]:
+                            return False
+
             except ValueError as e:
                 return False
 
@@ -132,6 +118,35 @@ def sample_constraint(min_flops=None, max_flops=None,
             return False
         return True
     return _contraint
+
+
+def postprocess_fn(model_config):
+    model_config = copy.deepcopy(model_config)
+    blocks = sorted([key for key in model_config.keys()
+                     if key.startswith('BLOCK') and not key.endswith('_ARGS')])
+
+    for block in blocks:
+        stage_type = model_config[block]
+        
+        if stage_type == 'mother_stage':
+            args = model_config[f'{block}_ARGS']
+            if args['filters2'] == 0:
+                if args['filters1'] != 0:
+                    args['connect2'][2] = 1
+                elif args['filters0'] != 0:
+                    args['connect2'][1] = 1
+
+            if args['filters0'] == 0:
+                args['kernel_size0'] = 0
+                args['connect1'][1] = 0
+                args['connect2'][1] = 0
+            if args['filters1'] == 0:
+                args['kernel_size1'] = 0
+                args['connect2'][2] = 0
+                args['strides'] = [1, 1]
+            if args['filters2'] == 0:
+                args['kernel_size2'] = 0
+    return model_config
 
 
 def prepare_dataset(pairs, window, batch_size, train=False, n_repeat=1):
@@ -156,7 +171,7 @@ def train_and_eval(train_config,
 
     model.compile(optimizer=optimizer,
                   loss=tf.keras.losses.BinaryCrossentropy(), # MSE,
-                  metrics=['AUC', 'accuracy', 'Precision', 'Recall'])
+                  metrics=['AUC', 'binary_accuracy', 'Precision', 'Recall'])
 
     history = model.fit(trainset, 
                         validation_data=testset)
@@ -212,11 +227,15 @@ if __name__=='__main__':
             n_blocks=train_config.n_blocks,
             input_shape=input_shape,
             default_config=default_config,
+            config_postprocess_fn=postprocess_fn,
             constraint=constraint)
+
+        start = time.time()
         outputs = train_and_eval(
             train_config, model_config, 
             input_shape, 
             trainset, testset)
+        outputs['time'] = time.time() - start
 
         results[f'{i:03d}'] = {'config': model_config, 'perf': outputs}
         with open(train_config.json_fname, 'w') as f:
