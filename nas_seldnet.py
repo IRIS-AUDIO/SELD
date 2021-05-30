@@ -18,7 +18,7 @@ from utils import dict_add
 
 args = argparse.ArgumentParser()
 
-args.add_argument('--json_fname', type=str, required=True)
+args.add_argument('--name', type=str, required=True)
 args.add_argument('--train_path', type=str, 
                   default='/datasets/datasets/DCASE2020/foa_tdm_dev')
 args.add_argument('--test_path', type=str, 
@@ -90,8 +90,8 @@ def sample_constraint(min_flops=None, max_flops=None,
         blocks = sorted([b for b in model_config.keys()
                          if b.startswith('BLOCK') and not b.endswith('_ARGS')])
 
-        for block in blocks:
-            try:
+        try:
+            for block in blocks:
                 cx, shape = get_complexity(model_config[block])(
                     model_config[f'{block}_ARGS'], shape)
                 total_cx = dict_add(total_cx, cx)
@@ -110,8 +110,20 @@ def sample_constraint(min_flops=None, max_flops=None,
                                 and list(args['strides']) == [1, 1]:
                             return False
 
-            except ValueError as e:
-                return False
+            cx, sed_shape = get_complexity(model_config['SED'])(
+                model_config['SED_ARGS'], shape)
+            cx, sed_shape = stage_complexity.linear_complexity(
+                sed_shape, model_config['n_classes'], prev_cx=cx)
+            total_cx = dict_add(total_cx, cx)
+
+            cx, doa_shape = get_complexity(model_config['DOA'])(
+                model_config['DOA_ARGS'], shape)
+            cx, doa_shape = stage_complexity.linear_complexity(
+                doa_shape, 3*model_config['n_classes'], prev_cx=cx)
+            total_cx = dict_add(total_cx, cx)
+
+        except ValueError as e:
+            return False
 
         # total complexity contraint
         if min_flops and total_cx['flops'] < min_flops:
@@ -195,13 +207,18 @@ def train_and_eval(train_config,
 
 if __name__=='__main__':
     train_config = args.parse_args()
+    name = train_config.name
+    if not name.endswith('.json'):
+        name = f'{name}.json'
+
     input_shape = [300, 64, 7]
 
     # TRAIN DATASET
     train_x = joblib.load(os.path.join(train_config.train_path, '5_5_x.joblib'))
     train_x = np.concatenate(train_x, axis=0)
     train_y = joblib.load(os.path.join(train_config.train_path, '5_5_y.joblib'))
-    train_y = np.concatenate([np.concatenate(y, axis=-1) for y in train_y], axis=0)
+    train_y = np.concatenate([np.concatenate(y, axis=-1) for y in train_y], 
+                             axis=0)
     sample_transforms = [
         # time
         lambda x, y: (mask(x, axis=-3, max_mask_size=35), y),
@@ -237,8 +254,8 @@ if __name__=='__main__':
     start_idx = 0
 
     # resume past results
-    if os.path.exists(train_config.json_fname):
-        with open(train_config.json_fname, 'r') as f:
+    if os.path.exists(name):
+        with open(name, 'r') as f:
             prev_results = json.load(f)
 
         if results['train_config'] != prev_results['train_config']:
@@ -266,6 +283,6 @@ if __name__=='__main__':
         outputs['time'] = time.time() - start
 
         results[f'{i:03d}'] = {'config': model_config, 'perf': outputs}
-        with open(train_config.json_fname, 'w') as f:
+        with open(name, 'w') as f:
             json.dump(results, f, indent=4)
 
