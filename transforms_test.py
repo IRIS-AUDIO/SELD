@@ -5,7 +5,7 @@ from transforms import *
 
 
 class TransformsTest(tf.test.TestCase):
-    def test_mask(self):
+    def test_simple_mask(self):
         tf.random.set_seed(100)
         org = np.array([[ 0,  1,  2,  3,  4],
                         [ 5,  6,  7,  8,  9],
@@ -18,7 +18,7 @@ class TransformsTest(tf.test.TestCase):
                            [15, 16, 17, 18, 19],
                            [20, 21, 22, 23, 24]])
         self.assertAllEqual(target, 
-                            mask(org, axis=0, max_mask_size=None, n_mask=1))
+                            simple_mask(org, axis=0, max_mask_size=None, n_mask=1))
 
         tf.random.set_seed(2020)
         target = np.array([[ 0,  1,  0,  3,  4],
@@ -27,7 +27,7 @@ class TransformsTest(tf.test.TestCase):
                            [ 0, 16,  0, 18, 19],
                            [ 0, 21,  0, 23, 24]])
         self.assertAllEqual(target, 
-                            mask(org, axis=1, max_mask_size=3, n_mask=2))
+                            simple_mask(org, axis=1, max_mask_size=3, n_mask=2))
 
     def test_intensity_vec_aug(self):
         tf.random.set_seed(2022)

@@ -333,7 +333,8 @@ def mother_block(model_config: dict):
                 skip = outputs[-1]
                 if skip.shape[-3:] != out.shape[-3:]:
                     skip = Conv2D(filters0, 1)(skip)
-                out += BatchNormalization()(skip)
+                    skip = BatchNormalization()(skip)
+                out += skip
             out = Activation(activation)(out)
         else:
             out = outputs[-1]
@@ -349,7 +350,8 @@ def mother_block(model_config: dict):
                     skip = outputs[i]
                     if skip.shape[-3:] != out.shape[-3:]:
                         skip = Conv2D(filters1, 1, strides=strides)(skip)
-                    out += BatchNormalization()(skip)
+                        skip = BatchNormalization()(skip)
+                    out += skip
             out = Activation(activation)(out)
         else:
             out = []
@@ -370,7 +372,8 @@ def mother_block(model_config: dict):
                         skip = Conv2D(
                             filters2, 1, 
                             strides=(1, 1) if i == 2 else strides)(skip)
-                    out += BatchNormalization()(skip)
+                        skip = BatchNormalization()(skip)
+                    out += skip
             out = Activation(activation)(out)
         else:
             out = []
@@ -451,14 +454,16 @@ def res_basic_block(model_config: dict):
     filters = model_config['filters']
     strides = safe_tuple(model_config['strides'])
 
-    groups = model_config.get('groups', 1)
+    groups_coef = model_config.get('groups', 0)
     activation = model_config.get('activation', 'relu')
 
     def basic_block(inputs):
+        groups = max(int(groups_coef * inputs.shape[-1]), 1)
         out = Conv2D(filters, 3, strides, padding='same', groups=groups)(inputs)
         out = BatchNormalization()(out)
         out = Activation(activation)(out)
 
+        groups = max(int(groups_coef * out.shape[-1]), 1)
         out = Conv2D(filters, 3, padding='same', groups=groups)(out)
         out = BatchNormalization()(out)
 
@@ -475,7 +480,7 @@ def res_bottleneck_block(model_config: dict):
     filters = model_config['filters']
     strides = model_config['strides']
 
-    groups = model_config.get('groups', 1)
+    groups_coef = model_config.get('groups', 0)
     bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
     activation = model_config.get('activation', 'relu')
 
@@ -488,6 +493,7 @@ def res_bottleneck_block(model_config: dict):
         out = BatchNormalization()(out)
         out = Activation(activation)(out)
 
+        groups = max(int(groups_coef * out.shape[-1]), 1)
         out = Conv2D(bottleneck_size, 3, strides, 
                      padding='same', groups=groups)(out)
         out = BatchNormalization()(out)

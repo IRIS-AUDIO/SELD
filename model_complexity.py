@@ -46,7 +46,7 @@ def vad_architecture_complexity(model_config, input_shape):
     flatten = model_config.get('flatten', True)
     last_unit = model_config.get('last_unit', 1)
 
-    shape = [np.prod(input_shape)] if flatten else input_shape
+    shape = [np.prod(input_shape).tolist()] if flatten else input_shape
     total_cx = {}
 
     blocks = sorted([key for key in model_config.keys()
