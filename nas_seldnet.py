@@ -90,8 +90,8 @@ def sample_constraint(min_flops=None, max_flops=None,
         blocks = sorted([b for b in model_config.keys()
                          if b.startswith('BLOCK') and not b.endswith('_ARGS')])
 
-        for block in blocks:
-            try:
+        try:
+            for block in blocks:
                 cx, shape = get_complexity(model_config[block])(
                     model_config[f'{block}_ARGS'], shape)
                 total_cx = dict_add(total_cx, cx)
@@ -110,8 +110,20 @@ def sample_constraint(min_flops=None, max_flops=None,
                                 and list(args['strides']) == [1, 1]:
                             return False
 
-            except ValueError as e:
-                return False
+            cx, sed_shape = get_complexity(model_config['SED'])(
+                model_config['SED_ARGS'], shape)
+            cx, sed_shape = stage_complexity.linear_complexity(
+                sed_shape, model_config['n_classes'], prev_cx=cx)
+            total_cx = dict_add(total_cx, cx)
+
+            cx, doa_shape = get_complexity(model_config['DOA'])(
+                model_config['DOA_ARGS'], shape)
+            cx, doa_shape = stage_complexity.linear_complexity(
+                doa_shape, 3*model_config['n_classes'], prev_cx=cx)
+            total_cx = dict_add(total_cx, cx)
+
+        except ValueError as e:
+            return False
 
         # total complexity contraint
         if min_flops and total_cx['flops'] < min_flops:
