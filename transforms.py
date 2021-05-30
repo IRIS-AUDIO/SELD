@@ -34,7 +34,7 @@ def mask(specs, axis, max_mask_size=None, period=100, n_mask=1):
         _, mask = tf.while_loop(cond, body, (i, mask))
         return specs * mask
 
-    shape = tf.shape(specs)
+    shape = specs.shape
     if shape[0] % period != 0:
         raise ValueError('(spec time length / period)\' rest must be 0')
     specs = tf.signal.frame(specs, period, period, axis=0)
