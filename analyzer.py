@@ -183,10 +183,15 @@ if __name__ == '__main__':
 
     for pair in pairs:
         # 1.2 add f1score
-        precision = pair['perf']['val_precision'][0]
-        recall = pair['perf']['val_recall'][0]
+        precision = np.squeeze(pair['perf']['val_precision'])
+        recall = np.squeeze(pair['perf']['val_recall'])
         f1 = 2 * precision * recall / (precision + recall + 1e-8)
         pair['perf']['val_f1score'] = f1
+
+        precision = np.squeeze(pair['perf']['test_precision'])
+        recall = np.squeeze(pair['perf']['test_recall'])
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
+        pair['perf']['test_f1score'] = f1
 
         # 1.3 add first stage
         for i in range(config.n_stages):
@@ -252,6 +257,17 @@ if __name__ == '__main__':
     # 3. value
     table = {k: np.array(v) for k, v in table.items()}
 
+    # pareto frontier
+    scores = sorted(list(zip(table[keyword], table[keyword2])),
+                    key=lambda x: -x[0])
+    frontier = [[], []]
+    criteria = -np.inf
+    for s0, s1 in scores:
+        if s1 > criteria:
+            criteria = s1
+            frontier[0].append(s0)
+            frontier[1].append(s1)
+
     # 3.1 find significant variables
     for rv in table.keys():
         if rv in [keyword, keyword2]:
@@ -269,6 +285,7 @@ if __name__ == '__main__':
                 mask = table[rv] == value
                 plt.plot(table[keyword][mask], 
                          table[keyword2][mask], '.', label=value)
+            plt.plot(*frontier, color='gray', alpha=0.5)
             plt.title(rv)
             plt.xlabel(keyword)
             plt.ylabel(keyword2)
