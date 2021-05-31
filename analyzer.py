@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
             table[feat].append(value)
 
-        for kw in [keyword, keyword2]:
+        for kw in np.unique([keyword, keyword2]):
             k_value = pair['perf'][kw]
             if isinstance(k_value, list):
                 k_value = k_value[-1]
