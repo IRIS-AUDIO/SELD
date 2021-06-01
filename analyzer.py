@@ -167,12 +167,6 @@ if __name__ == '__main__':
                             c_args['depth'] = 1
                         c[f'BLOCK{i}_ARGS']['n_convs'] = n_convs
 
-                        # close connection
-                        c[f'BLOCK{i}_ARGS']['close_connect'] = 0
-                        for j in range(3):
-                            if c_args[f'filters{j}'] > 0 and c_args[f'connect{j}'][-1] == 0:
-                                c[f'BLOCK{i}_ARGS']['close_connect'] += 1 / n_convs
-
                 pairs.append(results[key])
 
     # 1.1 black list
@@ -268,6 +262,16 @@ if __name__ == '__main__':
             frontier[0].append(s0)
             frontier[1].append(s1)
 
+    scores = sorted(list(zip(table[keyword], table[keyword2])),
+                    key=lambda x: x[0])
+    frontier2 = [[], []]
+    criteria = np.inf
+    for s0, s1 in scores:
+        if s1 < criteria:
+            criteria = s1
+            frontier2[0].append(s0)
+            frontier2[1].append(s1)
+
     # 3.1 find significant variables
     for rv in table.keys():
         if rv in [keyword, keyword2]:
@@ -286,6 +290,7 @@ if __name__ == '__main__':
                 plt.plot(table[keyword][mask], 
                          table[keyword2][mask], '.', label=value)
             plt.plot(*frontier, color='gray', alpha=0.5)
+            plt.plot(*frontier2, color='gray', alpha=0.5)
             plt.title(rv)
             plt.xlabel(keyword)
             plt.ylabel(keyword2)
