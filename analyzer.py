@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
     # 1.4 if improper keyword2 is given
     if not pairs[0]['perf'].get(keyword2):
-        keyword2 = keyword
+        raise ValueError('invalid keyword2')
 
     # 2. common feature extractor
     feats = extract_feats_from_pairs(pairs)
