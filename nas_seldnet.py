@@ -18,15 +18,15 @@ from utils import dict_add
 
 args = argparse.ArgumentParser()
 
-args.add_argument('--name', type=str, required=True)
+args.add_argument('--name', type=str, required=True, help='name must be {name}_{divided index}') # 2021_1, 2021_2
 args.add_argument('--train_path', type=str, 
                   default='/datasets/datasets/DCASE2020/foa_tdm_dev')
 args.add_argument('--test_path', type=str, 
                   default='/datasets/datasets/DCASE2020/feat_label')
 args.add_argument('--n_samples', type=int, default=256)
 args.add_argument('--n_blocks', type=int, default=4)
-args.add_argument('--min_flops', type=int, default=200_000_000)
-args.add_argument('--max_flops', type=int, default=240_000_000)
+args.add_argument('--min_flops', type=int, default=400_000_000)
+args.add_argument('--max_flops', type=int, default=480_000_000)
 
 args.add_argument('--batch_size', type=int, default=256)
 args.add_argument('--n_repeat', type=int, default=10)
@@ -57,24 +57,24 @@ search_space_1d = {
     'bidirectional_GRU_stage':
         {'depth': [1, 2, 3],
          'units': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256]}, 
-    'transformer_encoder_stage':
-        {'depth': [1, 2, 3],
-         'n_head': [1, 2, 4, 8, 16],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
-         'kernel_size': [1, 3, 5]},
+    # 'transformer_encoder_stage':
+    #     {'depth': [1, 2, 3],
+    #      'n_head': [1, 2, 4, 8, 16],
+    #      'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
+    #      'ff_multiplier': [0.25, 0.5, 1, 2, 4, 8],
+    #      'kernel_size': [1, 3, 5]},
     'simple_dense_stage':
         {'depth': [1, 2, 3],
          'units': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'dense_activation': [None, 'relu'],
+         'dense_activation': ['relu'],
          'dropout_rate': [0., 0.2, 0.5]},
-    'conformer_encoder_stage':
-        {'depth': [1, 2, 3],
-         'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
-         'n_head': [1, 2, 4, 8, 16],
-         'kernel_size': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
-         'multiplier': [1, 2, 4],
-         'pos_encoding': [None, 'basic', 'rff']},
+    # 'conformer_encoder_stage':
+    #     {'depth': [1, 2, 3],
+    #      'key_dim': [2, 3, 4, 6, 8, 12, 16, 24, 32, 48],
+    #      'n_head': [1, 2, 4, 8, 16],
+    #      'kernel_size': [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256],
+    #      'multiplier': [1, 2, 4],
+    #      'pos_encoding': [None, 'basic', 'rff']},
 }
 
 
@@ -178,7 +178,8 @@ def train_and_eval(train_config,
 
     model.compile(optimizer=optimizer,
                   loss={'sed_out': tf.keras.losses.BinaryCrossentropy(),
-                        'doa_out': tf.keras.losses.MSE})
+                        'doa_out': tf.keras.losses.MSE},
+                  loss_weights=[1, 1000])
 
     history = model.fit(trainset,
                         validation_data=testset)
@@ -214,16 +215,16 @@ if __name__=='__main__':
     input_shape = [300, 64, 7]
 
     # TRAIN DATASET
-    train_x = joblib.load(os.path.join(train_config.train_path, '5_5_x.joblib'))
+    train_x = joblib.load(os.path.join(train_config.train_path, 'x.joblib'))
     train_x = np.concatenate(train_x, axis=0)
-    train_y = joblib.load(os.path.join(train_config.train_path, '5_5_y.joblib'))
+    train_y = joblib.load(os.path.join(train_config.train_path, 'y.joblib'))
     train_y = np.concatenate([np.concatenate(y, axis=-1) for y in train_y], 
                              axis=0)
     sample_transforms = [
         # time
-        lambda x, y: (mask(x, axis=-3, max_mask_size=35), y),
+        lambda x, y: (mask(x, axis=-3, max_mask_size=24), y),
         # freq
-        lambda x, y: (mask(x, axis=-2, max_mask_size=24), y),
+        lambda x, y: (mask(x, axis=-2, max_mask_size=16), y),
     ]
     batch_transforms = [foa_intensity_vec_aug, split_total_labels_to_sed_doa]
     trainset = data_loader((train_x, train_y), 
