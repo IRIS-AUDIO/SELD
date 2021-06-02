@@ -6,6 +6,25 @@ from stage_complexity import *
 
 
 class StageComplexityTest(tf.test.TestCase):
+    def test_mother_stage_complexity(self):
+        model_config = {
+            'depth': 2,
+            'filters0': 32,
+            'filters1': 32,
+            'filters2': 0,
+            'kernel_size0': 3,
+            'kernel_size1': 5,
+            'kernel_size2': 0,
+            'connect0': [1],
+            'connect1': [1, 1],
+            'connect2': [0, 0, 1],
+            'strides': (1, 1),
+        }
+        self.complexity_test(mother_stage_complexity,
+                             mother_stage,
+                             model_config,
+                             [32, 32, 16])
+
     def test_simple_conv_stage_complexity(self):
         model_config = {
             'filters': 24,
@@ -43,8 +62,8 @@ class StageComplexityTest(tf.test.TestCase):
         model_config = {
             'depth': 4,
             'strides': 2,
-            'filters': 24,
-            'groups': 2,
+            'filters': 16,
+            'groups': 1,
             'bottleneck_ratio': 2
         }
         self.complexity_test(res_bottleneck_stage_complexity,

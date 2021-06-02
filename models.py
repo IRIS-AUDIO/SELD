@@ -97,5 +97,7 @@ def vad_architecture(input_shape, model_config):
 
     x = layers.force_1d_inputs()(x)
     x = Dense(last_unit, activation='sigmoid')(x)
+    if x.shape[-1] == 1:
+        x = x[..., 0]
     return tf.keras.Model(inputs=inputs, outputs=x)
 

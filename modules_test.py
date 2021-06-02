@@ -68,7 +68,7 @@ class ModulesTest(tf.test.TestCase):
              'groups': 1, 
          }
 
-         exp_input_shape = 32, 32, 32, 3
+         exp_input_shape = 32, 32, 32, 4
          exp_output_shape = 32, 16, 16, 32
 
          self.block_test(res_basic_stage,
@@ -85,7 +85,7 @@ class ModulesTest(tf.test.TestCase):
              'bottleneck_ratio': 2,
          }
 
-         exp_input_shape = 32, 32, 32, 3
+         exp_input_shape = 32, 32, 32, 4
          exp_output_shape = 32, 16, 16, 32
 
          self.block_test(res_bottleneck_stage,
@@ -272,7 +272,7 @@ class ModulesTest(tf.test.TestCase):
              'groups': 1,
          }
 
-         exp_input_shape = 32, 32, 32, 3
+         exp_input_shape = 32, 32, 32, 4
          exp_output_shape = 32, 16, 16, 32
 
          self.block_test(res_basic_block, 
@@ -288,7 +288,7 @@ class ModulesTest(tf.test.TestCase):
              'bottleneck_ratio': 2,
          }
 
-         exp_input_shape = 32, 32, 32, 3
+         exp_input_shape = 32, 32, 32, 4
          exp_output_shape = 32, 16, 16, 32
 
          self.block_test(res_bottleneck_block, 

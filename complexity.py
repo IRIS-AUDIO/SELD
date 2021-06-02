@@ -11,6 +11,94 @@ from utils import *
 
 
 '''            module complexities            '''
+def mother_block_complexity(model_config, input_shape):
+    filters0 = model_config['filters0'] # 0 if skipped
+    filters1 = model_config['filters1'] # 0 if skipped
+    filters2 = model_config['filters2'] # 0 if skipped
+    kernel_size0 = model_config['kernel_size0'] # 0 if skipped
+    kernel_size1 = model_config['kernel_size1'] # 0 if skipped
+    kernel_size2 = model_config['kernel_size2'] # 0 if skipped
+    connect0 = model_config['connect0'] # len of 1 (0: input)
+    connect1 = model_config['connect1'] # len of 2 (0: input, 1: out0)
+    connect2 = model_config['connect2'] # len of 3 (0: input, 1: out0, 2: out1)
+
+    strides = safe_tuple(model_config.get('strides', (1, 1)))
+    
+    if (filters0 == 0) != (kernel_size0 == 0):
+        raise ValueError('0) skipped layer must have 0 filters, 0 kernel size')
+    if (filters1 == 0) != (kernel_size1 == 0):
+        raise ValueError('1) skipped layer must have 0 filters, 0 kernel size')
+    if (filters2 == 0) != (kernel_size2 == 0):
+        raise ValueError('2) skipped layer must have 0 filters, 0 kernel size')
+
+    if filters0 == 0 and max(connect1[1], connect2[1]):
+        raise ValueError('cannot link skipped layer (first layer)')
+    if filters1 == 0 and connect2[2] > 0:
+        raise ValueError('cannot link skipped layer (second layer)')
+
+    if (filters0 != 0) + sum(connect0) == 0:
+        raise ValueError('cannot pass zero inputs to the second layer')
+    if (filters1 != 0) + sum(connect1) == 0:
+        raise ValueError('cannot pass zero inputs to the third layer')
+    if (filters2 != 0) + sum(connect2) == 0:
+        raise ValueError('cannot pass zero inputs to the final output')
+
+    if filters1 == 0 and tuple(strides) != (1, 1):
+        raise ValueError('if strides are set, the second layer must be active')
+
+    shapes = [input_shape]
+    cx = {}
+    
+    # first layer
+    if filters0 > 0:
+        cx, shape = conv2d_complexity(shapes[-1], filters0, kernel_size0, 
+                                      padding='same', prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        if connect0[0] == 1:
+            skip = shapes[-1]
+            if skip[-3:] != shape[-3:]:
+                cx, skip = conv2d_complexity(skip, filters0, 1, prev_cx=cx)
+                cx, skip = norm_complexity(skip, prev_cx=cx)
+    else:
+        shape = shapes[-1][:]
+    shapes.append(shape)
+
+    # second layer
+    if filters1 > 0:
+        cx, shape = conv2d_complexity(shapes[-1], filters1, kernel_size1,
+                                      padding='same', prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        for i in range(2):
+            if connect1[i] == 1:
+                skip = shapes[i]
+                if skip[-3:] != shape[-3:]:
+                    cx, skip = conv2d_complexity(skip, filters1, 1, 
+                                                 strides=strides, prev_cx=cx)
+                    cx, skip = norm_complexity(skip, prev_cx=cx)
+    else:
+        shape = shapes[-1][:-1] + [sum([connect1[i]*shapes[i][-1] 
+                                       for i in range(2)])]
+    shapes.append(shape)
+
+    if filters2 > 0:
+        cx, shape = conv2d_complexity(shapes[-1], filters2, kernel_size2,
+                                      padding='same', prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        for i in range(3):
+            if connect2[i] == 1:
+                skip = shapes[i]
+                if skip[-3:] != shape[-3:]:
+                    cx, skip = conv2d_complexity(
+                        skip, filters2, 1, 
+                        strides=(1, 1) if i == 2 else strides, 
+                        prev_cx=cx)
+                    cx, skip = norm_complexity(skip, prev_cx=cx)
+    else:
+        shape = shapes[-1][:-1] + [sum([connect2[i]*shapes[i][-1] 
+                                       for i in range(3)])]
+    return cx, shape
+
+
 def simple_conv_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     pool_size = model_config['pool_size']
@@ -57,14 +145,17 @@ def res_basic_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     strides = safe_tuple(model_config['strides'])
 
-    groups = model_config.get('groups', 1)
+    groups_coef = model_config.get('groups', 0)
 
     shape = input_shape
     cx = {}
 
+    groups = max(int(groups_coef * shape[-1]), 1)
     cx, shape = conv2d_complexity(shape, filters, 3, strides=strides,
                                   groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
+
+    groups = max(int(groups_coef * shape[-1]), 1)
     cx, shape = conv2d_complexity(shape, filters, 3, 
                                   groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
@@ -81,7 +172,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     filters = model_config['filters']
     strides = model_config['strides']
 
-    groups = model_config.get('groups', 1)
+    groups_coef = model_config.get('groups', 0)
     bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
 
     strides = safe_tuple(strides, 2)
@@ -94,6 +185,7 @@ def res_bottleneck_block_complexity(model_config, input_shape):
     cx, shape = conv2d_complexity(input_shape, btn_size, 1, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
 
+    groups = max(int(groups_coef * shape[-1]), 1)
     cx, shape = conv2d_complexity(
         shape, btn_size, 3, strides, groups=groups, prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
