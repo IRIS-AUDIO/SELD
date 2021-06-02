@@ -100,7 +100,6 @@ def foa_intensity_vec_aug(x, y):
     perm = 2 * tf.random.uniform([batch_size, 1], maxval=2, dtype=tf.int32)
     perm = tf.concat([perm, tf.ones_like(perm), 2-perm], axis=-1)
 
-    # x,y,z축 회전
     check = tf.reduce_sum(tf.cast(perm != correct_shape, tf.int32), -1, keepdims=True)
     feat_perm = (perm + check) % 3
 
