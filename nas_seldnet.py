@@ -20,9 +20,9 @@ args = argparse.ArgumentParser()
 
 args.add_argument('--name', type=str, required=True, help='name must be {name}_{divided index}') # 2021_1, 2021_2
 args.add_argument('--train_path', type=str, 
-                  default='/datasets/datasets/DCASE2020/foa_tdm_dev')
+                  default='/root/datasets/DCASE2021/feat_label')
 args.add_argument('--test_path', type=str, 
-                  default='/datasets/datasets/DCASE2020/feat_label')
+                  default='/root/datasets/DCASE2021/feat_label')
 args.add_argument('--n_samples', type=int, default=256)
 args.add_argument('--n_blocks', type=int, default=4)
 args.add_argument('--min_flops', type=int, default=400_000_000)

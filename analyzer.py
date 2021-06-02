@@ -183,16 +183,6 @@ if __name__ == '__main__':
 
     for pair in pairs:
         # 1.2 add f1score
-        # precision = np.squeeze(pair['perf']['val_precision'])
-        # recall = np.squeeze(pair['perf']['val_recall'])
-        # f1 = 2 * precision * recall / (precision + recall + 1e-8)
-        # pair['perf']['val_f1score'] = f1
-
-        # precision = np.squeeze(pair['perf']['test_precision'])
-        # recall = np.squeeze(pair['perf']['test_recall'])
-        # f1 = 2 * precision * recall / (precision + recall + 1e-8)
-        # pair['perf']['test_f1score'] = f1
-
         # 1.3 add first stage
         for i in range(config.n_stages):
             first_stage = pair['config'][f'BLOCK{i}']
