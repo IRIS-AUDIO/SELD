@@ -177,15 +177,15 @@ if __name__ == '__main__':
 
     for pair in pairs:
         # 1.2 add f1score
-        precision = np.squeeze(pair['perf']['val_precision'])
-        recall = np.squeeze(pair['perf']['val_recall'])
-        f1 = 2 * precision * recall / (precision + recall + 1e-8)
-        pair['perf']['val_f1score'] = f1
+        for data in ['val', 'test']:
+            if not pair['perf'].get(f'{data}_precision') \
+                    or not pair['perf'].get(f'{data}_recall'):
+                continue
 
-        precision = np.squeeze(pair['perf']['test_precision'])
-        recall = np.squeeze(pair['perf']['test_recall'])
-        f1 = 2 * precision * recall / (precision + recall + 1e-8)
-        pair['perf']['test_f1score'] = f1
+            precision = np.squeeze(pair['perf'][f'{data}_precision'])
+            recall = np.squeeze(pair['perf'][f'{data}_recall'])
+            f1 = 2 * precision * recall / (precision + recall + 1e-8)
+            pair['perf'][f'{data}_f1score'] = f1
 
         # 1.3 add first stage
         for i in range(config.n_stages):
@@ -301,8 +301,8 @@ if __name__ == '__main__':
             perfs = [table[keyword][table[rv] == value]
                      for value in unique_values]
             pvalues = get_ks_test_values(
-                unique_values, perfs, 
-                min_samples=config.min_samples, a=config.a, verbose=config.verbose)
+                unique_values, perfs, min_samples=config.min_samples, 
+                a=config.a, verbose=config.verbose)
             n_samples = [len(p) for p in perfs]
 
             for i, pv in enumerate(pvalues):
