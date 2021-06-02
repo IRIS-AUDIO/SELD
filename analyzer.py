@@ -10,7 +10,7 @@ args = argparse.ArgumentParser()
 args.add_argument('--results', type=str, 
                   default='vad_6-0_results,vad_6-1_results')
 args.add_argument('--keyword', type=str, default='val_auc')
-args.add_argument('--keyword2', type=str, default='test_auc')
+args.add_argument('--keyword2', type=str, default='')
 args.add_argument('--n_stages', type=int, default=3)
 args.add_argument('--count1d', action='store_true')
 args.add_argument('--stagewise', action='store_true')
@@ -84,22 +84,6 @@ def extract_feats_from_pairs(pairs):
     return feats
 
 
-def print_ks_test_values(values, perfs, min_samples=1, a=0.05):
-    comb = list(combinations(range(len(values)), 2))
-    pvalues = [[] for _ in range(len(values))]
-
-    for j, k in comb:
-        if len(perfs[j]) >= min_samples and len(perfs[k]) >= min_samples:
-            pvalue = ks_2samp(perfs[j], perfs[k]).pvalue
-            pvalues[j].append(pvalue)
-            pvalues[k].append(pvalue)
-
-            print(values[j], values[k], pvalue, sep='\t')
-            if min(pvalue, 1-pvalue) < a and j != k:
-                print(f'{perfs[j].mean():.4f}\t{perfs[k].mean():.4f}\t'
-                      f'({len(perfs[j])}\t{len(perfs[k])})')
-
-
 def get_ks_test_values(values, perfs, min_samples=1, a=0.05, verbose=False):
     n_values = len(values)
     comb = list(combinations(range(n_values), 2))
@@ -123,7 +107,7 @@ def get_ks_test_values(values, perfs, min_samples=1, a=0.05, verbose=False):
 if __name__ == '__main__':
     config = args.parse_args()
     keyword = config.keyword
-    keyword2 = config.keyword2
+    keyword2 = config.keyword2 if len(config.keyword2) > 0 else keyword
     pairs = []
 
     # 1. load results
@@ -167,12 +151,6 @@ if __name__ == '__main__':
                             c_args['depth'] = 1
                         c[f'BLOCK{i}_ARGS']['n_convs'] = n_convs
 
-                        # close connection
-                        c[f'BLOCK{i}_ARGS']['close_connect'] = 0
-                        for j in range(3):
-                            if c_args[f'filters{j}'] > 0 and c_args[f'connect{j}'][-1] == 0:
-                                c[f'BLOCK{i}_ARGS']['close_connect'] += 1 / n_convs
-
                 pairs.append(results[key])
 
     # 1.1 black list
@@ -183,6 +161,16 @@ if __name__ == '__main__':
 
     for pair in pairs:
         # 1.2 add f1score
+        for data in ['val', 'test']:
+            if not pair['perf'].get(f'{data}_precision') \
+                    or not pair['perf'].get(f'{data}_recall'):
+                continue
+
+            precision = np.squeeze(pair['perf'][f'{data}_precision'])
+            recall = np.squeeze(pair['perf'][f'{data}_recall'])
+            f1 = 2 * precision * recall / (precision + recall + 1e-8)
+            pair['perf'][f'{data}_f1score'] = f1
+
         # 1.3 add first stage
         for i in range(config.n_stages):
             first_stage = pair['config'][f'BLOCK{i}']
@@ -190,6 +178,10 @@ if __name__ == '__main__':
             if not first_stage.startswith('identity'):
                 break
         pair['config']['first_stage'] = first_stage
+
+    # 1.4 if improper keyword2 is given
+    if not pairs[0]['perf'].get(keyword2):
+        raise ValueError('invalid keyword2')
 
     # 2. common feature extractor
     feats = extract_feats_from_pairs(pairs)
@@ -213,7 +205,7 @@ if __name__ == '__main__':
 
             table[feat].append(value)
 
-        for kw in [keyword, keyword2]:
+        for kw in np.unique([keyword, keyword2]):
             k_value = pair['perf'][kw]
             if isinstance(k_value, list):
                 k_value = k_value[-1]
@@ -224,7 +216,8 @@ if __name__ == '__main__':
         table['count1d'] = [count_blocks(p['config']) for p in pairs]
 
     if config.stagewise:
-        total = [v for k, v in feats.items() if k.startswith('BLOCK')]
+        total = [v for k, v in feats.items() 
+                 if k.startswith('BLOCK') or k in ['SED', 'DOA']]
         stages = total[0]
         for s in total[1:]:
             stages = stages.union(s)
@@ -234,7 +227,8 @@ if __name__ == '__main__':
                             for p in pairs]
 
     if config.stagewise_exist:
-        total = [v for k, v in feats.items() if k.startswith('BLOCK')]
+        total = [v for k, v in feats.items() 
+                 if k.startswith('BLOCK') or k in ['SED', 'DOA']]
         stages = total[0]
         for s in total[1:]:
             stages = stages.union(s)
@@ -247,7 +241,7 @@ if __name__ == '__main__':
     # 3. value
     table = {k: np.array(v) for k, v in table.items()}
 
-    # pareto frontier
+    # 3.1 pareto frontier
     scores = sorted(list(zip(table[keyword], table[keyword2])),
                     key=lambda x: -x[0])
     frontier = [[], []]
@@ -258,7 +252,7 @@ if __name__ == '__main__':
             frontier[0].append(s0)
             frontier[1].append(s1)
 
-    # 3.1 find significant variables
+    # 3.2 find significant variables
     for rv in table.keys():
         if rv in [keyword, keyword2]:
             continue
@@ -271,14 +265,24 @@ if __name__ == '__main__':
             continue
 
         if config.visualize:
-            for value in unique_values:
-                mask = table[rv] == value
-                plt.plot(table[keyword][mask], 
-                         table[keyword2][mask], '.', label=value)
-            plt.plot(*frontier, color='gray', alpha=0.5)
+            if keyword != keyword2:
+                for value in unique_values:
+                    mask = table[rv] == value
+                    plt.plot(table[keyword][mask], 
+                             table[keyword2][mask], '.', label=value, alpha=0.7)
+                plt.plot(*frontier, color='gray', alpha=0.5)
+                plt.xlabel(keyword)
+                plt.ylabel(keyword2)
+            else: # if keyword == keyword2:
+                for value in unique_values:
+                    mask = table[rv] == value
+                    plt.hist(table[keyword][mask], bins='auto', density=True,
+                             label=value, alpha=0.7)
+                plt.plot(*frontier, color='gray', alpha=0.5)
+                plt.xlabel(keyword)
+                plt.ylabel('probability')
+
             plt.title(rv)
-            plt.xlabel(keyword)
-            plt.ylabel(keyword2)
             plt.legend()
             plt.show()
         else:
@@ -286,8 +290,8 @@ if __name__ == '__main__':
             perfs = [table[keyword][table[rv] == value]
                      for value in unique_values]
             pvalues = get_ks_test_values(
-                unique_values, perfs, 
-                min_samples=config.min_samples, a=config.a, verbose=config.verbose)
+                unique_values, perfs, min_samples=config.min_samples, 
+                a=config.a, verbose=config.verbose)
             n_samples = [len(p) for p in perfs]
 
             for i, pv in enumerate(pvalues):
