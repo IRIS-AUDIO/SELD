@@ -13,7 +13,7 @@ from params import get_param
 from transforms import *
 from utils import adaptive_clip_grad
 from utils import get_device
-import pdb
+
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, agc):
@@ -158,37 +158,39 @@ def get_both_dataset(config, mode:str='train'):
     return dataset
 
 
-def get_tdm_dataset(config, tdm_x, tdm_y):
+def get_tdm_dataset(config, max_overlap_num=5, max_overlap_per_frame=2, min_overlap_sec=1, max_overlap_sec=5):
     mode = 'foa'
     abspath = '/media/data1/datasets/DCASE2020' if os.path.exists('/media/data1/datasets') else '/root/datasets/DCASE2020'
     FEATURE_PATH = os.path.join(abspath, f'{mode}_dev')
     LABEL_PATH = os.path.join(abspath, 'metadata_dev')
     sr = 24000
-    
-    x, y = get_preprocessed_wave(FEATURE_PATH,
+    x, y = load_wav_and_label(FEATURE_PATH,
                                  LABEL_PATH)
 
     # 데이터 훑어서 aug용 데이터 뽑기
     # 아래 코드들은 어차피 feature extractor부터 사용해야해서 파이토치로 짜도 무방할듯
     print('TDM augmentation process start')
-    x, y = TDM_aug(x, y, tdm_x, tdm_y)
-
-    print('TDM convert wave to feature')
-    x = [get_preprocessed_x(x_, sr, mode=mode,
+    TDM_PATH = './'
+    tdm_x, tdm_y = get_TDMset(TDM_PATH)
+    x, y = TDM_aug(x, y, tdm_x, tdm_y, 
+                   max_overlap_num=max_overlap_num, 
+                   max_overlap_per_frame=max_overlap_per_frame, 
+                   min_overlap_sec=min_overlap_sec, 
+                   max_overlap_sec=max_overlap_sec)
+    del tdm_x, tdm_y
+    x = list(map(lambda x_: get_preprocessed_x_tf(x_, sr, mode=mode,
                          n_mels=64, 
                          multiplier=5,
                          max_label_length=600,
                          win_length=1024,
                          hop_length=480,
-                         n_fft=1024) for x_ in x] 
-    device = get_device()
-    x = torch.stack(x)
-    x = (x - x.mean(0)) / x.std(0) # tdm
-    x = tf.convert_to_tensor(x.cpu().numpy())
+                         n_fft=1024), x)) 
+    x = tf.convert_to_tensor(x)
+    x = (x - tf.reduce_mean(x, 0)) / tf.math.reduce_std(x, 0)
 
     if config.use_tfm:
         sample_transforms = [
-            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-3, max_mask_size=config.time_mask_size), y),
             lambda x, y: (mask(x, axis=-2, max_mask_size=config.freq_mask_size), y),
         ]
     else:
@@ -226,9 +228,15 @@ def main(config):
 
     # data load
     if config.use_tdm:
-        TDM_PATH = './'
-        tdm_x, tdm_y = get_TDMset(TDM_PATH)
-        trainset = get_tdm_dataset(config, tdm_x, tdm_y)
+        overlap_num = 1
+        overlap_sec = 1
+        max_overlap_num = 3
+        max_overlap_sec = 3
+        trainset = get_tdm_dataset(config, 
+                                max_overlap_num=overlap_num, 
+                                max_overlap_per_frame=2, 
+                                min_overlap_sec=0.5, 
+                                max_overlap_sec=overlap_sec)
     else:
         trainset = get_dataset(config, 'train')
     valset = get_dataset(config, 'val')
@@ -266,13 +274,10 @@ def main(config):
         if len(_model_path) == 0:
             raise ValueError('the model is not existing, resume fail')
         model = tf.keras.models.load_model(_model_path[0])
-        if config.tdm_epoch:
-            if config.use_tdm:
-                trainset = get_tdm_dataset(config, tdm_x, tdm_y)
-            else:
-                trainset = get_dataset(config, 'train')
-            valset = get_dataset(config, 'val')
-            testset = get_dataset(config, 'test')
+        if not config.use_tdm:
+            trainset = get_dataset(config, 'train')
+        valset = get_dataset(config, 'val')
+        testset = get_dataset(config, 'test')
 
     
     best_score = 99999
@@ -283,9 +288,21 @@ def main(config):
 
     for epoch in range(config.epoch):
         # tdm
-        if config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0 and epoch != 0:
-            if config.use_tdm:
-                trainset = get_tdm_dataset(config, tdm_x, tdm_y)
+        if config.use_tdm and config.tdm_epoch != 0 and epoch % config.tdm_epoch == 0:
+            if epoch % 2 == 0 and epoch > 20:
+                if overlap_sec < max_overlap_sec:
+                    overlap_sec += 1
+                else:
+                    if overlap_num < max_overlap_num:
+                        overlap_sec = 1
+                        overlap_num += 1
+                print(f'current_max_overlap_sec: {overlap_sec}, current_max_overlap_num: {overlap_num}')
+
+            trainset = get_tdm_dataset(config, 
+                                        max_overlap_num=overlap_num, 
+                                        max_overlap_per_frame=2, 
+                                        min_overlap_sec=0.5, 
+                                        max_overlap_sec=overlap_sec)
             
         # train loop
         metric_class.reset_states()
