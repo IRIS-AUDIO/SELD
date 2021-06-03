@@ -162,8 +162,8 @@ if __name__ == '__main__':
     for pair in pairs:
         # 1.2 add f1score
         for data in ['val', 'test']:
-            if not pair['perf'].get(f'{data}_precision') \
-                    or not pair['perf'].get(f'{data}_recall'):
+            if (pair['perf'].get(f'{data}_precision') is None) \
+                    or (pair['perf'].get(f'{data}_recall') is None):
                 continue
 
             precision = np.squeeze(pair['perf'][f'{data}_precision'])
@@ -180,7 +180,7 @@ if __name__ == '__main__':
         pair['config']['first_stage'] = first_stage
 
     # 1.4 if improper keyword2 is given
-    if not pairs[0]['perf'].get(keyword2):
+    if pairs[0]['perf'].get(keyword2) is None:
         raise ValueError('invalid keyword2')
 
     # 2. common feature extractor
