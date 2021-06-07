@@ -61,9 +61,9 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
 
     assert mode in ['train', 'val', 'test']
     splits = {
-        'train': [3, 4, 5, 6],
-        'val': [2],
-        'test': [1]
+        'train': [1, 2, 3, 4],
+        'val': [5],
+        'test': [6]
     }
 
     # load splits according to the mode
@@ -105,9 +105,9 @@ def load_wav_and_label(feat_path, label_path, mode='train'):
     l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
 
     splits = {
-        'train': [3, 4, 5, 6],
-        'val': [2],
-        'test': [1]
+        'train': [1, 2, 3, 4],
+        'val': [5],
+        'test': [6]
     }
 
     f_paths = [f for f in f_paths 
@@ -383,4 +383,4 @@ if __name__ == '__main__':
 
         print(time.time() - start)
         start = time.time()
-    
+ 
