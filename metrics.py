@@ -5,9 +5,10 @@ from utils import safe_div
 
 
 class SELDMetrics:
-    def __init__(self, doa_threshold=20, block_size=10):
+    def __init__(self, doa_threshold=20, block_size=10, n_classes=14):
         self.doa_threshold = doa_threshold
         self.block_size = block_size
+        self.n_classes = n_classes
         self.reset_states()
 
     def reset_states(self):
@@ -25,10 +26,10 @@ class SELDMetrics:
 
         self.total_DE = tf.zeros([], tf.float32)
         self.DE_TP = tf.zeros([], tf.float32)
-        self.class_tp = tf.zeros([14], tf.float32)
-        self.class_fp = tf.zeros([14], tf.float32)
-        self.class_tn = tf.zeros([14], tf.float32)
-        self.class_fn = tf.zeros([14], tf.float32)
+        self.class_tp = tf.zeros([self.n_classes], tf.float32)
+        self.class_fp = tf.zeros([self.n_classes], tf.float32)
+        self.class_tn = tf.zeros([self.n_classes], tf.float32)
+        self.class_fn = tf.zeros([self.n_classes], tf.float32)
 
     def result(self):
         # Location-senstive detection performance
