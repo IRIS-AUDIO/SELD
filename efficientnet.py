@@ -473,12 +473,14 @@ def block(inputs,
     conv_pad = 'valid'
   else:
     conv_pad = 'same'
-  x = layers.DepthwiseConv2D(
+  x = layers.Conv2D(
+      x.shape[-1],
       kernel_size,
       strides=strides,
       padding=conv_pad,
+      groups=x.shape[-1],
       use_bias=False,
-      depthwise_initializer=CONV_KERNEL_INITIALIZER,
+      kernel_initializer=CONV_KERNEL_INITIALIZER,
       name=name + 'dwconv')(x)
   x = layers.BatchNormalization(axis=bn_axis, name=name + 'bn')(x)
   x = layers.Activation(activation, name=name + 'activation')(x)
