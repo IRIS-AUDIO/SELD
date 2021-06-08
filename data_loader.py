@@ -81,11 +81,8 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
 
     if len(features[0].shape) == 2:
         def extract(x):
-            x_org = x[:, :n_freq_bins*4]
-            x_org = np.reshape(x_org, (x.shape[0], n_freq_bins, 4))
-            x_add = x[:, n_freq_bins*4:]
-            x_add = np.reshape(x_add, (x.shape[0], n_freq_bins, -1))
-            return np.concatenate([x_org, x_add], axis=-1)
+            x = np.reshape(x, (x.shape[0], -1, n_freq_bins))
+            return x.transpose(0, 2, 1)
 
         features = list(map(extract, features))
     else:
