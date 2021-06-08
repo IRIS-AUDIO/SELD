@@ -1,3 +1,7 @@
+# Modified EfficientNet
+# Original Code from 
+# https://github.com/tensorflow/tensorflow/blob/a4dfb8d1a71385bd6d122e4f27f86dcebb96712d/tensorflow/python/keras/applications/efficientnet.py#L206
+
 # Copyright 2019 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,7 +66,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 16,
     'expand_ratio': 1,
     'id_skip': True,
-    'strides': 1,
+    'strides': (1, 1), # 1,
     'se_ratio': 0.25
 }, {
     'kernel_size': 3,
@@ -71,7 +75,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 24,
     'expand_ratio': 6,
     'id_skip': True,
-    'strides': 2,
+    'strides': (1, 2), # 2,
     'se_ratio': 0.25
 }, {
     'kernel_size': 5,
@@ -80,7 +84,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 40,
     'expand_ratio': 6,
     'id_skip': True,
-    'strides': 2,
+    'strides': (1, 2), # 2,
     'se_ratio': 0.25
 }, {
     'kernel_size': 3,
@@ -89,7 +93,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 80,
     'expand_ratio': 6,
     'id_skip': True,
-    'strides': 2,
+    'strides': (1, 2), # 2,
     'se_ratio': 0.25
 }, {
     'kernel_size': 5,
@@ -98,7 +102,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 112,
     'expand_ratio': 6,
     'id_skip': True,
-    'strides': 1,
+    'strides': (1, 1), # 1,
     'se_ratio': 0.25
 }, {
     'kernel_size': 5,
@@ -107,7 +111,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 192,
     'expand_ratio': 6,
     'id_skip': True,
-    'strides': 2,
+    'strides': (1, 2), # 2,
     'se_ratio': 0.25
 }, {
     'kernel_size': 3,
@@ -116,7 +120,7 @@ DEFAULT_BLOCKS_ARGS = [{
     'filters_out': 320,
     'expand_ratio': 6,
     'id_skip': True,
-    'strides': 1,
+    'strides': (1, 1), # 1,
     'se_ratio': 0.25
 }]
 
@@ -317,16 +321,16 @@ def EfficientNet(
 
   # Build stem
   x = img_input
-  x = layers.Rescaling(1. / 255.)(x)
+  # x = layers.Rescaling(1. / 255.)(x)
   x = layers.Normalization(axis=bn_axis)(x)
 
   x = layers.ZeroPadding2D(
-      padding=imagenet_utils.correct_pad(x, 3),
+      padding=imagenet_utils.correct_pad(x, 7), # 3),
       name='stem_conv_pad')(x)
   x = layers.Conv2D(
       round_filters(32),
-      3,
-      strides=2,
+      7, # 3,
+      strides=(5, 2), # 2,
       padding='valid',
       use_bias=False,
       kernel_initializer=CONV_KERNEL_INITIALIZER,
@@ -768,3 +772,4 @@ def decode_predictions(preds, top=5):
 
 
 decode_predictions.__doc__ = imagenet_utils.decode_predictions.__doc__
+
