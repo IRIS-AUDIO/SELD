@@ -18,10 +18,9 @@ from utils import dict_add
 
 args = argparse.ArgumentParser()
 
-args.add_argument('--name', type=str, required=True, help='name must be {name}_{divided index}') # 2021_1, 2021_2
-args.add_argument('--train_path', type=str, 
-                  default='/root/datasets/DCASE2021/feat_label')
-args.add_argument('--test_path', type=str, 
+args.add_argument('--name', type=str, required=True,
+                  help='name must be {name}_{divided index} ex) 2021_1')
+args.add_argument('--dataset_path', type=str, 
                   default='/root/datasets/DCASE2021/feat_label')
 args.add_argument('--n_samples', type=int, default=256)
 args.add_argument('--n_blocks', type=int, default=4)
@@ -29,9 +28,9 @@ args.add_argument('--min_flops', type=int, default=400_000_000)
 args.add_argument('--max_flops', type=int, default=480_000_000)
 
 args.add_argument('--batch_size', type=int, default=256)
-args.add_argument('--n_repeat', type=int, default=10)
-args.add_argument('--lr', type=int, default=2e-3)
-args.add_argument('--n_classes', type=int, default=14)
+args.add_argument('--n_repeat', type=int, default=50)
+args.add_argument('--lr', type=int, default=1e-3)
+args.add_argument('--n_classes', type=int, default=12)
 
 
 '''            SEARCH SPACES           '''
@@ -206,6 +205,35 @@ def train_and_eval(train_config,
     return performances
 
 
+def get_dataset(config, mode: str = 'train'):
+    path = config.dataset_path
+    x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
+                             os.path.join(path, 'foa_dev_label'),
+                             mode=mode, n_freq_bins=64)
+    if mode == 'train':
+        sample_transforms = [
+            lambda x, y: (mask(x, axis=-3, max_mask_size=24), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=16), y),
+        ]
+        batch_transforms = [foa_intensity_vec_aug]
+    else:
+        sample_transforms = []
+        batch_transforms = []
+    batch_transforms.append(split_total_labels_to_sed_doa)
+
+    dataset = seldnet_data_to_dataloader(
+        x, y,
+        train= mode == 'train',
+        batch_transforms=batch_transforms,
+        label_window_size=60,
+        batch_size=config.batch_size,
+        sample_transforms=sample_transforms,
+        loop_time=config.n_repeat
+    )
+
+    return dataset
+
+
 if __name__=='__main__':
     train_config = args.parse_args()
     name = train_config.name
@@ -214,37 +242,12 @@ if __name__=='__main__':
 
     input_shape = [300, 64, 7]
 
-    # TRAIN DATASET
-    train_x = joblib.load(os.path.join(train_config.train_path, 'x.joblib'))
-    train_x = np.concatenate(train_x, axis=0)
-    train_y = joblib.load(os.path.join(train_config.train_path, 'y.joblib'))
-    train_y = np.concatenate([np.concatenate(y, axis=-1) for y in train_y], 
-                             axis=0)
-    sample_transforms = [
-        # time
-        lambda x, y: (mask(x, axis=-3, max_mask_size=24), y),
-        # freq
-        lambda x, y: (mask(x, axis=-2, max_mask_size=16), y),
-    ]
-    batch_transforms = [foa_intensity_vec_aug, split_total_labels_to_sed_doa]
-    trainset = data_loader((train_x, train_y), 
-                           sample_transforms=sample_transforms,
-                           batch_transforms=batch_transforms,
-                           loop_time=train_config.n_repeat,
-                           batch_size=train_config.batch_size)
-    del train_x, train_y
-
-    # TEST DATASET
-    testset = load_seldnet_data(
-        os.path.join(train_config.test_path, 'foa_dev_norm'),
-        os.path.join(train_config.test_path, 'foa_dev_label'),
-        mode='test')
-    testset = seldnet_data_to_dataloader(
-        *testset, train=False, batch_size=train_config.batch_size,
-        batch_transforms=batch_transforms[-1:])
+    # datasets
+    trainset = get_dataset(train_config, mode='train')
+    testset = get_dataset(train_config, mode='test')
 
     # Evaluator
-    evaluator = SELDMetrics(doa_threshold=20)
+    evaluator = SELDMetrics(doa_threshold=20, n_classes=train_config.n_classes)
 
     default_config = {
         'n_classes': train_config.n_classes

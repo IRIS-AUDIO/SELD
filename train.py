@@ -99,7 +99,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
 
 
 def get_dataset(config, mode:str='train'):
-    path = os.path.join(config.abspath, 'DCASE2020/feat_label/')
+    path = os.path.join(config.abspath, 'DCASE2021/feat_label/')
 
     x, y = load_seldnet_data(os.path.join(path, 'foa_dev_norm'),
                              os.path.join(path, 'foa_dev_label'), 
@@ -254,6 +254,8 @@ def main(config):
     print('---------------------------------')
 
     # model load
+    n_classes = 12
+    model_config['n_classes'] = n_classes
     model = getattr(models, config.model)(input_shape, model_config)
     model.summary()
     
@@ -284,7 +286,7 @@ def main(config):
     early_stop_patience = 0
     lr_decay_patience = 0
     metric_class = SELDMetrics(
-        doa_threshold=config.lad_doa_thresh)
+        doa_threshold=config.lad_doa_thresh, n_classes=n_classes)
 
     for epoch in range(config.epoch):
         # tdm
