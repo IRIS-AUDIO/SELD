@@ -35,8 +35,8 @@ class SELDMetrics:
         # Location-senstive detection performance
         ER = safe_div(self.S + self.D + self.I, self.Nref)
 
-        prec = safe_div(self.TP, self.Nsys)
-        recall = safe_div(self.TP, self.Nref)
+        prec = safe_div(self.TP, self.TP + self.FP)
+        recall = safe_div(self.TP, self.TP + self.FN)
         F = safe_div(2 * prec * recall, prec + recall)
 
         # Class-sensitive localization performance
