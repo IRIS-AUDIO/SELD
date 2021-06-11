@@ -1,6 +1,6 @@
 import copy
 import tensorflow as tf
-
+import numpy as np 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, decay):
         super(CustomSchedule, self).__init__()
@@ -241,3 +241,89 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         })
         return config
 
+
+def write_answer(output_dir, filename, preds, direction):
+    import csv
+    import os
+    write_path = os.path.join(output_dir, filename)
+    loc_answer = tf.where(preds)
+    with open(write_path, 'w', newline='') as w_file:
+        writer = csv.writer(w_file, delimiter=',',
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for loc in loc_answer:
+            true_direction_1 = float(direction[loc[0],loc[1]]) 
+            true_direction_2 = float(direction[loc[0],loc[1] + preds.shape[1]]) 
+            true_direction_3 = float(direction[loc[0],loc[1] + 2*preds.shape[1]]) 
+            true_direction = [true_direction_1, true_direction_2, true_direction_3]
+            writer.writerow([int(loc[0]), int(loc[1]), int(0)] + true_direction)
+
+def load_output_format_file(_output_format_file):
+    """
+    Loads DCASE output format csv file and returns it in dictionary format
+
+    :param _output_format_file: DCASE output format CSV
+    :return: _output_dict: dictionary
+    """
+    _output_dict = {}
+    _fid = open(_output_format_file, 'r')
+    # next(_fid)
+    for _line in _fid:
+        _words = _line.strip().split(',')
+        _frame_ind = int(_words[0])
+        if _frame_ind not in _output_dict:
+            _output_dict[_frame_ind] = []
+        if len(_words) == 5: #read polar coordinates format, we ignore the track count 
+            _output_dict[_frame_ind].append([int(_words[1]), float(_words[3]), float(_words[4]), int(_words[2])])
+        elif len(_words) == 6: # read Cartesian coordinates format, we ignore the track count
+            _output_dict[_frame_ind].append([int(_words[1]), float(_words[3]), float(_words[4]), float(_words[5]), int(_words[2])])
+    _fid.close()
+    return _output_dict
+
+def segment_labels( _pred_dict, _max_frames):
+    nb_blocks = int(np.ceil(_max_frames/float(10)))
+    output_dict = {x: {} for x in range(nb_blocks)}
+    for frame_cnt in range(0, _max_frames, 10):
+
+        # Collect class-wise information for each block
+        # [class][frame] = <list of doa values>
+        # Data structure supports multi-instance occurence of same class
+        block_cnt = frame_cnt // 10
+        loc_dict = {}
+        for audio_frame in range(frame_cnt, frame_cnt+10):
+            if audio_frame not in _pred_dict:
+                continue
+            for value in _pred_dict[audio_frame]:
+                if value[0] not in loc_dict:
+                    loc_dict[value[0]] = {}
+                block_frame = audio_frame - frame_cnt
+                if block_frame not in loc_dict[value[0]]:
+                    loc_dict[value[0]][block_frame] = []
+                loc_dict[value[0]][block_frame].append(value[1:])
+
+        # Update the block wise details collected above in a global structure
+        for class_cnt in loc_dict:
+            if class_cnt not in output_dict[block_cnt]:
+                output_dict[block_cnt][class_cnt] = []
+
+            keys = [k for k in loc_dict[class_cnt]]
+            values = [loc_dict[class_cnt][k] for k in loc_dict[class_cnt]]
+
+            output_dict[block_cnt][class_cnt].append([keys, values])
+
+    return output_dict
+
+
+def convert_output_format_cartesian_to_polar(in_dict):
+    out_dict = {}
+    for frame_cnt in in_dict.keys():
+        if frame_cnt not in out_dict:
+            out_dict[frame_cnt] = []
+            for tmp_val in in_dict[frame_cnt]:
+                x, y, z = tmp_val[1], tmp_val[2], tmp_val[3]
+
+                # in degrees
+                azimuth = np.arctan2(y, x) * 180 / np.pi
+                elevation = np.arctan2(z, np.sqrt(x**2 + y**2)) * 180 / np.pi
+                r = np.sqrt(x**2 + y**2 + z**2)
+                out_dict[frame_cnt].append([tmp_val[0], azimuth, elevation, tmp_val[-1]])
+    return out_dict
