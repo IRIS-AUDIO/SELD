@@ -13,7 +13,11 @@ from params import get_param
 from transforms import *
 from utils import adaptive_clip_grad
 from utils import get_device
-
+from utils import write_answer
+from utils import load_output_format_file
+from utils import segment_labels
+from utils import convert_output_format_cartesian_to_polar
+from SELD_evaluation_metrics import SELDMetrics_
 
 @tf.function
 def trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, agc):
@@ -40,7 +44,7 @@ def teststep(model, x, y, sed_loss, doa_loss):
     return y_p, sloss, dloss
 
 
-def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=None, mode='train'):
+def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=None, mode='train', label_path=None):
     # metric
     ER = tf.keras.metrics.Mean()
     F = tf.keras.metrics.Mean()
@@ -50,17 +54,56 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
     ssloss = tf.keras.metrics.Mean()
     ddloss = tf.keras.metrics.Mean()
 
+
+    ER_2 = tf.keras.metrics.Mean()
+    F_2 = tf.keras.metrics.Mean()
+    SeldScore_2 = tf.keras.metrics.Mean()
+
     loss_weight = [int(i) for i in config.loss_weight.split(',')]
     from tqdm import tqdm
+    label_list = sorted(glob(os.path.join(label_path, '*.npy')))
+    splits = {
+        'train': [1, 2, 3, 4],
+        'val': [5],
+        'test': [6]
+    }    
+    label_list = [os.path.split(os.path.splitext(item)[0])[1] for item in label_list if int(item[item.rfind(os.path.sep)+5]) in splits[mode]]
+    i = 0 
+    seld_ = SELDMetrics_()
     with tqdm(dataset) as pbar:
         for x, y in pbar:
             if mode == 'train':
                 preds, sloss, dloss = trainstep(model, x, y, sed_loss, doa_loss, loss_weight, optimizer, config.agc)
             else:
                 preds, sloss, dloss = teststep(model, x, y, sed_loss, doa_loss)
+                
 
-            metric_class.update_states(y, preds)
-            metric_values = metric_class.result()
+            if mode == 'train':
+                metric_class.update_states(y, preds)
+                metric_values = metric_class.result()
+
+            else:
+                answer_class = tf.reshape(preds[0], (-1, preds[0].shape[2])) > 0.5
+                answer_direction = tf.reshape(preds[1], (-1, preds[1].shape[2]))
+                write_answer(config.output_path, label_list[i] + '.csv', answer_class, answer_direction)
+                pred = load_output_format_file(os.path.join(config.output_path,  label_list[i] + '.csv'))
+                pred = segment_labels(pred, answer_class.shape[0])
+                if mode == 'val':
+                    gt = load_output_format_file(os.path.join(config.ans_path + 'dev-val', label_list[i] + '.csv'))
+                if mode == 'test':
+                    gt = load_output_format_file(os.path.join(config.ans_path + 'dev-test', label_list[i] + '.csv'))
+                gt = convert_output_format_cartesian_to_polar(gt)
+                gt = segment_labels(gt, answer_class.shape[0])
+                seld_.update_seld_scores(pred, gt)
+                metric_values = seld_.compute_seld_scores()
+
+
+                metric_class.update_states(y, preds)
+                metric_values_2 = metric_class.result()
+                seld_score_2 = calculate_seld_score(metric_values_2)
+                SeldScore_2(seld_score_2)
+                ER_2(metric_values_2[0])
+                F_2(metric_values_2[1]*100)
             seld_score = calculate_seld_score(metric_values)
 
             ssloss(sloss)
@@ -70,6 +113,7 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
             DER(metric_values[2])
             DERF(metric_values[3]*100)
             SeldScore(seld_score)
+
             pbar.set_postfix(OrderedDict({
                              'mode' : mode,
                              'epoch' : epoch, 
@@ -79,6 +123,11 @@ def iterloop(model, dataset, sed_loss, doa_loss, metric_class, config, epoch, wr
                              'doaLoss' : ddloss.result().numpy(),
                              'seldScore' : SeldScore.result().numpy()
                              }))
+            
+            i += 1
+    print("F", F_2.result().numpy())
+    print("Error rate", ER_2.result().numpy())
+    print("seldscore", SeldScore_2.result().numpy())
 
     recall, precision = metric_class.class_result()
 
@@ -306,17 +355,19 @@ def main(config):
                                         min_overlap_sec=0.5, 
                                         max_overlap_sec=overlap_sec)
             
+        path = os.path.join(config.abspath, 'DCASE2021/feat_label/')
+        label_path = os.path.join(path, 'foa_dev_label')
         # train loop
         metric_class.reset_states()
-        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=optimizer, mode='train') 
+        iterloop(model, trainset, sed_loss, doa_loss, metric_class, config, epoch, writer, optimizer=optimizer, mode='train', label_path=label_path) 
 
         # validation loop
         metric_class.reset_states()
-        score = iterloop(model, valset, sed_loss, doa_loss, metric_class, config, epoch, writer, mode='val')
+        score = iterloop(model, valset, sed_loss, doa_loss, metric_class, config, epoch, writer, mode='val', label_path=label_path)
 
         # evaluation loop
         metric_class.reset_states()
-        iterloop(model, testset, sed_loss, doa_loss, metric_class, config, epoch, writer, mode='test')
+        iterloop(model, testset, sed_loss, doa_loss, metric_class, config, epoch, writer, mode='test', label_path=label_path)
 
         if best_score > score:
             os.system(f'rm -rf {model_path}/bestscore_{best_score}.hdf5')

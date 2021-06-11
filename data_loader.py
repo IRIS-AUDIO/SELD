@@ -44,7 +44,7 @@ def data_loader(dataset,
                 op, num_parallel_calls=AUTOTUNE, deterministic=deterministic)
 
         return dataset
-
+    
     dataset = apply_ops(dataset, preprocessing)
     dataset = dataset.cache()
     dataset = dataset.repeat(loop_time)
@@ -138,9 +138,9 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                batch_size=32,
                                loop_time=1,
                                **kwargs):
+    total_length = labels[0].shape[0]
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
-
     # shapes of seldnet features and labels 
     # features: [time_features, freq, chan]
     # labels:   [time_labels, 4*classes]
@@ -155,7 +155,8 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y),
                           num_parallel_calls=AUTOTUNE)
     del features, labels
-    
+    if train == False:
+        batch_size = total_length // label_window_size
     dataset = data_loader(dataset, batch_size=batch_size, 
             loop_time=loop_time if train else 1, **kwargs)
     
