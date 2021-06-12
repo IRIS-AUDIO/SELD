@@ -96,7 +96,8 @@ def generate_iterloop(sed_loss, doa_loss, evaluator, writer,
                         'seldscore': seld_score.numpy()
                     }))
 
-        writer.add_scalar(f'{mode}/{mode}_ErrorRate', metric_values[0].numpy(), epoch)
+        writer.add_scalar(f'{mode}/{mode}_ErrorRate', metric_values[0].numpy(),
+                          epoch)
         writer.add_scalar(f'{mode}/{mode}_F', metric_values[1].numpy(), epoch)
         writer.add_scalar(f'{mode}/{mode}_DoaErrorRate', 
                           metric_values[2].numpy(), epoch)
@@ -188,6 +189,34 @@ def ensemble_outputs(model, xs: list,
     return list(zip(seds, doas))
 
 
+def generate_evaluate_fn(test_xs, test_ys, evaluator, batch_size=256,
+                         writer=None):
+    def evaluate_fn(model, epoch):
+        start = time.time()
+        evaluator.reset_states()
+        e_outs = ensemble_outputs(model, test_xs, batch_size=batch_size)
+
+        for y, pred in zip(test_ys, e_outs):
+            evaluator.update_states(y, pred)
+
+        metric_values = evaluator.result()
+        seld_score = calculate_seld_score(metric_values).numpy()
+        er, f, der, derf = list(map(lambda x: x.numpy(), metric_values))
+
+        if writer is not None:
+            writer.add_scalar('ENS_T/ER', er, epoch)
+            writer.add_scalar('ENS_T/F', f, epoch)
+            writer.add_scalar('ENS_T/DER', der, epoch)
+            writer.add_scalar('ENS_T/DERF', derf, epoch)
+            writer.add_scalar('ENS_T/seldScore', seld_score, epoch)
+        print('ensemble outputs')
+        print(f'ER: {er:4f}, F: {f:4f}, DER: {der:4f}, DERF: {derf:4f}, '
+              f'SELD: {seld_score:4f} '
+              f'({time.time()-start:.4f} secs)')
+        return seld_score, metric_values
+    return evaluate_fn
+
+
 def main(config):
     config, model_config = config[0], config[1]
 
@@ -266,30 +295,15 @@ def main(config):
         sed_loss, doa_loss, evaluator, writer, 'val')
     test_iterloop = generate_iterloop(
         sed_loss, doa_loss, evaluator, writer, 'test')
+    evaluate_fn = generate_evaluate_fn(
+        test_xs, test_ys, evaluator, config.batch*4, writer=writer)
 
     for epoch in range(config.epoch):
         if epoch == swa_start_epoch:
             tf.keras.backend.set_value(optimizer.lr, config.lr * 0.5)
 
         if epoch % 10 == 0:
-            start = time.time()
-            evaluator.reset_states()
-            e_outs = ensemble_outputs(model, test_xs, batch_size=config.batch*4)
-            for y, pred in zip(test_ys, e_outs):
-                evaluator.update_states(y, pred)
-            metric_values = evaluator.result()
-            seld_score = calculate_seld_score(metric_values).numpy()
-            er, f, der, derf = list(map(lambda x: x.numpy(), metric_values))
-
-            writer.add_scalar('ENS_T/ER', er, epoch)
-            writer.add_scalar('ENS_T/F', f, epoch)
-            writer.add_scalar('ENS_T/DER', der, epoch)
-            writer.add_scalar('ENS_T/DERF', derf, epoch)
-            writer.add_scalar('ENS_T/seldScore', seld_score, epoch)
-            print('ensemble outputs')
-            print(f'ER: {er:4f}, F: {f:4f}, DER: {der:4f}, DERF: {derf:4f}, '
-                  f'SELD: {seld_score:4f} '
-                  f'({time.time()-start:.4f} secs)')
+            evaluate_fn(model, epoch)
 
         # train loop
         train_iterloop(model, trainset, epoch, optimizer)
@@ -319,32 +333,17 @@ def main(config):
                 break
             early_stop_patience += 1
             lr_decay_patience += 1
+        break
 
     # end of training
     print(f'epoch: {epoch}')
     swa.on_train_end()
 
-    start = time.time()
-    evaluator.reset_states()
-    e_outs = ensemble_outputs(model, test_xs, batch_size=config.batch*4)
-    for y, pred in zip(test_ys, e_outs):
-        evaluator.update_states(y, pred)
-    metric_values = evaluator.result()
-    seld_score = calculate_seld_score(metric_values).numpy()
-    er, f, der, derf = list(map(lambda x: x.numpy(), metric_values))
+    seld_score, *_ = evaluate_fn(model, epoch)
 
-    writer.add_scalar('ENS_T/ER', er, epoch)
-    writer.add_scalar('ENS_T/F', f, epoch)
-    writer.add_scalar('ENS_T/DER', der, epoch)
-    writer.add_scalar('ENS_T/DERF', derf, epoch)
-    writer.add_scalar('ENS_T/seldScore', seld_score, epoch)
-    print('ensemble outputs')
-    print(f'ER: {er:4f}, F: {f:4f}, DER: {der:4f}, DERF: {derf:4f}, '
-          f'SELD: {seld_score:4f} '
-          f'({time.time()-start:.4f} secs)')
     tf.keras.models.save_model(
         model, 
-        os.path.join(model_path, f'SWA_best_{seld_score}.hdf5'), 
+        os.path.join(model_path, f'SWA_best_{seld_score:.5f}.hdf5'),
         include_optimizer=False)
 
 
