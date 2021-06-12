@@ -16,7 +16,7 @@ from metrics import *
 from params import get_param
 from swa import SWA
 from transforms import *
-from utils import adaptive_clip_grad, AdaBelief
+from utils import adaptive_clip_grad, AdaBelief, apply_kernel_regularizer
 
 
 # These are statistics from the train dataset
@@ -43,6 +43,10 @@ def generate_trainstep(sed_loss, doa_loss, loss_weights, label_smoothing=0.):
             dloss = doa_loss(doa, doa_pred, cls_weights)
             
             loss = sloss * loss_weights[0] + dloss * loss_weights[1]
+
+            # regularizer
+            loss += tf.add_n([l.losses[0] for l in model.layers
+                              if len(l.losses) > 0])
 
         grad = tape.gradient(loss, model.trainable_variables)
         # apply AGC
@@ -224,6 +228,7 @@ def main(config):
     n_classes = 12
     swa_start_epoch = 80
     swa_freq = 2
+    kernel_regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=0.001)
 
     tensorboard_path = os.path.join('./tensorboard_log', config.name)
     if not os.path.exists(tensorboard_path):
@@ -264,7 +269,9 @@ def main(config):
     model_config['n_classes'] = n_classes
     model = getattr(models, config.model)(input_shape, model_config)
     model.summary()
-    
+
+    model = apply_kernel_regularizer(model, kernel_regularizer)
+
     optimizer = AdaBelief(config.lr)
     if config.sed_loss == 'BCE':
         sed_loss = tf.keras.backend.binary_crossentropy
@@ -333,7 +340,6 @@ def main(config):
                 break
             early_stop_patience += 1
             lr_decay_patience += 1
-        break
 
     # end of training
     print(f'epoch: {epoch}')
