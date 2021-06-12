@@ -9,27 +9,63 @@ class ModelComplexityTest(tf.test.TestCase):
     def test_conv_temporal_complexity(self):
         input_shape = [30, 256, 3]
         model_config = {
-            "BLOCK0": "res_bottleneck_stage",
+            "n_classes": 12,
+            "first_pool_size": [5, 2],
+            "BLOCK0": "mother_stage",
             "BLOCK0_ARGS": {
-                "filters": 32,
-                "depth": 3,
-                "strides": [1, 2]
+                "depth": 2,
+                "filters0": 0,
+                "filters1": 96,
+                "filters2": 0,
+                "kernel_size0": 0,
+                "kernel_size1": 3,
+                "kernel_size2": 0,
+                "connect0": [
+                    1
+                ],
+                "connect1": [
+                    1,
+                    0
+                ],
+                "connect2": [
+                    1,
+                    0,
+                    1
+                ],
+                "strides": [
+                    1,
+                    3
+                ]
             },
-            "SED": "simple_dense_stage",
+            "BLOCK1": "simple_dense_stage",
+            "BLOCK1_ARGS": {
+                "depth": 1,
+                "units": 192,
+                "dense_activation": "relu",
+                "dropout_rate": 0.0
+            },
+            "BLOCK2": "conformer_encoder_stage",
+            "BLOCK2_ARGS": {
+                "depth": 2,
+                "key_dim": 24,
+                "n_head": 4,
+                "kernel_size": 24,
+                "multiplier": 2,
+                "pos_encoding": None
+            },
+            "SED": "conformer_encoder_stage",
             "SED_ARGS": {
-                "units": 128,
                 "depth": 1,
-                "n_classes": 14,
-                "activation": "sigmoid",
-                "name": "sed_out"
+                "key_dim": 48,
+                "n_head": 4,
+                "kernel_size": 8,
+                "multiplier": 2,
+                "pos_encoding": None
             },
-            "DOA": "simple_dense_stage",
+            "DOA": "bidirectional_GRU_stage",
             "DOA_ARGS": {
-                "units": 128,
-                "depth": 1,
-                "n_classes": 42,
-                "activation": "tanh",
-                "name": "doa_out"
+                "depth": 2,
+                "units": 128
             }
         }
         self.model_complexity_test(conv_temporal_complexity,

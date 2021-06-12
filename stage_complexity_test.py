@@ -8,17 +8,29 @@ from stage_complexity import *
 class StageComplexityTest(tf.test.TestCase):
     def test_mother_stage_complexity(self):
         model_config = {
-            'depth': 2,
-            'filters0': 32,
-            'filters1': 32,
-            'filters2': 0,
-            'kernel_size0': 3,
-            'kernel_size1': 5,
-            'kernel_size2': 0,
-            'connect0': [1],
-            'connect1': [1, 1],
-            'connect2': [0, 0, 1],
-            'strides': (1, 1),
+            "depth": 2,
+            "filters0": 64,
+            "filters1": 64,
+            "filters2": 0,
+            "kernel_size0": 3,
+            "kernel_size1": 1,
+            "kernel_size2": 0,
+            "connect0": [
+                1
+            ],
+            "connect1": [
+                1,
+                1
+            ],
+            "connect2": [
+                1,
+                0,
+                1
+            ],
+            "strides": [
+                1,
+                2
+            ]
         }
         self.complexity_test(mother_stage_complexity,
                              mother_stage,
