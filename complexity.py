@@ -66,7 +66,8 @@ def mother_block_complexity(model_config, input_shape):
     # second layer
     if filters1 > 0:
         cx, shape = conv2d_complexity(shapes[-1], filters1, kernel_size1,
-                                      padding='same', prev_cx=cx)
+                                      padding='same', strides=strides,
+                                      prev_cx=cx)
         cx, shape = norm_complexity(shape, prev_cx=cx)
         for i in range(2):
             if connect1[i] == 1:
@@ -94,6 +95,12 @@ def mother_block_complexity(model_config, input_shape):
                         prev_cx=cx)
                     cx, skip = norm_complexity(skip, prev_cx=cx)
     else:
+        for i in range(len(connect2)):
+            if connect2[i] == 1:
+                skip = shapes[i]
+                if connect2[-1] == 1 and tuple(strides) != (1, 1) and i < 2:
+                    cx, skip = conv2d_complexity(
+                        skip, skip[-1], 1, strides=strides, prev_cx=cx)
         shape = shapes[-1][:-1] + [sum([connect2[i]*shapes[i][-1] 
                                        for i in range(3)])]
     return cx, shape
