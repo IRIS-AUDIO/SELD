@@ -46,9 +46,3 @@ class Focal_Loss:
                 - (1-y_true) * self.alpha * tf.pow(y_pred, self.gamma) * tf.math.log(1-y_pred)
         return tf.reduce_mean(focal)
 
-
-if __name__ == '__main__':
-    a = tf.random.uniform([10, 15])
-    b = tf.random.uniform([10, 15])
-    print(MMSE(a, b).shape)
-
