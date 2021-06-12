@@ -327,3 +327,14 @@ def convert_output_format_cartesian_to_polar(in_dict):
                 r = np.sqrt(x**2 + y**2 + z**2)
                 out_dict[frame_cnt].append([tmp_val[0], azimuth, elevation, tmp_val[-1]])
     return out_dict
+
+
+def apply_kernel_regularizer(model, kernel_regularizer):
+    model = tf.keras.models.clone_model(model)
+    for layer in model.layers:
+        if hasattr(layer, 'kernel_regularizer'):
+            layer.kernel_regularizer = kernel_regularizer
+
+    model = tf.keras.models.clone_model(model)
+    return model
+
