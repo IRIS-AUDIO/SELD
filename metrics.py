@@ -67,10 +67,10 @@ class SELDMetrics:
     def split(self, labels):
         sed, doa = labels
         blocks = []
-        for i in range((sed.shape[1]+self.block_size-1)//self.block_size):
+        for i in range((sed.shape[-2]+self.block_size-1)//self.block_size):
             blocks.append(
-                [sed[:, i*self.block_size:(i+1)*self.block_size],
-                 doa[:, i*self.block_size:(i+1)*self.block_size]])
+                [sed[..., i*self.block_size:(i+1)*self.block_size, :],
+                 doa[..., i*self.block_size:(i+1)*self.block_size, :]])
 
         return blocks
 
@@ -78,6 +78,12 @@ class SELDMetrics:
         sed_true, doa_true = y_true_block
         sed_pred, doa_pred = y_pred_block
         sed_pred = tf.cast(sed_pred > 0.5, sed_pred.dtype)
+
+        if len(sed_true.shape) == 2:
+            sed_true = sed_true[tf.newaxis, :]
+            sed_pred = sed_pred[tf.newaxis, :]
+            doa_true = doa_true[tf.newaxis, :]
+            doa_pred = doa_pred[tf.newaxis, :]
 
         # change doa shape from [..., n_classes*3] to [..., n_classes, 3]
         doa_true = tf.reshape(doa_true, (*doa_true.shape[:-1], 3, -1))
