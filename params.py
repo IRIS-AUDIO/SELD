@@ -43,6 +43,14 @@ def get_param(known=None):
     args.add_argument('--tdm_epoch', type=int, default=2,
                       help='epochs of applying tdm augmentation. If 0, don\'t use it.')
 
+    args.add_argument('--label_smooth', type=int, default=0.1, 
+                      help='label_smoothing_value')
+
+    args.add_argument('--mask_time_size', type=int, default=10)
+    args.add_argument('--mask_freq_size', type=int, default=24)
+    args.add_argument('--mask_time_n', type=int, default=3)
+    args.add_argument('--mask_freq_n', type=int, default=3)
+
     # metric
     args.add_argument('--lad_doa_thresh', type=int, default=20)
     args.add_argument('--sed_loss', type=str, default='BCE',

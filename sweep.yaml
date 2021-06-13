@@ -18,17 +18,12 @@ parameters:
   batch:
     distribution: categorical
     values:
-    - 64
-    - 128
     - 256
-  decay:
-    distribution: uniform
-    max: 1.7348880410719083
-    min: 0.25
   doa_loss:
     distribution: categorical
     values:
     - MMSE
+    - MSE
   epoch:
     distribution: int_uniform
     max: 1001
@@ -36,23 +31,37 @@ parameters:
   focal_a:
     distribution: uniform
     max: 0.5
-    min: 0.06464434319686985
+    min: 0.1
   focal_g:
     distribution: int_uniform
-    max: 6
+    max: 4
     min: 1
-  freq_mask_size:
+
+  mask_time_size:
     distribution: int_uniform
-    max: 92
-    min: 8
+    max: 50
+    min: 5
+  mask_freq_size:
+    distribution: int_uniform
+    max: 32
+    min: 4
+  mask_time_n:
+    distribution: int_uniform
+    max: 5
+    min: 1
+  mask_freq_n:
+    distribution: int_uniform
+    max: 5
+    min: 1
+  label_smooth:
+    distribution: int_uniform
+    max: 0.4
+    min: 0.1
+
   lr:
     distribution: uniform
-    max: 0.007405895306909885
-    min: 0.0003
-  lr_patience:
-    distribution: int_uniform
-    max: 25
-    min: 15
+    max: 0.005
+    min: 0.0001
   model:
     distribution: categorical
     values:
@@ -60,7 +69,11 @@ parameters:
   model_config:
     distribution: categorical
     values:
-    - search_model
+    - SS1
+    - SS2
+    - SS3
+    - SS4
+    - SS5
   name:
     distribution: categorical
     values:
@@ -71,8 +84,8 @@ parameters:
     - ./output
   patience:
     distribution: int_uniform
-    max: 61
-    min: 60
+    max: 101
+    min: 50
   resume:
     distribution: categorical
     values:
@@ -81,14 +94,7 @@ parameters:
     distribution: categorical
     values:
     - BCE
-  tfm_period:
-    distribution: int_uniform
-    max: 392
-    min: 50
-  time_mask_size:
-    distribution: int_uniform
-    max: 84
-    min: 12
+    - FOCAL
   use_acs:
     distribution: categorical
     values:

@@ -25,13 +25,21 @@ def MMSE_with_cls_weights(y_true, y_pred, cls_weights=None):
     return tf.keras.backend.sum(tf.keras.backend.square(y_true - y_pred) * sed) \
                 / tf.keras.backend.sum(sed)
 
+def MSE_with_cls_weights(y_true, y_pred, cls_weights=None):
+
+    if cls_weights is not None:
+        cls_weights = tf.repeat(cls_weights, 3, -1)
+    else:
+        cls_weights = 1
+
+    return tf.square(y_true - y_pred) * cls_weights
 
 def focal_loss(y_true, y_pred, alpha=0.25, gamma=2):
     eps = 1e-7
     y_pred = tf.clip_by_value(y_pred, eps, 1-eps)
     focal = - y_true * alpha * tf.pow(1 - y_pred, gamma) * tf.math.log(y_pred)\
             - (1-y_true) * alpha * tf.pow(y_pred, gamma) * tf.math.log(1-y_pred)
-    return tf.reduce_mean(focal)
+    return focal
 
 
 class Focal_Loss:

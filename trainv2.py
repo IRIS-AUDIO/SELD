@@ -68,9 +68,9 @@ def generate_teststep(sed_loss, doa_loss):
 
 
 def generate_iterloop(sed_loss, doa_loss, evaluator, writer, 
-                      mode, loss_weights=None):
+                      mode, loss_weights=None, smooth=None):
     if mode == 'train':
-        step = generate_trainstep(sed_loss, doa_loss, loss_weights)
+        step = generate_trainstep(sed_loss, doa_loss, loss_weights, label_smoothing=smooth)
     else:
         step = generate_teststep(sed_loss, doa_loss)
 
@@ -132,10 +132,14 @@ def get_dataset(config, mode: str = 'train'):
                              os.path.join(path, 'foa_dev_label'), 
                              mode=mode, n_freq_bins=64)
     if config.use_tfm and mode == 'train':
+        time_size = config.mask_time_size
+        freq_size = config.mask_freq_size
+        time_n = config.mask_time_n
+        freq_n = config.mask_freq_n
         sample_transforms = [
             random_ups_and_downs,
-            lambda x, y: (mask(x, axis=-3, max_mask_size=6, n_mask=10), y),
-            lambda x, y: (mask(x, axis=-2, max_mask_size=8, n_mask=6), y),
+            lambda x, y: (mask(x, axis=-3, max_mask_size=time_size, n_mask=time_n), y),
+            lambda x, y: (mask(x, axis=-2, max_mask_size=freq_size, n_mask=freq_n), y),
             # lambda x, y: (mask(x, axis=-3, max_mask_size=12, n_mask=6), y),
             # lambda x, y: (mask(x, axis=-2, max_mask_size=8, n_mask=6), y),
         ]
@@ -281,16 +285,14 @@ def main(config):
     else:
         sed_loss = losses.focal_loss
     # fix doa_loss to MMSE_with_cls_weights (because of class weights)
-    doa_loss = losses.MMSE_with_cls_weights
+
+    if config.doa_loss == 'MMSE':
+        doa_loss = losses.MMSE_with_cls_weights
+    else: 
+        doa_loss = losses.MSE_with_cls_weights
 
     # stochastic weight averaging
     swa = SWA(model, swa_start_epoch, swa_freq)
-
-    if config.resume:
-        _model_path = sorted(glob(model_path + '/*.hdf5'))
-        if len(_model_path) == 0:
-            raise ValueError('the model does not exist, cannot be resumed')
-        model = tf.keras.models.load_model(_model_path[0])
 
     best_score = inf
     early_stop_patience = 0
@@ -298,9 +300,10 @@ def main(config):
     evaluator = SELDMetrics(
         doa_threshold=config.lad_doa_thresh, n_classes=n_classes)
 
+    smooth_value = config.label_smooth
     train_iterloop = generate_iterloop(
         sed_loss, doa_loss, evaluator, writer, 'train', 
-        loss_weights=list(map(int, config.loss_weight.split(','))))
+        loss_weights=list(map(int, config.loss_weight.split(','))), smooth=smooth_value)
     val_iterloop = generate_iterloop(
         sed_loss, doa_loss, evaluator, writer, 'val')
     test_iterloop = generate_iterloop(
@@ -343,6 +346,9 @@ def main(config):
                 break
             early_stop_patience += 1
             lr_decay_patience += 1
+
+        if (epoch > 9) and (score > 0.7):
+            break
 
     # end of training
     print(f'epoch: {epoch}')
