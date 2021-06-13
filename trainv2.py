@@ -17,7 +17,7 @@ from params import get_param
 from swa import SWA
 from transforms import *
 from utils import adaptive_clip_grad, AdaBelief, apply_kernel_regularizer
-
+import wandb
 
 # These are statistics from the train dataset
 train_samples = tf.convert_to_tensor(
@@ -222,8 +222,11 @@ def generate_evaluate_fn(test_xs, test_ys, evaluator, batch_size=256,
 
 
 def main(config):
-    config, model_config = config[0], config[1]
 
+    config, model_config = config[0], config[1]
+    wandb.tensorboard.patch(root_logdir=os.path.join('./tensorboard_log', config.name))
+    wandb.init(project='sweep_case', config=config)
+    config = wandb.config
     # HyperParameters
     n_classes = 12
     swa_start_epoch = 80
@@ -354,5 +357,7 @@ def main(config):
 
 
 if __name__=='__main__':
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     main(get_param())
 

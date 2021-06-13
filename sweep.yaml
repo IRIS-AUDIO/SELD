@@ -1,0 +1,100 @@
+method: bayes
+metric:
+  goal: minimize
+  name: test/test_seldscore
+parameters:
+  abspath:
+    distribution: categorical
+    values:
+    - ./normal/
+  agc:
+    distribution: categorical
+    values:
+    - "true"
+  ans_path:
+    distribution: categorical
+    values:
+    - /seld-dcase2021/foa_dev_raw/raw_and_label/foa_dev_raw/metadata_dev/
+  batch:
+    distribution: categorical
+    values:
+    - 64
+    - 128
+    - 256
+  decay:
+    distribution: uniform
+    max: 1.7348880410719083
+    min: 0.25
+  doa_loss:
+    distribution: categorical
+    values:
+    - MMSE
+  epoch:
+    distribution: int_uniform
+    max: 1001
+    min: 1000
+  focal_a:
+    distribution: uniform
+    max: 0.5
+    min: 0.06464434319686985
+  focal_g:
+    distribution: int_uniform
+    max: 6
+    min: 1
+  freq_mask_size:
+    distribution: int_uniform
+    max: 92
+    min: 8
+  lr:
+    distribution: uniform
+    max: 0.007405895306909885
+    min: 0.0003
+  lr_patience:
+    distribution: int_uniform
+    max: 25
+    min: 15
+  model:
+    distribution: categorical
+    values:
+    - conv_temporal
+  model_config:
+    distribution: categorical
+    values:
+    - search_model
+  name:
+    distribution: categorical
+    values:
+    - wandb_sweep
+  output_path:
+    distribution: categorical
+    values:
+    - ./output
+  patience:
+    distribution: int_uniform
+    max: 61
+    min: 60
+  resume:
+    distribution: categorical
+    values:
+    - ''
+  sed_loss:
+    distribution: categorical
+    values:
+    - BCE
+  tfm_period:
+    distribution: int_uniform
+    max: 392
+    min: 50
+  time_mask_size:
+    distribution: int_uniform
+    max: 84
+    min: 12
+  use_acs:
+    distribution: categorical
+    values:
+    - 'True'
+  use_tfm:
+    distribution: categorical
+    values:
+    - 'True'
+program: trainv2.py
