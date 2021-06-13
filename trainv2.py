@@ -19,16 +19,17 @@ from transforms import *
 from utils import adaptive_clip_grad, AdaBelief, apply_kernel_regularizer
 
 
-# These are statistics from the train dataset
-train_samples = tf.convert_to_tensor(
-    [[58193, 32794, 29801, 21478, 14822, 
-       9174, 66527,  6740,  9342,  6498, 
-      22218, 49758]],
-    dtype=tf.float32)
-cls_weights = tf.reduce_mean(train_samples) / train_samples
+
 
 
 def generate_trainstep(sed_loss, doa_loss, loss_weights, label_smoothing=0.):
+    # These are statistics from the train dataset
+    train_samples = tf.convert_to_tensor(
+        [[58193, 32794, 29801, 21478, 14822, 
+        9174, 66527,  6740,  9342,  6498, 
+        22218, 49758]],
+        dtype=tf.float32)
+    cls_weights = tf.reduce_mean(train_samples) / train_samples
     @tf.function
     def trainstep(model, x, y, optimizer):
         with tf.GradientTape() as tape:
