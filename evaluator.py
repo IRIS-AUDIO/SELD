@@ -85,6 +85,7 @@ if __name__ == '__main__':
          'SWA_best_0.34446.hdf5'],
     ]
 
+    # predictions
     outs = []
     for model in saved_models:
         model = load_conv_temporal_model(input_shape, *model)
@@ -93,16 +94,15 @@ if __name__ == '__main__':
     outs = list(zip(*outs))
     assert len(outs) == len(test_xs)
 
+    # aggregating predictions
     outputs = []
     for out in outs:
         sed, doa = list(zip(*out))
-        assert len(sed) == len(saved_models)
-        assert len(doa) == len(saved_models)
         sed = tf.add_n(sed) / len(sed)
         doa = tf.add_n(doa) / len(doa)
         outputs.append((sed, doa))
 
-    # setting environment for evaluation
+    # evaluation
     if CLASS_WISE_EVAL:
         evaluator = SELDMetrics(
             doa_threshold=20, n_classes=1)
@@ -112,10 +112,6 @@ if __name__ == '__main__':
             for y, pred in zip(test_ys, outputs):
                 y = (y[0][..., c:c+1], y[1][..., c::n_classes])
                 pred = (pred[0][..., c:c+1], pred[1][..., c::n_classes])
-                assert y[0].shape[-1] == 1
-                assert y[1].shape[-1] == 3
-                assert pred[0].shape[-1] == 1
-                assert pred[1].shape[-1] == 3
                 evaluator.update_states(y, pred)
             metric_values = evaluator.result()
             seld_score = calculate_seld_score(metric_values).numpy()
