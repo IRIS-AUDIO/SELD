@@ -1,6 +1,10 @@
 import copy
 import tensorflow as tf
 import numpy as np 
+import csv
+import os
+import pandas as pd
+
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, decay):
         super(CustomSchedule, self).__init__()
@@ -241,21 +245,20 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         })
         return config
 
-
 def write_answer(output_dir, filename, preds, direction):
-    import csv
-    import os
     write_path = os.path.join(output_dir, filename)
     loc_answer = tf.where(preds)
-    with open(write_path, 'w', newline='') as w_file:
-        writer = csv.writer(w_file, delimiter=',',
-                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for loc in loc_answer:
-            true_direction_1 = float(direction[loc[0],loc[1]]) 
-            true_direction_2 = float(direction[loc[0],loc[1] + preds.shape[1]]) 
-            true_direction_3 = float(direction[loc[0],loc[1] + 2*preds.shape[1]]) 
-            true_direction = [true_direction_1, true_direction_2, true_direction_3]
-            writer.writerow([int(loc[0]), int(loc[1]), int(0)] + true_direction)
+    for i, loc in enumerate(loc_answer):
+        if i == 0:
+            true_direction = tf.reshape(direction[loc[0], loc[1]::preds.shape[1]], [1,3])
+        else:
+            true_direction = tf.concat([true_direction, tf.reshape(direction[loc[0], loc[1]::preds.shape[1]], [1, 3])], axis=0)  
+    temp = np.concatenate([loc_answer.numpy(), true_direction.numpy()], axis=1)
+    # np.savetxt(write_path, temp.astype(float), fmt='%4.3f', delimiter = ",")
+    _fid = open(write_path, 'w')
+    for item in temp:
+        _fid.write('{},{},{},{},{},{}\n'.format(int(item[0]), int(item[1]), 0, float(item[2]), float(item[3]), float(item[4])))
+
 
 def load_output_format_file(_output_format_file):
     """
@@ -269,13 +272,13 @@ def load_output_format_file(_output_format_file):
     # next(_fid)
     for _line in _fid:
         _words = _line.strip().split(',')
-        _frame_ind = int(_words[0])
+        _frame_ind = int(float(_words[0]))
         if _frame_ind not in _output_dict:
             _output_dict[_frame_ind] = []
         if len(_words) == 5: #read polar coordinates format, we ignore the track count 
-            _output_dict[_frame_ind].append([int(_words[1]), float(_words[3]), float(_words[4]), int(_words[2])])
+            _output_dict[_frame_ind].append([int(float(_words[1])), float(_words[3]), float(_words[4]), int(float(_words[2]))])
         elif len(_words) == 6: # read Cartesian coordinates format, we ignore the track count
-            _output_dict[_frame_ind].append([int(_words[1]), float(_words[3]), float(_words[4]), float(_words[5]), int(_words[2])])
+            _output_dict[_frame_ind].append([int(float(_words[1])), float(_words[3]), float(_words[4]), float(_words[5]), int(float(_words[2]))])
     _fid.close()
     return _output_dict
 
@@ -338,3 +341,19 @@ def apply_kernel_regularizer(model, kernel_regularizer):
     model = tf.keras.models.clone_model(model)
     return model
 
+def convert_output_format_polar_to_cartesian(in_dict):
+    out_dict = {}
+    for frame_cnt in in_dict.keys():
+        if frame_cnt not in out_dict:
+            out_dict[frame_cnt] = []
+            for tmp_val in in_dict[frame_cnt]:
+
+                ele_rad = tmp_val[2]*np.pi/180.
+                azi_rad = tmp_val[1]*np.pi/180
+
+                tmp_label = np.cos(ele_rad)
+                x = np.cos(azi_rad) * tmp_label
+                y = np.sin(azi_rad) * tmp_label
+                z = np.sin(ele_rad)
+                out_dict[frame_cnt].append([tmp_val[0], x, y, z, tmp_val[-1]])
+    return out_dict
