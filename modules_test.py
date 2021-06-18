@@ -163,6 +163,7 @@ class ModulesTest(tf.test.TestCase):
         model_config = {
             'depth': 2,
             'units': 128,
+            'kernel_size': 3,
             'dense_activation': 'relu',
             'dropout_rate': 0,
             'kernel_regularizer': {'l1': 0, 'l2': 1e-3},
@@ -389,6 +390,7 @@ class ModulesTest(tf.test.TestCase):
     def test_simple_dense_block(self):
         model_config = {
             'units': [128, 128], # mandatory
+            'kernel_size': 5,
             'dense_activation': 'relu',
             'dropout_rate': 0,
             'kernel_regularizer': {'l1': 0, 'l2': 1e-3},

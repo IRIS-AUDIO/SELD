@@ -706,6 +706,7 @@ def simple_dense_block(model_config: dict):
     # mandatory parameters
     units_per_layer = model_config['units']
 
+    kernel_size = model_config.get('kernel_size', 1)
     activation = model_config.get('dense_activation', None)
     dropout_rate = model_config.get('dropout_rate', 0)
     kernel_regularizer = tf.keras.regularizers.l1_l2(
@@ -719,9 +720,9 @@ def simple_dense_block(model_config: dict):
                 x = Dense(units, activation=activation,
                           kernel_regularizer=kernel_regularizer)(x)
             else:
-                x = TimeDistributed(
-                    Dense(units, activation=activation,
-                          kernel_regularizer=kernel_regularizer))(x)
+                x = Conv1D(units, kernel_size, padding='same',
+                           activation=activation,
+                           kernel_regularizer=kernel_regularizer)(x)
             if dropout_rate > 0:
                 x = Dropout(dropout_rate)(x)
         return x

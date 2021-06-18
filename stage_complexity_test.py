@@ -136,6 +136,7 @@ class StageComplexityTest(tf.test.TestCase):
         model_config = {
             'depth': 2,
             'units': 128,
+            'kernel_size': 3,
         }
         self.complexity_test(simple_dense_stage_complexity,
                              simple_dense_stage,
@@ -172,7 +173,8 @@ class StageComplexityTest(tf.test.TestCase):
                         complexity_fn,
                         block_fn,
                         model_config: dict,
-                        exp_input_shape: list):
+                        exp_input_shape: list,
+                        verbose=False):
         '''
         complexity_fn: a func that calculates the complexity
                        of given block(stage)
@@ -187,6 +189,9 @@ class StageComplexityTest(tf.test.TestCase):
         inputs = tf.keras.layers.Input(exp_input_shape)
         outputs = block_fn(model_config)(inputs)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+        if verbose:
+            model.summary()
 
         cx, output_shape = complexity_fn(model_config, exp_input_shape)
 

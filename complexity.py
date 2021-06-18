@@ -392,11 +392,16 @@ def simple_dense_block_complexity(model_config, input_shape):
     # mandatory parameters
     units_per_layer = model_config['units']
 
+    kernel_size = model_config.get('kernel_size', 1)
+
     shape = force_1d_shape(input_shape)
 
     cx = {}
     for units in units_per_layer:
-        cx, shape = linear_complexity(shape, units, prev_cx=cx)
+        if len(shape) == 1:
+            cx, shape = linear_complexity(shape, units, prev_cx=cx)
+        else:
+            cx, shape = conv1d_complexity(shape, units, kernel_size, prev_cx=cx)
     return cx, shape
 
 
@@ -437,7 +442,7 @@ def conformer_encoder_block_complexity(model_config, input_shape):
 
     # Depthwise
     cx, shape = conv1d_complexity(shape, emb, kernel_size, groups=emb,
-                                    prev_cx=cx)
+                                  prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
 

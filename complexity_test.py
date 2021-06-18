@@ -139,13 +139,24 @@ class ComplexityTest(tf.test.TestCase):
                              [32, 48])
 
     def test_simple_dense_block_complexity(self):
+        # ndim: 3
         model_config = {
-            'units': [32, 32]
+            'units': [32, 32],
+            'kernel_size': 2,
         }
         self.complexity_test(simple_dense_block_complexity,
                              simple_dense_block,
                              model_config,
                              [32, 48])
+
+        # ndim: 2
+        model_config = {
+            'units': [32, 32],
+        }
+        self.complexity_test(simple_dense_block_complexity,
+                             simple_dense_block,
+                             model_config,
+                             [32])
 
     def test_identity_block_complexity(self):
         model_config = {}
