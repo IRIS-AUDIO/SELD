@@ -1,0 +1,60 @@
+{
+    "n_classes": 12,
+    "first_pool_size": [5, 2],
+    "BLOCK0": "mother_stage",
+    "BLOCK0_ARGS": {
+	"depth": 2,
+	"filters0": 0,
+	"filters1": 96,
+	"filters2": 0,
+	"kernel_size0": 0,
+	"kernel_size1": 3,
+	"kernel_size2": 0,
+	"connect0": [
+	    1
+	],
+	"connect1": [
+	    1,
+	    0
+	],
+	"connect2": [
+	    1,
+	    0,
+	    1
+	],
+	"strides": [
+	    1,
+	    3
+	]
+    },
+    "BLOCK1": "simple_dense_stage",
+    "BLOCK1_ARGS": {
+	"depth": 1,
+	"units": 192,
+	"dense_activation": "relu",
+	"dropout_rate": 0.0
+    },
+    "BLOCK2": "conformer_encoder_stage",
+    "BLOCK2_ARGS": {
+	"depth": 2,
+	"key_dim": 24,
+	"n_head": 4,
+	"kernel_size": 24,
+	"multiplier": 2,
+	"pos_encoding": null
+    },
+    "SED": "conformer_encoder_stage",
+    "SED_ARGS": {
+	"depth": 1,
+	"key_dim": 48,
+	"n_head": 4,
+	"kernel_size": 8,
+	"multiplier": 2,
+	"pos_encoding": null
+    },
+    "DOA": "bidirectional_GRU_stage",
+    "DOA_ARGS": {
+	"depth": 2,
+	"units": 128
+    }
+}
