@@ -119,6 +119,31 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+        # with SE
+        model_config = {
+            'filters0': 6,
+            'filters1': 8,
+            'filters2': 0,
+            'kernel_size0': 3,
+            'kernel_size1': 3,
+            'kernel_size2': 0,
+            'connect0': [0],
+            'connect1': [0, 1],
+            'connect2': [1, 0, 1],
+            'strides': [1, 2],
+            'activation': 'relu',
+            'squeeze_ratio': 0.5,
+            'se_activation': 'swish',
+        }
+
+        exp_input_shape = 32, 32, 32, 3
+        exp_output_shape = 32, 32, 16, 11
+
+        self.block_test(mother_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_bidirectional_GRU_block(self):
         model_config = {
             'units': [128, 128], # mandatory
