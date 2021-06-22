@@ -126,6 +126,10 @@ def mother_block(model_config: dict):
     strides = safe_tuple(model_config.get('strides', (1, 1)))
     activation = model_config.get('activation', 'relu')
 
+    # squeeze and excitation
+    squeeze_ratio = model_config.get('squeeze_ratio', 0)
+    se_activation = model_config.get('se_activation', 'relu')
+
     if (filters0 == 0) != (kernel_size0 == 0):
         raise ValueError('0) skipped layer must have 0 filters, 0 kernel size')
     if (filters1 == 0) != (kernel_size1 == 0):
@@ -211,6 +215,15 @@ def mother_block(model_config: dict):
                         skip = Conv2D(skip.shape[-1], 1, strides=strides)(skip)
                     out.append(skip)
             out = tf.concat(out, axis=-1)
+
+        # Squeeze and Excitation
+        if squeeze_ratio > 0:
+            se_filters = int(squeeze_ratio * out.shape[-1])
+
+            se = tf.reduce_mean(out, axis=(-3, -2), keepdims=True)
+            se = Conv2D(se_filters, 1, activation=se_activation)(se)
+            se = Conv2D(out.shape[-1], 1, activation='sigmoid')(se)
+            out = se * out
 
         return out
     return block

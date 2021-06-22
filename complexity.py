@@ -23,6 +23,9 @@ def mother_block_complexity(model_config, input_shape):
     connect2 = model_config['connect2'] # len of 3 (0: input, 1: out0, 2: out1)
 
     strides = safe_tuple(model_config.get('strides', (1, 1)))
+
+    # squeeze and excitation
+    squeeze_ratio = model_config.get('squeeze_ratio', 0)
     
     if (filters0 == 0) != (kernel_size0 == 0):
         raise ValueError('0) skipped layer must have 0 filters, 0 kernel size')
@@ -103,6 +106,17 @@ def mother_block_complexity(model_config, input_shape):
                         skip, skip[-1], 1, strides=strides, prev_cx=cx)
         shape = shapes[-1][:-1] + [sum([connect2[i]*shapes[i][-1] 
                                        for i in range(3)])]
+
+    # Squeeze and Excitation
+    if squeeze_ratio > 0:
+        se_filters = int(squeeze_ratio * shape[-1])
+
+        se_shape = [*shape[:-3], 1, 1, shape[-1]]
+        cx, se_shape = conv2d_complexity(
+            se_shape, se_filters, 1, prev_cx=cx)
+        cx, se_shape = conv2d_complexity(
+            se_shape, shape[-1], 1, prev_cx=cx)
+
     return cx, shape
 
 
