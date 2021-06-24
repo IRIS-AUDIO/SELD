@@ -16,10 +16,8 @@ from metrics import *
 from params import get_param
 from swa import SWA
 from transforms import *
-from utils import adaptive_clip_grad, AdaBelief, apply_kernel_regularizer
-
-
-
+from utils import *
+from SELD_evaluation_metrics import SELDMetrics_
 
 
 def generate_trainstep(sed_loss, doa_loss, loss_weights, label_smoothing=0.):
@@ -194,19 +192,36 @@ def ensemble_outputs(model, xs: list,
     return list(zip(seds, doas))
 
 
-def generate_evaluate_fn(test_xs, test_ys, evaluator, batch_size=256,
+def generate_evaluate_fn(test_xs, test_ys, evaluator, write_path, ans_path, batch_size=256,
                          writer=None):
     def evaluate_fn(model, epoch):
         start = time.time()
         evaluator.reset_states()
         e_outs = ensemble_outputs(model, test_xs, batch_size=batch_size)
 
-        for y, pred in zip(test_ys, e_outs):
-            evaluator.update_states(y, pred)
+        label_list = sorted(glob(ans_path + '/dev-test' '/*'))
+        label_list = [os.path.split(os.path.splitext(f)[0])[1] for f in label_list if int(f[f.rfind(os.path.sep)+5]) in [6]] 
+        seld_ = SELDMetrics_()
+        for i, preds in tqdm(enumerate(e_outs)):
+            answer_class = preds[0] > 0.5
+            answer_direction = preds[1]
+            write_answer(write_path, label_list[i] + '.csv',answer_class, answer_direction)
+            pred = load_output_format_file(os.path.join(write_path,  label_list[i] + '.csv'))
+            pred = segment_labels(pred, answer_class.shape[0])
+            gt = load_output_format_file(os.path.join(ans_path , 'dev-test', label_list[i] + '.csv'))
+            gt = convert_output_format_polar_to_cartesian(gt)
+            gt = segment_labels(gt, answer_class.shape[0])
+            seld_.update_seld_scores(pred, gt)
+            metric_values = seld_.compute_seld_scores()
+            seld_score = calculate_seld_score(metric_values)
+            er, f, der, derf = list(map(lambda x: x, metric_values))
 
-        metric_values = evaluator.result()
-        seld_score = calculate_seld_score(metric_values).numpy()
-        er, f, der, derf = list(map(lambda x: x.numpy(), metric_values))
+        #for y, pred in zip(test_ys, e_outs):
+        #    evaluator.update_states(y, pred)
+
+        # metric_values = evaluator.result()
+        # seld_score = calculate_seld_score(metric_values).numpy()
+        er, f, der, derf = list(map(lambda x: x, metric_values))
 
         if writer is not None:
             writer.add_scalar('ENS_T/ER', er, epoch)
@@ -304,7 +319,7 @@ def main(config):
     test_iterloop = generate_iterloop(
         sed_loss, doa_loss, evaluator, writer, 'test')
     evaluate_fn = generate_evaluate_fn(
-        test_xs, test_ys, evaluator, config.batch*4, writer=writer)
+        test_xs, test_ys, evaluator, config.output_path, config.ans_path, config.batch*4, writer=writer)
 
     for epoch in range(config.epoch):
         if epoch == swa_start_epoch:

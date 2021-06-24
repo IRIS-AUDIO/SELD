@@ -248,12 +248,19 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
 def write_answer(output_dir, filename, preds, direction):
     write_path = os.path.join(output_dir, filename)
     loc_answer = tf.where(preds)
-    for i, loc in enumerate(loc_answer):
-        if i == 0:
-            true_direction = tf.reshape(direction[loc[0], loc[1]::preds.shape[1]], [1,3])
-        else:
-            true_direction = tf.concat([true_direction, tf.reshape(direction[loc[0], loc[1]::preds.shape[1]], [1, 3])], axis=0)  
-    temp = np.concatenate([loc_answer.numpy(), true_direction.numpy()], axis=1)
+    true_direction = []
+    for loc in loc_answer:
+        true_direction.append(direction[loc[0], loc[1]::preds.shape[1]])
+    true_direction = tf.stack(true_direction, axis=0)
+    true_direction = true_direction.numpy()
+
+    #azimuth = np.arctan2(true_direction[:,1], true_direction[:,0]) * 180 / np.pi
+    #elevation = np.arctan2(true_direction[:,2], np.sqrt(true_direction[:,0]**2 + true_direction[:,1]**2)) * 180 / np.pi
+    
+    #azimuth = azimuth.reshape(azimuth.shape[0], 1)
+    #elevation = elevation.reshape(elevation.shape[0], 1)
+
+    temp = np.concatenate([loc_answer.numpy(), true_direction.reshape(true_direction.shape[0], 3)], axis=1)
     # np.savetxt(write_path, temp.astype(float), fmt='%4.3f', delimiter = ",")
     _fid = open(write_path, 'w')
     for item in temp:
