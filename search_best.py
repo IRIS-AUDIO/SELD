@@ -79,7 +79,6 @@ def load_test_data(feat_path, n_freq_bins):
     return features    
 
 
-
 if __name__ == '__main__':    
     from multiprocessing import Pool
     temp = tf.constant([0.])
@@ -173,7 +172,6 @@ if __name__ == '__main__':
             er, f, der, derf = list(map(lambda x: x, metric_values))
             
         return [er, f, der, derf, seld_score]
-
 
     result_ = results(mode=mode, path=path, output_path=output_path, ans_path=ans_path, outs=[outs[0]])
     print(result_)

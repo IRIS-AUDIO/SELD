@@ -16,10 +16,8 @@ from metrics import *
 from params import get_param
 from swa import SWA
 from transforms import *
-from utils import adaptive_clip_grad, AdaBelief, apply_kernel_regularizer, write_answer
-from utils import write_answer, load_output_format_file, convert_output_format_polar_to_cartesian, segment_labels
+from utils import *
 from SELD_evaluation_metrics import SELDMetrics_
-
 
 
 def generate_trainstep(sed_loss, doa_loss, loss_weights, label_smoothing=0.):
@@ -321,7 +319,7 @@ def main(config):
     test_iterloop = generate_iterloop(
         sed_loss, doa_loss, evaluator, writer, 'test')
     evaluate_fn = generate_evaluate_fn(
-        test_xs, test_ys, evaluator, config.output_path, config.ans_path,  config.batch*4, writer=writer)
+        test_xs, test_ys, evaluator, config.output_path, config.ans_path, config.batch*4, writer=writer)
 
     for epoch in range(config.epoch):
         if epoch == swa_start_epoch:
@@ -372,6 +370,5 @@ def main(config):
 
 
 if __name__=='__main__':
-    import os
     main(get_param())
 
