@@ -8,105 +8,32 @@ from stage_complexity import *
 class StageComplexityTest(tf.test.TestCase):
     def test_mother_stage_complexity(self):
         model_config = {
-            'depth': 2,
-            'filters0': 32,
-            'filters1': 32,
-            'filters2': 0,
-            'kernel_size0': 3,
-            'kernel_size1': 5,
-            'kernel_size2': 0,
-            'connect0': [1],
-            'connect1': [1, 1],
-            'connect2': [0, 0, 1],
-            'strides': (1, 1),
+            "depth": 2,
+            "filters0": 64,
+            "filters1": 64,
+            "filters2": 0,
+            "kernel_size0": 3,
+            "kernel_size1": 1,
+            "kernel_size2": 0,
+            "connect0": [
+                1
+            ],
+            "connect1": [
+                1,
+                1
+            ],
+            "connect2": [
+                1,
+                0,
+                1
+            ],
+            "strides": [
+                1,
+                2
+            ]
         }
         self.complexity_test(mother_stage_complexity,
                              mother_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_simple_conv_stage_complexity(self):
-        model_config = {
-            'filters': 24,
-            'depth': 4,
-            'pool_size': (2, 3),
-        }
-        self.complexity_test(simple_conv_stage_complexity,
-                             simple_conv_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_another_conv_stage_complexity(self):
-        model_config = {
-            'filters': 24,
-            'depth': 4,
-            'pool_size': (2, 3),
-        }
-        self.complexity_test(another_conv_stage_complexity,
-                             another_conv_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_res_basic_stage_complexity(self):
-        model_config = {
-            'depth': 4,
-            'strides': 2,
-            'filters': 24,
-        }
-        self.complexity_test(res_basic_stage_complexity,
-                             res_basic_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_res_bottleneck_stage_complexity(self):
-        model_config = {
-            'depth': 4,
-            'strides': 2,
-            'filters': 16,
-            'groups': 1,
-            'bottleneck_ratio': 2
-        }
-        self.complexity_test(res_bottleneck_stage_complexity,
-                             res_bottleneck_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_dense_net_stage_complexity(self):
-        model_config = {
-            'growth_rate' : 6,
-            'depth': 4,
-            'strides': [2, 2],
-            'bottleneck_ratio': 4,
-            'reduction_ratio': 0.5,
-        }
-        self.complexity_test(dense_net_stage_complexity,
-                             dense_net_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_sepformer_stage_complexity(self):
-        model_config = {
-            'depth': 4,
-            'n_head': 4,
-            'key_dim': 32,
-            'ff_multiplier': 2,
-            'kernel_size': 3,
-            'pos_encoding': 'basic',
-        }
-        self.complexity_test(sepformer_stage_complexity,
-                             sepformer_stage,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_xception_basic_stage_complexity(self):
-        model_config = {
-            'depth': 4,
-            'filters' : 32,
-            'mid_ratio': 1.25,
-            'strides': (1, 2),
-        }
-        self.complexity_test(xception_basic_stage_complexity,
-                             xception_basic_stage,
                              model_config,
                              [32, 32, 16])
 
@@ -124,6 +51,7 @@ class StageComplexityTest(tf.test.TestCase):
         model_config = {
             'depth': 2,
             'units': 128,
+            'kernel_size': 3,
         }
         self.complexity_test(simple_dense_stage_complexity,
                              simple_dense_stage,
@@ -160,7 +88,8 @@ class StageComplexityTest(tf.test.TestCase):
                         complexity_fn,
                         block_fn,
                         model_config: dict,
-                        exp_input_shape: list):
+                        exp_input_shape: list,
+                        verbose=False):
         '''
         complexity_fn: a func that calculates the complexity
                        of given block(stage)
@@ -175,6 +104,9 @@ class StageComplexityTest(tf.test.TestCase):
         inputs = tf.keras.layers.Input(exp_input_shape)
         outputs = block_fn(model_config)(inputs)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+        if verbose:
+            model.summary()
 
         cx, output_shape = complexity_fn(model_config, exp_input_shape)
 

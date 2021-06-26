@@ -5,9 +5,10 @@ from utils import safe_div
 
 
 class SELDMetrics:
-    def __init__(self, doa_threshold=20, block_size=10):
+    def __init__(self, doa_threshold=20, block_size=10, n_classes=14):
         self.doa_threshold = doa_threshold
         self.block_size = block_size
+        self.n_classes = n_classes
         self.reset_states()
 
     def reset_states(self):
@@ -25,17 +26,17 @@ class SELDMetrics:
 
         self.total_DE = tf.zeros([], tf.float32)
         self.DE_TP = tf.zeros([], tf.float32)
-        self.class_tp = tf.zeros([14], tf.float32)
-        self.class_fp = tf.zeros([14], tf.float32)
-        self.class_tn = tf.zeros([14], tf.float32)
-        self.class_fn = tf.zeros([14], tf.float32)
+        self.class_tp = tf.zeros([self.n_classes], tf.float32)
+        self.class_fp = tf.zeros([self.n_classes], tf.float32)
+        self.class_tn = tf.zeros([self.n_classes], tf.float32)
+        self.class_fn = tf.zeros([self.n_classes], tf.float32)
 
     def result(self):
         # Location-senstive detection performance
         ER = safe_div(self.S + self.D + self.I, self.Nref)
 
-        prec = safe_div(self.TP, self.Nsys)
-        recall = safe_div(self.TP, self.Nref)
+        prec = safe_div(self.TP, self.TP + self.FP)
+        recall = safe_div(self.TP, self.TP + self.FN)
         F = safe_div(2 * prec * recall, prec + recall)
 
         # Class-sensitive localization performance
@@ -66,10 +67,10 @@ class SELDMetrics:
     def split(self, labels):
         sed, doa = labels
         blocks = []
-        for i in range((sed.shape[1]+self.block_size-1)//self.block_size):
+        for i in range((sed.shape[-2]+self.block_size-1)//self.block_size):
             blocks.append(
-                [sed[:, i*self.block_size:(i+1)*self.block_size],
-                 doa[:, i*self.block_size:(i+1)*self.block_size]])
+                [sed[..., i*self.block_size:(i+1)*self.block_size, :],
+                 doa[..., i*self.block_size:(i+1)*self.block_size, :]])
 
         return blocks
 
@@ -77,6 +78,12 @@ class SELDMetrics:
         sed_true, doa_true = y_true_block
         sed_pred, doa_pred = y_pred_block
         sed_pred = tf.cast(sed_pred > 0.5, sed_pred.dtype)
+
+        if len(sed_true.shape) == 2:
+            sed_true = sed_true[tf.newaxis, :]
+            sed_pred = sed_pred[tf.newaxis, :]
+            doa_true = doa_true[tf.newaxis, :]
+            doa_pred = doa_pred[tf.newaxis, :]
 
         # change doa shape from [..., n_classes*3] to [..., n_classes, 3]
         doa_true = tf.reshape(doa_true, (*doa_true.shape[:-1], 3, -1))

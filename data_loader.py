@@ -44,7 +44,7 @@ def data_loader(dataset,
                 op, num_parallel_calls=AUTOTUNE, deterministic=deterministic)
 
         return dataset
-
+    
     dataset = apply_ops(dataset, preprocessing)
     dataset = dataset.cache()
     dataset = dataset.repeat(loop_time)
@@ -61,9 +61,9 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
 
     assert mode in ['train', 'val', 'test']
     splits = {
-        'train': [3, 4, 5, 6],
-        'val': [2],
-        'test': [1]
+        'train': [1, 2, 3, 4],
+        'val': [5],
+        'test': [6]
     }
 
     # load splits according to the mode
@@ -81,11 +81,8 @@ def load_seldnet_data(feat_path, label_path, mode='train', n_freq_bins=64):
 
     if len(features[0].shape) == 2:
         def extract(x):
-            x_org = x[:, :n_freq_bins*4]
-            x_org = np.reshape(x_org, (x.shape[0], n_freq_bins, 4))
-            x_add = x[:, n_freq_bins*4:]
-            x_add = np.reshape(x_add, (x.shape[0], n_freq_bins, -1))
-            return np.concatenate([x_org, x_add], axis=-1)
+            x = np.reshape(x, (x.shape[0], -1, n_freq_bins))
+            return x.transpose(0, 2, 1)
 
         features = list(map(extract, features))
     else:
@@ -105,9 +102,9 @@ def load_wav_and_label(feat_path, label_path, mode='train'):
     l_paths = sorted(glob(os.path.join(label_path, '*.csv')))
 
     splits = {
-        'train': [3, 4, 5, 6],
-        'val': [2],
-        'test': [1]
+        'train': [1, 2, 3, 4],
+        'val': [5],
+        'test': [6]
     }
 
     f_paths = [f for f in f_paths 
@@ -141,9 +138,9 @@ def seldnet_data_to_dataloader(features: [list, tuple],
                                batch_size=32,
                                loop_time=1,
                                **kwargs):
+    total_length = labels[0].shape[0]
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
-
     # shapes of seldnet features and labels 
     # features: [time_features, freq, chan]
     # labels:   [time_labels, 4*classes]
@@ -158,7 +155,8 @@ def seldnet_data_to_dataloader(features: [list, tuple],
     dataset = dataset.map(lambda x,y: (tf.reshape(x, (-1, *x.shape[2:])), y),
                           num_parallel_calls=AUTOTUNE)
     del features, labels
-    
+    if train == False:
+        batch_size = total_length // label_window_size
     dataset = data_loader(dataset, batch_size=batch_size, 
             loop_time=loop_time if train else 1, **kwargs)
     
@@ -383,4 +381,4 @@ if __name__ == '__main__':
 
         print(time.time() - start)
         start = time.time()
-    
+ 

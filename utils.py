@@ -1,5 +1,9 @@
 import copy
 import tensorflow as tf
+import numpy as np 
+import csv
+import os
+import pandas as pd
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, decay):
@@ -241,3 +245,122 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         })
         return config
 
+def write_answer(output_dir, filename, preds, direction):
+    write_path = os.path.join(output_dir, filename)
+    loc_answer = tf.where(preds)
+    true_direction = []
+    for loc in loc_answer:
+        true_direction.append(direction[loc[0], loc[1]::preds.shape[1]])
+    true_direction = tf.stack(true_direction, axis=0)
+    true_direction = true_direction.numpy()
+
+    #azimuth = np.arctan2(true_direction[:,1], true_direction[:,0]) * 180 / np.pi
+    #elevation = np.arctan2(true_direction[:,2], np.sqrt(true_direction[:,0]**2 + true_direction[:,1]**2)) * 180 / np.pi
+    
+    #azimuth = azimuth.reshape(azimuth.shape[0], 1)
+    #elevation = elevation.reshape(elevation.shape[0], 1)
+
+    temp = np.concatenate([loc_answer.numpy(), true_direction.reshape(true_direction.shape[0], 3)], axis=1)
+    # np.savetxt(write_path, temp.astype(float), fmt='%4.3f', delimiter = ",")
+    _fid = open(write_path, 'w')
+    for item in temp:
+        _fid.write('{},{},{},{},{},{}\n'.format(int(item[0]), int(item[1]), 0, float(item[2]), float(item[3]), float(item[4])))
+
+
+def load_output_format_file(_output_format_file):
+    """
+    Loads DCASE output format csv file and returns it in dictionary format
+
+    :param _output_format_file: DCASE output format CSV
+    :return: _output_dict: dictionary
+    """
+    _output_dict = {}
+    _fid = open(_output_format_file, 'r')
+    # next(_fid)
+    for _line in _fid:
+        _words = _line.strip().split(',')
+        _frame_ind = int(float(_words[0]))
+        if _frame_ind not in _output_dict:
+            _output_dict[_frame_ind] = []
+        if len(_words) == 5: #read polar coordinates format, we ignore the track count 
+            _output_dict[_frame_ind].append([int(float(_words[1])), float(_words[3]), float(_words[4]), int(float(_words[2]))])
+        elif len(_words) == 6: # read Cartesian coordinates format, we ignore the track count
+            _output_dict[_frame_ind].append([int(float(_words[1])), float(_words[3]), float(_words[4]), float(_words[5]), int(float(_words[2]))])
+    _fid.close()
+    return _output_dict
+
+def segment_labels( _pred_dict, _max_frames):
+    nb_blocks = int(np.ceil(_max_frames/float(10)))
+    output_dict = {x: {} for x in range(nb_blocks)}
+    for frame_cnt in range(0, _max_frames, 10):
+
+        # Collect class-wise information for each block
+        # [class][frame] = <list of doa values>
+        # Data structure supports multi-instance occurence of same class
+        block_cnt = frame_cnt // 10
+        loc_dict = {}
+        for audio_frame in range(frame_cnt, frame_cnt+10):
+            if audio_frame not in _pred_dict:
+                continue
+            for value in _pred_dict[audio_frame]:
+                if value[0] not in loc_dict:
+                    loc_dict[value[0]] = {}
+                block_frame = audio_frame - frame_cnt
+                if block_frame not in loc_dict[value[0]]:
+                    loc_dict[value[0]][block_frame] = []
+                loc_dict[value[0]][block_frame].append(value[1:])
+
+        # Update the block wise details collected above in a global structure
+        for class_cnt in loc_dict:
+            if class_cnt not in output_dict[block_cnt]:
+                output_dict[block_cnt][class_cnt] = []
+
+            keys = [k for k in loc_dict[class_cnt]]
+            values = [loc_dict[class_cnt][k] for k in loc_dict[class_cnt]]
+
+            output_dict[block_cnt][class_cnt].append([keys, values])
+
+    return output_dict
+
+
+def convert_output_format_cartesian_to_polar(in_dict):
+    out_dict = {}
+    for frame_cnt in in_dict.keys():
+        if frame_cnt not in out_dict:
+            out_dict[frame_cnt] = []
+            for tmp_val in in_dict[frame_cnt]:
+                x, y, z = tmp_val[1], tmp_val[2], tmp_val[3]
+
+                # in degrees
+                azimuth = np.arctan2(y, x) * 180 / np.pi
+                elevation = np.arctan2(z, np.sqrt(x**2 + y**2)) * 180 / np.pi
+                r = np.sqrt(x**2 + y**2 + z**2)
+                out_dict[frame_cnt].append([tmp_val[0], azimuth, elevation, tmp_val[-1]])
+    return out_dict
+
+
+def apply_kernel_regularizer(model, kernel_regularizer):
+    model = tf.keras.models.clone_model(model)
+    for layer in model.layers:
+        if hasattr(layer, 'kernel_regularizer'):
+            layer.kernel_regularizer = kernel_regularizer
+
+    model = tf.keras.models.clone_model(model)
+    return model
+
+def convert_output_format_polar_to_cartesian(in_dict):
+    out_dict = {}
+    for frame_cnt in in_dict.keys():
+        if frame_cnt not in out_dict:
+            out_dict[frame_cnt] = []
+            for tmp_val in in_dict[frame_cnt]:
+
+                ele_rad = tmp_val[2]*np.pi/180.
+                azi_rad = tmp_val[1]*np.pi/180
+
+                tmp_label = np.cos(ele_rad)
+                x = np.cos(azi_rad) * tmp_label
+                y = np.sin(azi_rad) * tmp_label
+                z = np.sin(ele_rad)
+                out_dict[frame_cnt].append([tmp_val[0], x, y, z, tmp_val[-1]])
+    return out_dict

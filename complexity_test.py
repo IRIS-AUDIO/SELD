@@ -27,95 +27,24 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
-    def test_simple_conv_block_complexity(self):
+        # with SE
         model_config = {
-            'filters': [32, 32],
-            'pool_size': [2, 2],
+            'filters0': 32,
+            'filters1': 32,
+            'filters2': 0,
+            'kernel_size0': 3,
+            'kernel_size1': 5,
+            'kernel_size2': 0,
+            'connect0': [1],
+            'connect1': [1, 1],
+            'connect2': [0, 0, 1],
+            'strides': (1, 1),
+            'squeeze_ratio': 0.5,
         }
-        self.complexity_test(simple_conv_block_complexity,
-                             simple_conv_block,
+        self.complexity_test(mother_block_complexity,
+                             mother_block,
                              model_config,
                              [32, 32, 16])
-
-    def test_another_conv_block_complexity(self):
-        model_config = {
-            'filters': 32,
-            'depth': 3,
-            'pool_size': [2, 1],
-        }
-        self.complexity_test(another_conv_block_complexity,
-                             another_conv_block,
-                             model_config,
-                             [32, 32, 16])
-
-    def test_res_basic_block_complexity(self):
-        model_config = {
-            'strides': 2,
-            'filters': 24,
-            'groups': 0.5,
-        }
-        self.complexity_test(res_basic_block_complexity,
-                             res_basic_block,
-                             model_config,
-                             [32, 32, 4])
-
-    def test_res_bottleneck_block_complexity(self):
-        model_config = {
-            'filters': 32,
-            'strides': 2,
-            'groups': 1,
-            'bottleneck_ratio': 2
-        }
-        self.complexity_test(res_bottleneck_block_complexity,
-                             res_bottleneck_block,
-                             model_config,
-                             [32, 32, 3])
-
-    def test_dense_net_block_complexity(self):
-        model_config = {
-            'growth_rate': 8,
-            'depth': 3,
-            'strides': 2,
-            'bottleneck_ratio': 2,
-            'reduction_ratio': 0.5,
-        }
-        self.complexity_test(dense_net_block_complexity,
-                             dense_net_block,
-                             model_config,
-                             [32, 32, 3])
-
-    def test_sepformer_block_complexity(self):
-        model_config = {
-            'n_head': 8,
-            'key_dim': 16,
-            'ff_multiplier': 4,
-            'kernel_size': 3,
-        }
-        self.complexity_test(sepformer_block_complexity,
-                             sepformer_block,
-                             model_config,
-                             [32, 32, 3])
-
-    def test_xception_block_complexity(self):
-        model_config = {
-            'filters': 32,
-            'block_num': 1,
-        }
-        self.complexity_test(xception_block_complexity,
-                             xception_block,
-                             model_config,
-                             [32, 32, 3])
-
-    def test_xception_basic_block_complexity(self):
-        model_config = {
-            'filters': 32,
-            'mid_ratio': 0.75,
-            'strides': (1, 2),
-        }
-        self.complexity_test(xception_basic_block_complexity,
-                             xception_basic_block,
-                             model_config,
-                             [32, 32, 3])
 
     def test_bidirectional_GRU_block_complexity(self):
         model_config = {
@@ -139,13 +68,24 @@ class ComplexityTest(tf.test.TestCase):
                              [32, 48])
 
     def test_simple_dense_block_complexity(self):
+        # ndim: 3
         model_config = {
-            'units': [32, 32]
+            'units': [32, 32],
+            'kernel_size': 2,
         }
         self.complexity_test(simple_dense_block_complexity,
                              simple_dense_block,
                              model_config,
                              [32, 48])
+
+        # ndim: 2
+        model_config = {
+            'units': [32, 32],
+        }
+        self.complexity_test(simple_dense_block_complexity,
+                             simple_dense_block,
+                             model_config,
+                             [32])
 
     def test_identity_block_complexity(self):
         model_config = {}

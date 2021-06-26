@@ -17,7 +17,10 @@ def get_param(known=None):
                       choices=['MAE', 'MSE', 'MSLE', 'MMSE'])
     args.add_argument('--model', type=str, default='seldnet')
     args.add_argument('--model_config', type=str, default='')
+    args.add_argument('--output_path', type=str, default='./output')
+    args.add_argument('--ans_path', type=str, default='/seld-dcase2021/foa_dev_raw/raw_and_label/foa_dev_raw/metadata_dev/')
     
+
     # training
     args.add_argument('--lr', type=float, default=0.001)
     args.add_argument('--decay', type=float, default=0.5)

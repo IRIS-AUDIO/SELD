@@ -23,6 +23,9 @@ def mother_block_complexity(model_config, input_shape):
     connect2 = model_config['connect2'] # len of 3 (0: input, 1: out0, 2: out1)
 
     strides = safe_tuple(model_config.get('strides', (1, 1)))
+
+    # squeeze and excitation
+    squeeze_ratio = model_config.get('squeeze_ratio', 0)
     
     if (filters0 == 0) != (kernel_size0 == 0):
         raise ValueError('0) skipped layer must have 0 filters, 0 kernel size')
@@ -66,7 +69,8 @@ def mother_block_complexity(model_config, input_shape):
     # second layer
     if filters1 > 0:
         cx, shape = conv2d_complexity(shapes[-1], filters1, kernel_size1,
-                                      padding='same', prev_cx=cx)
+                                      padding='same', strides=strides,
+                                      prev_cx=cx)
         cx, shape = norm_complexity(shape, prev_cx=cx)
         for i in range(2):
             if connect1[i] == 1:
@@ -94,249 +98,24 @@ def mother_block_complexity(model_config, input_shape):
                         prev_cx=cx)
                     cx, skip = norm_complexity(skip, prev_cx=cx)
     else:
+        for i in range(len(connect2)):
+            if connect2[i] == 1:
+                skip = shapes[i]
+                if connect2[-1] == 1 and tuple(strides) != (1, 1) and i < 2:
+                    cx, skip = conv2d_complexity(
+                        skip, skip[-1], 1, strides=strides, prev_cx=cx)
         shape = shapes[-1][:-1] + [sum([connect2[i]*shapes[i][-1] 
                                        for i in range(3)])]
-    return cx, shape
 
+    # Squeeze and Excitation
+    if squeeze_ratio > 0:
+        se_filters = int(squeeze_ratio * shape[-1])
 
-def simple_conv_block_complexity(model_config, input_shape):
-    filters = model_config['filters']
-    pool_size = model_config['pool_size']
-
-    if len(filters) == 0:
-        filters = filters * len(pool_size)
-    elif len(filters) != len(pool_size):
-        raise ValueError("len of filters and pool_size do not match")
-    
-    shape = input_shape
-    cx = {}
-    for i in range(len(filters)):
-        cx, shape = conv2d_complexity(shape, filters[i], kernel_size=3, 
-                                      prev_cx=cx)
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = pool2d_complexity(shape, pool_size[i], prev_cx=cx)
-    return cx, shape
-
-
-def another_conv_block_complexity(model_config, input_shape):
-    filters = model_config['filters']
-    depth = model_config['depth']
-    pool_size = safe_tuple(model_config['pool_size'])
-
-    cx = {}
-
-    for i in range(depth):
-        shape = input_shape
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = conv2d_complexity(shape, filters, 3, prev_cx=cx)
-
-        if input_shape[-1] != filters:
-            cx, _ = conv2d_complexity(input_shape, filters, 1, prev_cx=cx)
-        input_shape = shape
-
-    cx, shape = pool2d_complexity(shape, pool_size, prev_cx=cx)
-    return cx, shape
-
-
-def res_basic_block_complexity(model_config, input_shape):
-    # mandatory parameters
-    filters = model_config['filters']
-    strides = safe_tuple(model_config['strides'])
-
-    groups_coef = model_config.get('groups', 0)
-
-    shape = input_shape
-    cx = {}
-
-    groups = max(int(groups_coef * shape[-1]), 1)
-    cx, shape = conv2d_complexity(shape, filters, 3, strides=strides,
-                                  groups=groups, prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    groups = max(int(groups_coef * shape[-1]), 1)
-    cx, shape = conv2d_complexity(shape, filters, 3, 
-                                  groups=groups, prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    if strides not in [(1, 1), [1, 1]] or input_shape[-1] != filters:
-        cx, _ = conv2d_complexity(input_shape, filters, 1, strides=strides, 
-                                  prev_cx=cx)
-        cx, _ = norm_complexity(shape, prev_cx=cx)
-    return cx, shape
-
-
-def res_bottleneck_block_complexity(model_config, input_shape):
-    # mandatory parameters
-    filters = model_config['filters']
-    strides = model_config['strides']
-
-    groups_coef = model_config.get('groups', 0)
-    bottleneck_ratio = model_config.get('bottleneck_ratio', 1)
-
-    strides = safe_tuple(strides, 2)
-    btn_size = int(filters * bottleneck_ratio)
-    if btn_size < 1:
-        raise ValueError('invalid filters and bottleneck ratio')
-
-    # calculate
-    cx = {}
-    cx, shape = conv2d_complexity(input_shape, btn_size, 1, prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    groups = max(int(groups_coef * shape[-1]), 1)
-    cx, shape = conv2d_complexity(
-        shape, btn_size, 3, strides, groups=groups, prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    cx, shape = conv2d_complexity(shape, filters, 1, prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    if strides != (1, 1) or input_shape[-1] != filters:
-        cx, shape = conv2d_complexity(input_shape, filters, 1, strides, 
-                                      prev_cx=cx)
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    return cx, shape
-
-
-def dense_net_block_complexity(model_config, input_shape):
-    # mandatory
-    growth_rate = model_config['growth_rate']
-    depth = model_config['depth']
-    strides = safe_tuple(model_config['strides'])
-
-    bottleneck_ratio = model_config.get('bottleneck_ratio', 4)
-    reduction_ratio = model_config.get('reduction_ratio', 0.5)
-
-    bottleneck_size = int(bottleneck_ratio * growth_rate)
-    if bottleneck_size < 1:
-        raise ValueError('invalid filters and bottleneck ratio')
-
-    cx = {}
-    for i in range(depth):
-        shape = input_shape
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = conv2d_complexity(shape, bottleneck_size, 1, use_bias=False,
-                                      prev_cx=cx)
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = conv2d_complexity(shape, growth_rate, 3, prev_cx=cx)
-        shape[-1] = shape[-1] + input_shape[-1] # concat
-
-        input_shape = shape
-
-    reduction_size = int(reduction_ratio * shape[-1])
-    if reduction_size < 1:
-        raise ValueError('invalid reduction ratio')
-
-    if strides[0] != 1 or strides[1] != 1:
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        cx, shape = conv2d_complexity(shape, reduction_size,
-                                      1, use_bias=False, prev_cx=cx)
-        cx, shape = pool2d_complexity(shape, strides, prev_cx=cx)
-
-    return cx, shape
-
-
-def sepformer_block_complexity(model_config, input_shape):
-    # mandatory parameters (for transformer_encoder_block)
-    # 'n_head', 'ff_multiplier', 'kernel_size'
-    time, freq, chan = input_shape
-    if freq % 2:
-        raise ValueError('invalid freq')
-
-    intra_shape = [time, freq] # [batch*chan, time, freq]
-    cx, intra_shape = transformer_encoder_block_complexity(model_config, 
-                                                           intra_shape)
-    cx['flops'] = cx['flops'] * chan
-    cx, shape = norm_complexity(input_shape, prev_cx=cx)
-    total_cx = cx
-
-    inter_shape = [chan, freq] # [batch*time, chan, freq]
-    cx, inter_shape = transformer_encoder_block_complexity(model_config, 
-                                                           inter_shape)
-    cx['flops'] = cx['flops'] * time
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-    total_cx = dict_add(total_cx, cx)
-    return total_cx, shape
-
-
-def xception_block_complexity(model_config, input_shape):
-    filters = model_config['filters']
-    block_num = model_config['block_num']
-
-    def _sepconv_block(shape, filters, prev_cx):
-        cx, shape = separable_conv2d_complexity(
-            shape, filters, 3, padding='same', use_bias=False, prev_cx=prev_cx)
-        cx, shape = norm_complexity(shape, prev_cx=cx)
-        return cx, shape
-    
-    def _residual_block(shape, filters, prev_cx, second_filters=None):
-        if second_filters is None:
-            second_filters = filters
-
-        cx, output_shape = conv2d_complexity(
-            shape, second_filters, 1, strides=(1,2), 
-            padding='same', use_bias=False, prev_cx=prev_cx)
-        cx, output_shape = norm_complexity(output_shape, prev_cx=cx)
-        cx, shape = _sepconv_block(shape, filters, prev_cx=cx)
-        cx, shape = _sepconv_block(shape, second_filters, prev_cx=cx)
-
-        return cx, output_shape
-
-    cx = {}
-    cx, shape = conv2d_complexity(input_shape, filters, 3, use_bias=False,
-                                  prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-    cx, shape = pool2d_complexity(shape, pool_size=(5, 1), prev_cx=cx)
-
-    cx, shape = conv2d_complexity(shape, filters*2, 3, use_bias=False,
-                                  prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    new_filters = int(filters * 22.75)
-
-    cx, shape = _residual_block(shape, filters*4, prev_cx=cx)
-    cx, shape = _residual_block(shape, filters*8, prev_cx=cx)
-    cx, shape = _residual_block(shape, new_filters, prev_cx=cx)
-
-    for i in range(block_num):
-        cx, shape = _sepconv_block(shape, new_filters, prev_cx=cx)
-        cx, shape = _sepconv_block(shape, new_filters, prev_cx=cx)
-        cx, shape = _sepconv_block(shape, new_filters, prev_cx=cx)
-
-    cx, shape = _residual_block(shape, new_filters, prev_cx=cx,
-                                second_filters=filters*32)
-
-    cx, shape = _sepconv_block(shape, filters*48, prev_cx=cx)
-    cx, shape = _sepconv_block(shape, filters*64, prev_cx=cx)
-    return cx, shape
-
-
-def xception_basic_block_complexity(model_config, input_shape):
-    filters = model_config['filters']
-    
-    mid_ratio = model_config.get('mid_ratio', 1)
-    strides = model_config.get('strides', (1, 2))
-
-    mid_filters = int(mid_ratio * filters)
-    if mid_filters < 1:
-        raise ValueError('invalid mid_ratio, filters')
-    cx = {}
-    cx, shape = separable_conv2d_complexity(
-        input_shape, mid_filters, 3, padding='same', use_bias=False, 
-        prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-
-    cx, shape = separable_conv2d_complexity(
-        shape, filters, 3, padding='same', use_bias=False, prev_cx=cx)
-    cx, shape = norm_complexity(shape, prev_cx=cx)
-    cx, shape = pool2d_complexity(shape, strides, padding='same', prev_cx=cx)
-
-    cx, res_shape = conv2d_complexity(
-        input_shape, filters, 1, strides=strides, use_bias=False, prev_cx=cx)
-    cx, res_shape = norm_complexity(res_shape, prev_cx=cx)
+        se_shape = [*shape[:-3], 1, 1, shape[-1]]
+        cx, se_shape = conv2d_complexity(
+            se_shape, se_filters, 1, prev_cx=cx)
+        cx, se_shape = conv2d_complexity(
+            se_shape, shape[-1], 1, prev_cx=cx)
 
     return cx, shape
 
@@ -385,11 +164,16 @@ def simple_dense_block_complexity(model_config, input_shape):
     # mandatory parameters
     units_per_layer = model_config['units']
 
+    kernel_size = model_config.get('kernel_size', 1)
+
     shape = force_1d_shape(input_shape)
 
     cx = {}
     for units in units_per_layer:
-        cx, shape = linear_complexity(shape, units, prev_cx=cx)
+        if len(shape) == 1:
+            cx, shape = linear_complexity(shape, units, prev_cx=cx)
+        else:
+            cx, shape = conv1d_complexity(shape, units, kernel_size, prev_cx=cx)
     return cx, shape
 
 
@@ -430,7 +214,7 @@ def conformer_encoder_block_complexity(model_config, input_shape):
 
     # Depthwise
     cx, shape = conv1d_complexity(shape, emb, kernel_size, groups=emb,
-                                    prev_cx=cx)
+                                  prev_cx=cx)
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
 
@@ -639,5 +423,6 @@ if __name__ == '__main__':
     import tensorflow as tf
     import models
     model = models.conv_temporal(input_shape, model_config)
-    print(sum([tf.keras.backend.count_params(p) for p in model.trainable_weights]))
+    print(sum([tf.keras.backend.count_params(p) 
+               for p in model.trainable_weights]))
 
