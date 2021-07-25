@@ -414,7 +414,7 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
 
     # positional encoding to kernel mapping
     if use_relative:
-        flops += size*(c + use_bias)*num_heads*key_dim
+        flops += size*c*num_heads*key_dim
 
     # scaled dot product attention & context
     flops += (size*size*key_dim + size*size*value_dim)*num_heads
