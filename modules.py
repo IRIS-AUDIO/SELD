@@ -320,9 +320,12 @@ def conformer_encoder_block(model_config: dict):
     multiplier = model_config.get('multiplier', 4)
     ffn_factor = model_config.get('ffn_factor', 0.5)
     pos_encoding = model_config.get('pos_encoding', 'basic')
+    pos_mode = model_config.get('pos_mode', 'relative')
+    use_bias = model_config.get('use_bias', True)
+
+
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
     if pos_encoding == 'basic':
         pos_encoding = basic_pos_encoding
     elif pos_encoding == 'rff': # random fourier feature
@@ -344,14 +347,23 @@ def conformer_encoder_block(model_config: dict):
         x = x + ffn_factor*ffn
 
         # Positional Encoding
-        if pos_encoding:
+        if pos_encoding == ('basic' or 'rff'):
             x += pos_encoding(x.shape)(x)
             
         # Multi Head Self Attention module
         attn = LayerNormalization()(x)
-        attn = MultiHeadAttention(n_head,
-                                  key_dim,
-                                  dropout=dropout_rate)(attn, attn)
+
+        if pos_mode == 'relative':
+            attn = RelPositionMultiHeadAttention(n_head,
+                                    key_dim,
+                                    use_bias=use_bias,
+                                    dropout=dropout_rate)([attn, attn, attn, pos_encoding(attn.shape)(attn)])
+        else:
+            attn = MultiHeadAttention(n_head,
+                                    key_dim,
+                                    use_bias=use_bias,
+                                    dropout=dropout_rate)(attn, attn)
+
         attn = Dropout(dropout_rate)(attn)
         x = attn + x
 

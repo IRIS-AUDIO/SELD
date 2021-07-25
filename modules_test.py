@@ -60,24 +60,6 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
-    def test_transformer_encoder_stage(self):
-        model_config = {
-            'depth': 3,
-            'n_head': 8, # mandatory
-            'key_dim': 8,
-            'ff_multiplier': 128, # mandatory
-            'kernel_size': 1, # mandatory
-            'dropout_rate': 0.1,
-        }
-
-        exp_input_shape = 32, 20, 64
-        exp_output_shape = 32, 20, 64
-
-        self.block_test(transformer_encoder_stage, 
-                        model_config, 
-                        exp_input_shape,
-                        exp_output_shape)
-
     def test_conformer_encoder_stage(self):
         model_config = {
             'depth': 3,
