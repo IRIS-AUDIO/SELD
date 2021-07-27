@@ -1,5 +1,8 @@
 import tensorflow as tf
 from tensorflow.keras.layers import *
+import typing
+import tensorflow as tf
+
 
 """
 Layers
@@ -93,9 +96,7 @@ def rff_pos_encoding(input_shape):
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import typing
-import tensorflow as tf
+# https://github.com/TensorSpeech/TensorFlowASR/blob/main/tensorflow_asr/models/layers/multihead_attention.py
 
 
 class MultiHeadAttention_(tf.keras.layers.Layer):
@@ -332,7 +333,6 @@ class RelPositionMultiHeadAttention(MultiHeadAttention_):
     def build(self, input_shape):
         num_pos_features = input_shape[-1][-1]
         
-
         self.pos_kernel = self.add_weight(
             name="pos_kernel",
             shape=[self.num_heads, num_pos_features, self.head_size],

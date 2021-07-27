@@ -190,6 +190,7 @@ class ModulesTest(tf.test.TestCase):
             'kernel_size' : 32,
             'activation': 'swish',
             'dropout_rate': 0,
+            'pos_mode':'relative'
         }
         
         exp_input_shape = 32, 100, 64 # batch, time, feat

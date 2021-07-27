@@ -187,10 +187,8 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     key_dim = model_config.get('key_dim', 36)
     n_head = model_config.get('n_head', 4)
     kernel_size = model_config.get('kernel_size', 32) # 32 
-    pos_encoding = model_config.get('pos_encoding', 'basic')
-    pos_mode = model_config.get('pos_mode', 'relative')
+    pos_mode = model_config.get('pos_mode', 'absolute')
     use_bias = model_config.get('use_bias', True)
-
 
     if emb < n_head or emb % n_head:
         raise ValueError('invalid n_head')
@@ -205,13 +203,9 @@ def conformer_encoder_block_complexity(model_config, input_shape):
 
     # Multi Head Attention 
     cx, shape = norm_complexity(shape, prev_cx=cx)
-    if pos_mode == 'relative':
-        cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
-                                                    key_dim, use_bias=use_bias,
-                                                    use_relative=True, prev_cx=cx)
-    else:
-        cx, shape = multi_head_attention_complexity(shape, n_head, key_dim, key_dim, 
-                                                    use_bias=use_bias, prev_cx=cx)
+    cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
+                                                key_dim, use_bias=use_bias,
+                                                use_relative=(pos_mode=='relative'), prev_cx=cx)
     #Convolution & GLU
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, 2*emb, 1, prev_cx=cx)
@@ -389,7 +383,7 @@ def gru_complexity(input_shape, units, use_bias=True,
 
 def multi_head_attention_complexity(input_shape, num_heads, key_dim, 
                                     value_dim=None,
-                                    use_relative = False,
+                                    use_relative=False,
                                     use_bias=True, 
                                     prev_cx=None):
     # It only assume self attention
