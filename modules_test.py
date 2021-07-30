@@ -78,6 +78,7 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+
     def test_conformer_encoder_stage(self):
         model_config = {
             'depth': 3,
@@ -208,6 +209,7 @@ class ModulesTest(tf.test.TestCase):
             'kernel_size' : 32,
             'activation': 'swish',
             'dropout_rate': 0,
+            'pos_mode':'relative'
         }
         
         exp_input_shape = 32, 100, 64 # batch, time, feat

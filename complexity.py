@@ -187,7 +187,9 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     key_dim = model_config.get('key_dim', 36)
     n_head = model_config.get('n_head', 4)
     kernel_size = model_config.get('kernel_size', 32) # 32 
-    
+    pos_mode = model_config.get('pos_mode', 'absolute')
+    use_bias = model_config.get('use_bias', True)
+
     if emb < n_head or emb % n_head:
         raise ValueError('invalid n_head')
 
@@ -202,8 +204,8 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     # Multi Head Attention 
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
-                                                key_dim, prev_cx=cx)
-    
+                                                key_dim, use_bias=use_bias,
+                                                use_relative=(pos_mode=='relative'), prev_cx=cx)
     #Convolution & GLU
     cx, shape = norm_complexity(shape, prev_cx=cx)
     cx, shape = conv1d_complexity(shape, 2*emb, 1, prev_cx=cx)
@@ -381,6 +383,7 @@ def gru_complexity(input_shape, units, use_bias=True,
 
 def multi_head_attention_complexity(input_shape, num_heads, key_dim, 
                                     value_dim=None,
+                                    use_relative=False,
                                     use_bias=True, 
                                     prev_cx=None):
     # It only assume self attention
@@ -393,15 +396,27 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
     # making Q, K, V
     params = num_heads*(c + use_bias)*(key_dim*2 + value_dim)
     
+    # positional encoding bias and kernel 
+    if use_relative:
+        params += num_heads*key_dim*2 + num_heads*key_dim*c
+
     # Value to output
     params += num_heads*c*value_dim + c*use_bias
 
     # embedding
     flops = size*num_heads*(2*key_dim*(c + use_bias) + value_dim*(c + use_bias))
-    
+
+    # positional encoding to kernel mapping
+    if use_relative:
+        flops += size*c*num_heads*key_dim
+
     # scaled dot product attention & context
     flops += (size*size*key_dim + size*size*value_dim)*num_heads
-
+    
+    # scaled dot product for position 
+    if use_relative:
+        flops += (size*size*key_dim)*num_heads
+ 
     # context to output size
     flops += size*(value_dim * num_heads + use_bias)*c
     
@@ -409,6 +424,7 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
     complexity = dict_add(
         {'flops': flops, 'params': params},
         prev_cx if prev_cx else {})
+
     return complexity, output_shape
 
 

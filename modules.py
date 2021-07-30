@@ -320,15 +320,17 @@ def conformer_encoder_block(model_config: dict):
     multiplier = model_config.get('multiplier', 4)
     ffn_factor = model_config.get('ffn_factor', 0.5)
     pos_encoding = model_config.get('pos_encoding', 'basic')
+    pos_mode = model_config.get('pos_mode', 'absolute')
+    use_bias = model_config.get('use_bias', True)
+
     kernel_regularizer = tf.keras.regularizers.l1_l2(
         **model_config.get('kernel_regularizer', {'l1': 0., 'l2': 0.}))
-
     if pos_encoding == 'basic':
-        pos_encoding = basic_pos_encoding
+        pos_encoding_ = basic_pos_encoding
     elif pos_encoding == 'rff': # random fourier feature
-        pos_encoding = rff_pos_encoding
+        pos_encoding_ = rff_pos_encoding
     else:
-        pos_encoding = None
+        pos_encoding_ = None
     
     def conformer_block(inputs):
         inputs = force_1d_inputs()(inputs)
@@ -344,14 +346,26 @@ def conformer_encoder_block(model_config: dict):
         x = x + ffn_factor*ffn
 
         # Positional Encoding
-        if pos_encoding:
-            x += pos_encoding(x.shape)(x)
-            
+        if pos_encoding in ['basic','rff']:
+            encoding = pos_encoding_(x.shape)(x)
+
+        if pos_mode == 'absolute':
+            x = x + encoding
+
         # Multi Head Self Attention module
         attn = LayerNormalization()(x)
-        attn = MultiHeadAttention(n_head,
-                                  key_dim,
-                                  dropout=dropout_rate)(attn, attn)
+
+        if pos_mode == 'relative':
+            attn = RelPositionMultiHeadAttention(n_head,
+                                    key_dim,
+                                    use_bias=use_bias,
+                                    dropout=dropout_rate)([attn, attn, attn, encoding])
+        else:
+            attn = MultiHeadAttention_(n_head,
+                                    key_dim,
+                                    use_bias=use_bias,
+                                    dropout=dropout_rate)([attn, attn, attn])
+
         attn = Dropout(dropout_rate)(attn)
         x = attn + x
 
