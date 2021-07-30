@@ -377,8 +377,7 @@ def conformer_encoder_block(model_config: dict):
         
         # GLU Part
         conv_1, conv_2 = tf.split(conv, 2, axis=-1)
-        conv_1 = Dense(emb)(conv_1)
-        conv_2 = Dense(emb, activation ='sigmoid')(conv_2)
+        conv_2 = tf.keras.activations.sigmoid(conv_2)
         conv = conv_1 * conv_2
 
         #Depth Wise
