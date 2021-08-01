@@ -198,8 +198,8 @@ def conformer_encoder_block_complexity(model_config, input_shape):
         
     # normalization and two dense layer 
     cx, shape = norm_complexity(input_shape, prev_cx=None)
-    cx, shape = linear_complexity(shape, emb*multiplier, use_bias, cx)
-    cx, shape = linear_complexity(shape, emb, use_bias, cx)
+    cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
+    cx, shape = linear_complexity(shape, emb, True, cx)
 
     # Multi Head Attention 
     cx, shape = norm_complexity(shape, prev_cx=cx)
@@ -218,8 +218,8 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = conv1d_complexity(shape, emb, 1, prev_cx=cx)
 
     cx, shape = norm_complexity(shape, prev_cx=cx)
-    cx, shape = linear_complexity(shape, emb*multiplier, use_bias, cx)
-    cx, shape = linear_complexity(shape, emb, use_bias, cx)
+    cx, shape = linear_complexity(shape, emb*multiplier, True, cx)
+    cx, shape = linear_complexity(shape, emb, True, cx)
 
     cx, shape = norm_complexity(shape, prev_cx=cx)
     return cx, shape
