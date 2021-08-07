@@ -101,7 +101,7 @@ class ComplexityTest(tf.test.TestCase):
             'key_dim': 36,
             'kernel_size': 32,
             'pos_mode': 'relative',
-            'use_bias': True
+            'use_bias': False
         }
         self.complexity_test(conformer_encoder_block_complexity,
                              conformer_encoder_block,
