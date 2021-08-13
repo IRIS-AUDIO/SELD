@@ -13,6 +13,24 @@ Use only custom layers or predefined
 
 """            STAGES            """
 def mother_stage(model_config: dict):
+    '''
+    essential configs
+        filters0: int
+        filters1: int
+        filters2: int
+        kernel_size0: int
+        kernel_size1: int
+        kernel_size2: int
+        connect0: int
+        connect1: int
+        connect2: int
+
+    non-essential configs
+        strides: (default=(1, 1))
+        activation: (default=relu)
+        squeeze_ratio: (default=0)
+        se_activation: (default=relu)
+    '''
     depth = model_config['depth']
     strides = model_config['strides']
     model_config = copy.deepcopy(model_config)
@@ -27,6 +45,7 @@ def mother_stage(model_config: dict):
 
 def bidirectional_GRU_stage(model_config: dict):
     '''
+    DEPRECATED!!!
     essential configs
         depth: int
         units: int
