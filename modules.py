@@ -21,9 +21,9 @@ def mother_stage(model_config: dict):
         kernel_size0: int
         kernel_size1: int
         kernel_size2: int
-        connect0: int
-        connect1: int
-        connect2: int
+        connect0: [int]
+        connect1: [int, int]
+        connect2: [int, int, int]
 
     non-essential configs
         strides: (default=(1, 1))
@@ -77,7 +77,6 @@ def RNN_stage(model_config: dict):
     units = model_config['units']
 
     def stage(x):
-        inputs = force_1d_inputs()(x)
         for i in range(depth):
             x = RNN_block(model_config)(x)
         return x
@@ -120,7 +119,6 @@ def transformer_encoder_stage(model_config: dict):
     depth = model_config['depth']
 
     def stage(x):
-        x = force_1d_inputs()(x)
         for i in range(depth):
             x = transformer_encoder_block(model_config)(x)
         return x
@@ -146,9 +144,36 @@ def conformer_encoder_stage(model_config: dict):
     depth = model_config['depth']
 
     def stage(x):
-        inputs = force_1d_inputs()(x)
         for i in range(depth):
             x = conformer_encoder_block(model_config)(x)
+        return x
+    return stage
+
+
+def attention_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        key_dim: int
+        n_head: int
+        kernel_size: int
+        ff_kernel_size: int
+        ff_multiplier: float
+        ff_factor0: float
+        ff_factor1: float
+
+    non-essential configs
+        activation: (default=swish)
+        pos_encoding: (default='basic')
+        abs_pos_encoding: (default='False)
+        layer_norm_in_front: (default=False)
+        use_glu: (default=False)
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        for i in range(depth):
+            x = attention_block(model_config)(x)
         return x
     return stage
 

@@ -126,6 +126,31 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_attention_stage(self):
+        model_config = {
+            'depth': 3, # mandatory
+            'key_dim': 16, # mandatory
+            'n_head' : 4, # mandatory
+            'kernel_size' : 3, # mandatory
+            'ff_kernel_size': 3, # mandatory
+            'ff_multiplier': 2, # mandatory
+            'ff_factor0': 0, # mandatory
+            'ff_factor1': 0.5, # mandatory
+            'activation': 'swish',
+            'pos_encoding': 'basic',
+            'abs_pos_encoding': True,
+            'layer_norm_in_front': True,
+            'use_glu': False,
+        }
+        
+        exp_input_shape = 32, 100, 64 # batch, time, feat
+        exp_output_shape = 32, 100, 64 # batch, time, feat
+    
+        self.block_test(attention_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_mother_block(self):
         model_config = {
             'filters0': 6,
