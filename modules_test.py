@@ -43,6 +43,35 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_RNN_stage(self):
+        model_config = {
+            'depth': 3,
+            'units': 64,
+            'bidirectional': True,
+            'merge_mode': 'ave',
+            'rnn_type': 'GRU',
+            'dropout_rate': 0.3,
+        }
+        exp_input_shape = 32, 10, 128
+        exp_output_shape = 32, 10, 64
+
+        self.block_test(RNN_stage, model_config, 
+                        exp_input_shape, exp_output_shape)
+
+        model_config = {
+            'depth': 3,
+            'units': 64,
+            'bidirectional': True,
+            'merge_mode': 'concat',
+            'rnn_type': 'LSTM',
+            'dropout_rate': 0.,
+        }
+        exp_input_shape = 32, 10, 128
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(RNN_stage, model_config, 
+                        exp_input_shape, exp_output_shape)
+
     def test_simple_dense_stage(self):
         model_config = {
             'depth': 2,
@@ -165,6 +194,24 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 10, 128
 
         self.block_test(bidirectional_GRU_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_RNN_block(self):
+        model_config = {
+            'units': 64,
+            'bidirectional': False,
+            'merge_mode': None,
+            'rnn_type': 'GRU',
+            'dropout_rate': 0.3,
+        }
+
+        # 1D inputs
+        exp_input_shape = 32, 10, 32
+        exp_output_shape = 32, 10, 64
+
+        self.block_test(RNN_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)

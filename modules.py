@@ -42,6 +42,29 @@ def bidirectional_GRU_stage(model_config: dict):
     return bidirectional_GRU_block(model_config)
 
 
+def RNN_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        units: int
+
+    non-essential configs
+        bidirectional: (default=True)
+        merge_mode: (default='mul') or concat, ave
+        rnn_type: (default='GRU') or LSTM
+        dropout_rate: (default=0.)
+    '''
+    depth = model_config['depth']
+    units = model_config['units']
+
+    def stage(x):
+        inputs = force_1d_inputs()(x)
+        for i in range(depth):
+            x = RNN_block(model_config)(x)
+        return x
+    return stage
+
+
 def simple_dense_stage(model_config: dict):
     '''
     essential configs
@@ -248,6 +271,34 @@ def bidirectional_GRU_block(model_config: dict):
         return x
 
     return GRU_block
+
+
+def RNN_block(model_config: dict):
+    # mandatory parameters
+    units = model_config['units']
+
+    bidirectional = model_config.get('bidirectional', True)
+    merge_mode = model_config.get('merge_mode', 'mul') # mul, concat, avg
+    rnn_type = model_config.get('rnn_type', 'GRU')
+    dropout_rate = model_config.get('dropout_rate', 0.)
+
+    def block(inputs, rnn_type=rnn_type):
+        x = force_1d_inputs()(inputs)
+
+        if rnn_type == 'GRU':
+            rnn_type = GRU
+        else:
+            rnn_type = LSTM
+        main_block = rnn_type(
+            units, dropout=dropout_rate, recurrent_dropout=dropout_rate, 
+            return_sequences=True)
+        if bidirectional:
+            main_block = Bidirectional(main_block, merge_mode=merge_mode)
+
+        x = main_block(x)
+        return x
+
+    return block
 
 
 def simple_dense_block(model_config: dict):

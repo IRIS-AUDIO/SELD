@@ -131,6 +131,24 @@ def bidirectional_GRU_block_complexity(model_config, input_shape):
     return cx, shape
 
 
+def RNN_block_complexity(model_config, input_shape):
+    units = model_config['units']
+
+    bidirectional = model_config.get('bidirectional', True)
+    merge_mode = model_config.get('merge_mode', 'mul') # mul, concat, ave
+    rnn_type = model_config.get('rnn_type', 'GRU')
+
+    shape = force_1d_shape(input_shape)
+
+    if rnn_type == 'GRU':
+        cx, shape = gru_complexity(shape, units, bi=bidirectional,
+                                   merge_mode=merge_mode)
+    else:
+        cx, shape = lstm_complexity(shape, units, bi=bidirectional,
+                                    merge_mode=merge_mode)
+    return cx, shape
+
+
 def transformer_encoder_block_complexity(model_config, input_shape):
     # mandatory parameters
     n_head = model_config['n_head']
@@ -356,22 +374,46 @@ def linear_complexity(input_shape, units, use_bias=True, prev_cx=None):
 
 
 def gru_complexity(input_shape, units, use_bias=True,
-                   bi=True, prev_cx=None):
-    
-    input_chan = input_shape[-1]
-    num_steps = input_shape[-2]
+                   bi=True, merge_mode='mul', prev_cx=None):
+    num_steps, input_chan = input_shape[-2:]
+
     params = 3 * units * (input_chan + units + 2 * use_bias)
     if bi:
         params *= 2
-    #for flops I refer this part
-    #https://github.com/Lyken17/pytorch-OpCounter/blob/master/thop/rnn_hooks.py
-    flops = (units + input_chan + 2 * use_bias +1) * units * 3
-    #hadamard product
-    flops += units * 4
+
+    # https://github.com/Lyken17/pytorch-OpCounter/blob/master/thop/rnn_hooks.py
+    flops = num_steps * (units + input_chan + 2 * use_bias + 1) * units * 3
+    # flops += units # hadamard product
     if bi:
         flops *= 2
-    flops *= num_steps
+
     output_shape = input_shape[:-1] + [units]
+    if merge_mode == 'concat':
+        output_shape[-1] = units * 2
+
+    complexity = dict_add(
+        {'flops': flops, 'params': params},
+        prev_cx if prev_cx else {})
+    return complexity, output_shape
+
+
+def lstm_complexity(input_shape, units, use_bias=True,
+                   bi=True, merge_mode='mul', prev_cx=None):
+    num_steps, input_chan = input_shape[-2:]
+
+    params = 4 * units * (input_chan + units + use_bias)
+    if bi:
+        params *= 2
+
+    # https://github.com/Lyken17/pytorch-OpCounter/blob/master/thop/rnn_hooks.py
+    flops = num_steps * (units + input_chan + 2 * use_bias + 1) * units * 4
+    if bi:
+        flops *= 2
+
+    output_shape = input_shape[:-1] + [units]
+    if merge_mode == 'concat':
+        output_shape[-1] = units * 2
+
     complexity = dict_add(
         {'flops': flops, 'params': params},
         prev_cx if prev_cx else {})

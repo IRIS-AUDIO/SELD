@@ -47,6 +47,30 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_RNN_stage_complexity(self):
+        model_config = {
+            'depth': 3,
+            'units': 128,
+            'bidirectional': False,
+            'rnn_type': 'LSTM'
+        }
+        self.complexity_test(RNN_stage_complexity,
+                             RNN_stage,
+                             model_config,
+                             [32, 16])
+
+        model_config = {
+            'depth': 3,
+            'units': 32,
+            'bidirectional': True,
+            'merge_mode': 'concat',
+            'rnn_type': 'GRU'
+        }
+        self.complexity_test(RNN_stage_complexity,
+                             RNN_stage,
+                             model_config,
+                             [24, 16])
+
     def test_simple_dense_stage_complexity(self):
         model_config = {
             'depth': 2,
