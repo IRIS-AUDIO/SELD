@@ -481,6 +481,126 @@ def conformer_encoder_block(model_config: dict):
     return conformer_block
 
 
+def attention_block(model_config: dict):
+    # mandatory parameters
+    key_dim = model_config['key_dim']
+    n_head = model_config['n_head']
+    kernel_size = model_config['kernel_size'] # depthwise conv
+    ff_kernel_size = model_config['ff_kernel_size']
+    ff_multiplier = model_config['ff_multiplier']
+    ff_factor0 = model_config['ff_factor0']
+    ff_factor1 = model_config['ff_factor1']
+
+    activation = model_config.get('activation', 'swish')
+    pos_encoding = model_config.get('pos_encoding', 'basic')
+    abs_pos_encoding = model_config.get('abs_pos_encoding', False)
+    layer_norm_in_front = model_config.get('layer_norm_in_front', False)
+    use_glu = model_config.get('use_glu', False)
+
+    # do not tune these parameters unless you really need to
+    use_bias = model_config.get('use_bias', False)
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+
+    use_depthwise_conv = kernel_size > 0
+    if pos_encoding == 'basic':
+        pos_encoding = basic_pos_encoding
+    elif pos_encoding == 'rff': # random fourier feature
+        pos_encoding = rff_pos_encoding
+    else: # is None
+        pos_encoding = lambda x: (lambda x: 0)
+
+    # raising errors
+    if ff_factor0 < 0 or ff_factor1 <= 0:
+        raise ValueError('ff_factor0 >= 0, ff_factor1 > 0 must hold')
+    if not abs_pos_encoding and pos_encoding is None:
+        raise ValueError('relative pos encoding demands any types of encoding '
+                         'except the null one')
+
+    def attention_block(inputs, pos_encoding=pos_encoding):
+        inputs = force_1d_inputs()(inputs)
+        x = inputs
+        batch, time, d_model = x.shape
+
+        # First FF
+        if ff_factor0 > 0:
+            ff = x
+            if layer_norm_in_front:
+                ff = LayerNormalization()(ff)
+
+            ff = Conv1D(int(ff_multiplier * d_model), ff_kernel_size,
+                        padding='same', activation=activation)(x)
+            ff = Dropout(dropout_rate)(ff)
+            ff = Conv1D(d_model, ff_kernel_size, padding='same')(ff)
+            ff = Dropout(dropout_rate)(ff)
+            x = x + ff_factor0 * ff
+
+            if not layer_norm_in_front:
+                x = LayerNormalization()(x)
+
+        # Multi Head Self Attention
+        attn = x
+        pos_encoding = pos_encoding(x.shape)(x)
+
+        if layer_norm_in_front:
+            attn = LayerNormalization()(attn)
+        if abs_pos_encoding:
+            x = x + pos_encoding
+            attn = MultiHeadAttention_(
+                n_head, key_dim, use_bias=use_bias,
+                dropout=dropout_rate)([attn, attn, attn])
+        else: # not abs_pos_encoding:
+            attn = RelPositionMultiHeadAttention(
+                n_head, key_dim, use_bias=use_bias,
+                dropout=dropout_rate)([attn, attn, attn, pos_encoding])
+        x = Dropout(dropout_rate)(attn) + x
+        if not layer_norm_in_front:
+            x = LayerNormalization()(x)
+
+        # GLU
+        conv = x
+        if use_glu:
+            if layer_norm_in_front:
+                conv = LayerNormalization()(conv)
+            conv = Conv1D(filters=2*d_model, kernel_size=1)(conv)
+            conv_1, conv_2 = tf.split(conv, 2, axis=-1)
+            conv_2 = tf.keras.activations.sigmoid(conv_2)
+            conv = conv_1 * conv_2
+
+        # Depth Wise
+        if use_depthwise_conv:
+            if layer_norm_in_front and not use_glu:
+                conv = LayerNormalization()(conv)
+            conv = Conv1D(filters=d_model, kernel_size=kernel_size,
+                          strides=1, padding='same', groups=d_model)(conv)
+            conv = BatchNormalization()(conv)
+            conv = tf.keras.activations.swish(conv)
+            conv = Conv1D(filters=d_model, kernel_size=1, padding='same')(conv)
+            x = x + Dropout(dropout_rate)(conv)
+            if not layer_norm_in_front:
+                x = LayerNormalization()(x)
+        else:
+            x = conv
+
+        # Second FF
+        if ff_factor1 > 0:
+            ff = x
+            if layer_norm_in_front:
+                ff = LayerNormalization()(ff)
+
+            ff = Conv1D(int(ff_multiplier * d_model), ff_kernel_size,
+                        padding='same', activation=activation)(x)
+            ff = Dropout(dropout_rate)(ff)
+            ff = Conv1D(d_model, ff_kernel_size, padding='same')(ff)
+            ff = Dropout(dropout_rate)(ff)
+            x = x + ff_factor1 * ff
+
+            if not layer_norm_in_front:
+                x = LayerNormalization()(x)
+
+        return x
+    return attention_block
+
+
 """                 OTHER BLOCKS                 """
 def identity_block(model_config: dict):
     def identity(inputs):
