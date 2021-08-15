@@ -535,8 +535,15 @@ def attention_block(model_config: dict):
         pos_encoding = lambda x: (lambda x: 0)
 
     # raising errors
-    if ff_factor0 < 0 or ff_factor1 <= 0:
-        raise ValueError('ff_factor0 >= 0, ff_factor1 > 0 must hold')
+    if ff_factor0 < 0 or ff_factor1 < 0:
+        raise ValueError('ff_factor0, ff_factor1 >= 0 must hold')
+    if ff_factor0 == 0 and ff_factor1 == 0:
+        if ff_kernel_size > 0:
+            raise ValueError('if FF modules are not used, '
+                             'ff_kernel must be set to 0')
+        if ff_multiplier > 0:
+            raise ValueError('if FF modules are not used, '
+                             'ff_multiplier must be set to 0')
     if not abs_pos_encoding and pos_encoding is None:
         raise ValueError('relative pos encoding demands any types of encoding '
                          'except the null one')
