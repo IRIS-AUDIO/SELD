@@ -81,3 +81,16 @@ def conformer_encoder_stage_complexity(model_config, input_shape):
         total_cx = dict_add(total_cx, cx)
     return total_cx, shape
 
+
+def attention_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+
+    shape = input_shape
+    total_cx = {}
+
+    shape = force_1d_shape(input_shape)
+    for i in range(depth):
+        cx, shape = attention_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+

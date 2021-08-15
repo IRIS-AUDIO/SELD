@@ -131,6 +131,56 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [100, 72])
 
+    def test_attention_block_complexity(self):
+        model_config = {
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 3,
+            'ff_kernel_size': 3,
+            'ff_multiplier': 2,
+            'ff_factor0': 1,
+            'ff_factor1': 0,
+            'abs_pos_encoding': False,
+            'use_glu': False,
+        }
+        self.complexity_test(attention_block_complexity,
+                             attention_block,
+                             model_config,
+                             [20, 32])
+
+        model_config = {
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 0,
+            'ff_kernel_size': 3,
+            'ff_multiplier': 0.5,
+            'ff_factor0': 0,
+            'ff_factor1': 1,
+            'abs_pos_encoding': True,
+            'use_glu': True,
+        }
+        self.complexity_test(attention_block_complexity,
+                             attention_block,
+                             model_config,
+                             [20, 32])
+
+        model_config = {
+            'depth': 3,
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 2,
+            'ff_kernel_size': 0,
+            'ff_multiplier': 0,
+            'ff_factor0': 0,
+            'ff_factor1': 0,
+            'abs_pos_encoding': True,
+            'use_glu': True,
+        }
+        self.complexity_test(attention_block_complexity,
+                             attention_block,
+                             model_config,
+                             [20, 32])
+
     def test_conv1d_complexity(self):
         target_cx = {'flops': 2304, 'params': 88}
         target_shape = [32, 16]

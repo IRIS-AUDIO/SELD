@@ -242,6 +242,88 @@ def conformer_encoder_block_complexity(model_config, input_shape):
     cx, shape = norm_complexity(shape, prev_cx=cx)
     return cx, shape
 
+
+def attention_block_complexity(model_config, input_shape):
+    key_dim = model_config['key_dim']
+    n_head = model_config['n_head']
+    kernel_size = model_config['kernel_size'] # depthwise conv
+    ff_kernel_size = model_config['ff_kernel_size']
+    ff_multiplier = model_config['ff_multiplier']
+    ff_factor0 = model_config['ff_factor0']
+    ff_factor1 = model_config['ff_factor1']
+
+    pos_encoding = model_config.get('pos_encoding', 'basic')
+    abs_pos_encoding = model_config.get('abs_pos_encoding', False)
+    layer_norm_in_front = model_config.get('layer_norm_in_front', False)
+    use_glu = model_config.get('use_glu', False)
+    use_bias = model_config.get('use_bias', False) # for attention
+
+    use_depthwise_conv = kernel_size > 0
+
+    cx = {}
+    time, d_model = shape = force_1d_shape(input_shape)
+    ff_dim = int(ff_multiplier * d_model)
+
+    # raising errors
+    if d_model < n_head or d_model % n_head:
+        raise ValueError('invalid n_head')
+    if ff_multiplier > 0 and ff_dim < 1:
+        raise ValueError('invalid ff_multiplier')
+    if d_model % 2:
+        raise ValueError('Input Shape should be even')
+    if ff_factor0 < 0 or ff_factor1 < 0:
+        raise ValueError('ff_factor0, ff_factor1 >= 0 must hold')
+    if ff_factor0 == 0 and ff_factor1 == 0:
+        if ff_kernel_size != 0:
+            raise ValueError('if FF modules are not used, '
+                             'ff_kernel must be set to 0')
+        if ff_multiplier != 0:
+            raise ValueError('if FF modules are not used, '
+                             'ff_multiplier must be set to 0')
+    if not abs_pos_encoding and pos_encoding is None:
+        raise ValueError('relative pos encoding demands any types of encoding '
+                         'except the null one')
+
+    # First FF
+    if ff_factor0 > 0:
+        # complexity of layer_norm does not affected by layer_norm_in_front
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, ff_dim, ff_kernel_size, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, d_model, ff_kernel_size,
+                                      prev_cx=cx)
+
+    # Multi Head Attention
+    cx, shape = norm_complexity(shape, prev_cx=cx)
+    cx, shape = multi_head_attention_complexity(shape, n_head, key_dim,
+                                                use_relative=not abs_pos_encoding,
+                                                use_bias=use_bias,
+                                                prev_cx=cx)
+
+    # GLU
+    if use_glu:
+        if layer_norm_in_front:
+            cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, 2*d_model, 1, prev_cx=cx)
+        shape[-1] = shape[-1] // 2
+
+    # Depth Wise
+    if use_depthwise_conv:
+        if not use_glu or not layer_norm_in_front:
+            cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, d_model, kernel_size,
+                                      groups=d_model, prev_cx=cx)
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, d_model, 1, prev_cx=cx)
+
+    # Second FF
+    if ff_factor1 > 0:
+        cx, shape = norm_complexity(shape, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, ff_dim, ff_kernel_size, prev_cx=cx)
+        cx, shape = conv1d_complexity(shape, d_model, ff_kernel_size,
+                                      prev_cx=cx)
+
+    return cx, shape
+
     
 '''            basic complexities            '''
 def conv1d_complexity(input_shape: list, 
@@ -465,19 +547,4 @@ def multi_head_attention_complexity(input_shape, num_heads, key_dim,
         prev_cx if prev_cx else {})
 
     return complexity, output_shape
-
-
-if __name__ == '__main__':
-    import json
-
-    model_config = json.load(open('model_config/seldnet.json', 'rb'))
-    input_shape = [300, 64, 7]
-
-    print(conv_temporal_complexity(model_config, input_shape))
-
-    import tensorflow as tf
-    import models
-    model = models.conv_temporal(input_shape, model_config)
-    print(sum([tf.keras.backend.count_params(p) 
-               for p in model.trainable_weights]))
 
