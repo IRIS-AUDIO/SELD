@@ -105,6 +105,7 @@ def simple_dense_stage(model_config: dict):
 
 def transformer_encoder_stage(model_config: dict):
     '''
+    DEPRECATED!!!
     essential configs
         depth: int
         n_head: int
@@ -127,6 +128,7 @@ def transformer_encoder_stage(model_config: dict):
 
 def conformer_encoder_stage(model_config: dict):
     '''
+    DEPRECATED!!!
     essential configs
         depth: int
 
