@@ -34,6 +34,19 @@ def bidirectional_GRU_stage_complexity(model_config, input_shape):
     return bidirectional_GRU_block_complexity(model_config, input_shape)
 
 
+def RNN_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+    units = model_config['units']
+
+    shape = input_shape
+    total_cx = {}
+
+    for i in range(depth):
+        cx, shape = RNN_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+
+
 def simple_dense_stage_complexity(model_config, input_shape):
     depth = model_config['depth']
     units = model_config['units']
@@ -65,6 +78,19 @@ def conformer_encoder_stage_complexity(model_config, input_shape):
     shape = force_1d_shape(input_shape)
     for i in range(depth):
         cx, shape = conformer_encoder_block_complexity(model_config, shape)
+        total_cx = dict_add(total_cx, cx)
+    return total_cx, shape
+
+
+def attention_stage_complexity(model_config, input_shape):
+    depth = model_config['depth']
+
+    shape = input_shape
+    total_cx = {}
+
+    shape = force_1d_shape(input_shape)
+    for i in range(depth):
+        cx, shape = attention_block_complexity(model_config, shape)
         total_cx = dict_add(total_cx, cx)
     return total_cx, shape
 

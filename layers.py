@@ -1,7 +1,6 @@
 import tensorflow as tf
-from tensorflow.keras.layers import *
 import typing
-import tensorflow as tf
+from tensorflow.keras.layers import *
 
 
 """
@@ -82,6 +81,7 @@ def rff_pos_encoding(input_shape):
         encoding = tf.concat([tf.cos(w * encoding), tf.sin(w * encoding)], -1)
         return encoding
     return pos_encoding
+
 
 # Copyright 2020 Huy Le Nguyen (@usimarit)
 #
@@ -390,3 +390,4 @@ class RelPositionMultiHeadAttention(MultiHeadAttention_):
             return output, attn_coef
         else:
             return output
+

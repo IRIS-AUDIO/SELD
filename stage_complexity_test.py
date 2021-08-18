@@ -47,6 +47,30 @@ class StageComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 16])
 
+    def test_RNN_stage_complexity(self):
+        model_config = {
+            'depth': 3,
+            'units': 128,
+            'bidirectional': False,
+            'rnn_type': 'LSTM'
+        }
+        self.complexity_test(RNN_stage_complexity,
+                             RNN_stage,
+                             model_config,
+                             [32, 16])
+
+        model_config = {
+            'depth': 3,
+            'units': 32,
+            'bidirectional': True,
+            'merge_mode': 'concat',
+            'rnn_type': 'GRU'
+        }
+        self.complexity_test(RNN_stage_complexity,
+                             RNN_stage,
+                             model_config,
+                             [24, 16])
+
     def test_simple_dense_stage_complexity(self):
         model_config = {
             'depth': 2,
@@ -83,6 +107,24 @@ class StageComplexityTest(tf.test.TestCase):
                              conformer_encoder_stage,
                              model_config,
                              [32, 32, 16])
+
+    def test_attention_stage_complexity(self):
+        model_config = {
+            'depth': 3,
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 2,
+            'ff_kernel_size': 0,
+            'ff_multiplier': 0,
+            'ff_factor0': 0,
+            'ff_factor1': 0,
+            'abs_pos_encoding': True,
+            'use_glu': True,
+        }
+        self.complexity_test(attention_stage_complexity,
+                             attention_stage,
+                             model_config,
+                             [20, 16])
 
     def complexity_test(self, 
                         complexity_fn,

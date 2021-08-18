@@ -43,6 +43,35 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_RNN_stage(self):
+        model_config = {
+            'depth': 3,
+            'units': 64,
+            'bidirectional': True,
+            'merge_mode': 'ave',
+            'rnn_type': 'GRU',
+            'dropout_rate': 0.3,
+        }
+        exp_input_shape = 32, 10, 128
+        exp_output_shape = 32, 10, 64
+
+        self.block_test(RNN_stage, model_config, 
+                        exp_input_shape, exp_output_shape)
+
+        model_config = {
+            'depth': 3,
+            'units': 64,
+            'bidirectional': True,
+            'merge_mode': 'concat',
+            'rnn_type': 'LSTM',
+            'dropout_rate': 0.,
+        }
+        exp_input_shape = 32, 10, 128
+        exp_output_shape = 32, 10, 128
+
+        self.block_test(RNN_stage, model_config, 
+                        exp_input_shape, exp_output_shape)
+
     def test_simple_dense_stage(self):
         model_config = {
             'depth': 2,
@@ -93,6 +122,31 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 100, 64 # batch, time, feat
     
         self.block_test(conformer_encoder_stage, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_attention_stage(self):
+        model_config = {
+            'depth': 3, # mandatory
+            'key_dim': 16, # mandatory
+            'n_head' : 4, # mandatory
+            'kernel_size' : 3, # mandatory
+            'ff_kernel_size': 3, # mandatory
+            'ff_multiplier': 2, # mandatory
+            'ff_factor0': 0, # mandatory
+            'ff_factor1': 0.5, # mandatory
+            'activation': 'swish',
+            'pos_encoding': 'basic',
+            'abs_pos_encoding': True,
+            'layer_norm_in_front': True,
+            'use_glu': False,
+        }
+        
+        exp_input_shape = 32, 100, 64 # batch, time, feat
+        exp_output_shape = 32, 100, 64 # batch, time, feat
+    
+        self.block_test(attention_stage, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)
@@ -169,6 +223,24 @@ class ModulesTest(tf.test.TestCase):
                         exp_input_shape,
                         exp_output_shape)
 
+    def test_RNN_block(self):
+        model_config = {
+            'units': 64,
+            'bidirectional': False,
+            'merge_mode': None,
+            'rnn_type': 'GRU',
+            'dropout_rate': 0.3,
+        }
+
+        # 1D inputs
+        exp_input_shape = 32, 10, 32
+        exp_output_shape = 32, 10, 64
+
+        self.block_test(RNN_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
     def test_simple_dense_block(self):
         model_config = {
             'units': [128, 128], # mandatory
@@ -216,6 +288,30 @@ class ModulesTest(tf.test.TestCase):
         exp_output_shape = 32, 100, 64 # batch, time, feat
     
         self.block_test(conformer_encoder_block, 
+                        model_config, 
+                        exp_input_shape,
+                        exp_output_shape)
+
+    def test_attention_block(self):
+        model_config = {
+            'key_dim': 16, # mandatory
+            'n_head' : 4, # mandatory
+            'kernel_size' : 0, # mandatory
+            'ff_kernel_size': 3, # mandatory
+            'ff_multiplier': 2, # mandatory
+            'ff_factor0': 1, # mandatory
+            'ff_factor1': 0.5, # mandatory
+            'activation': 'swish',
+            'pos_encoding': 'basic',
+            'abs_pos_encoding': False,
+            'layer_norm_in_front': False,
+            'use_glu': True,
+        }
+        
+        exp_input_shape = 32, 16, 64 # batch, time, feat
+        exp_output_shape = 32, 16, 64 # batch, time, feat
+    
+        self.block_test(attention_block, 
                         model_config, 
                         exp_input_shape,
                         exp_output_shape)

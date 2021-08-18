@@ -55,6 +55,29 @@ class ComplexityTest(tf.test.TestCase):
                              model_config,
                              [32, 32, 3])
 
+    def test_RNN_block_complexity(self):
+        model_config = {
+            'units': 128,
+            'bidirectional': True,
+            'merge_mode': 'concat',
+            'rnn_type': 'GRU',
+        }
+        self.complexity_test(RNN_block_complexity,
+                             RNN_block,
+                             model_config,
+                             [12, 64])
+
+        model_config = {
+            'units': 128,
+            'bidirectional': True,
+            'merge_mode': 'ave',
+            'rnn_type': 'LSTM',
+        }
+        self.complexity_test(RNN_block_complexity,
+                             RNN_block,
+                             model_config,
+                             [12, 64])
+
     def test_transformer_encoder_block_complexity(self):
         model_config = {
             'n_head': 4,
@@ -107,6 +130,56 @@ class ComplexityTest(tf.test.TestCase):
                              conformer_encoder_block,
                              model_config,
                              [100, 72])
+
+    def test_attention_block_complexity(self):
+        model_config = {
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 3,
+            'ff_kernel_size': 3,
+            'ff_multiplier': 2,
+            'ff_factor0': 1,
+            'ff_factor1': 0,
+            'abs_pos_encoding': False,
+            'use_glu': False,
+        }
+        self.complexity_test(attention_block_complexity,
+                             attention_block,
+                             model_config,
+                             [20, 32])
+
+        model_config = {
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 0,
+            'ff_kernel_size': 3,
+            'ff_multiplier': 0.5,
+            'ff_factor0': 0,
+            'ff_factor1': 1,
+            'abs_pos_encoding': True,
+            'use_glu': True,
+        }
+        self.complexity_test(attention_block_complexity,
+                             attention_block,
+                             model_config,
+                             [20, 32])
+
+        model_config = {
+            'depth': 3,
+            'key_dim': 16,
+            'n_head': 4,
+            'kernel_size': 2,
+            'ff_kernel_size': 0,
+            'ff_multiplier': 0,
+            'ff_factor0': 0,
+            'ff_factor1': 0,
+            'abs_pos_encoding': True,
+            'use_glu': True,
+        }
+        self.complexity_test(attention_block_complexity,
+                             attention_block,
+                             model_config,
+                             [20, 32])
 
     def test_conv1d_complexity(self):
         target_cx = {'flops': 2304, 'params': 88}
@@ -216,8 +289,8 @@ class ComplexityTest(tf.test.TestCase):
                               prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
 
-    def test_GRU_complexity(self):
-        target_cx = {'flops': 978000, 'params': 9360}
+    def test_gru_complexity(self):
+        target_cx = {'flops': 954000, 'params': 9360}
         target_shape = [32, 100, 30]
         self.assertEqual(
             gru_complexity(input_shape=[32, 100, 20],
@@ -232,7 +305,42 @@ class ComplexityTest(tf.test.TestCase):
                            bi=True,
                            prev_cx=self.prev_cx),
             (dict_add(target_cx, self.prev_cx), target_shape))
-        
+
+        input_shape = [8, 32]
+        units = 32
+
+        for use_bias in [True, False]:
+            inputs = tf.keras.layers.Input(input_shape)
+            outputs = tf.keras.layers.GRU(units, use_bias=use_bias,
+                                          return_sequences=True)(inputs)
+            model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+            cx, output_shape = gru_complexity(
+                input_shape=input_shape, units=units, use_bias=use_bias, bi=False)
+
+            self.assertEquals(cx['params'], 
+                              sum([K.count_params(p) 
+                                   for p in model.trainable_weights]))
+            self.assertEquals(tuple(output_shape), model.output_shape[1:])
+
+    def test_lstm_complexity(self):
+        input_shape = [8, 32]
+        units = 32
+
+        for use_bias in [True, False]:
+            inputs = tf.keras.layers.Input(input_shape)
+            outputs = tf.keras.layers.LSTM(units, use_bias=use_bias,
+                                           return_sequences=True)(inputs)
+            model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+            cx, output_shape = lstm_complexity(
+                input_shape=input_shape, units=units, use_bias=use_bias, bi=False)
+
+            self.assertEquals(cx['params'], 
+                              sum([K.count_params(p) 
+                                   for p in model.trainable_weights]))
+            self.assertEquals(tuple(output_shape), model.output_shape[1:])
+
     def test_multi_head_attention(self):
         target_cx = {'flops': 109785600, 'params': 790656}
         target_shape = [100, 128]

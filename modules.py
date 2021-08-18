@@ -13,6 +13,24 @@ Use only custom layers or predefined
 
 """            STAGES            """
 def mother_stage(model_config: dict):
+    '''
+    essential configs
+        filters0: int
+        filters1: int
+        filters2: int
+        kernel_size0: int
+        kernel_size1: int
+        kernel_size2: int
+        connect0: [int]
+        connect1: [int, int]
+        connect2: [int, int, int]
+
+    non-essential configs
+        strides: (default=(1, 1))
+        activation: (default=relu)
+        squeeze_ratio: (default=0)
+        se_activation: (default=relu)
+    '''
     depth = model_config['depth']
     strides = model_config['strides']
     model_config = copy.deepcopy(model_config)
@@ -27,6 +45,7 @@ def mother_stage(model_config: dict):
 
 def bidirectional_GRU_stage(model_config: dict):
     '''
+    DEPRECATED!!!
     essential configs
         depth: int
         units: int
@@ -40,6 +59,28 @@ def bidirectional_GRU_stage(model_config: dict):
     model_config['units'] = [units] * depth
 
     return bidirectional_GRU_block(model_config)
+
+
+def RNN_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        units: int
+
+    non-essential configs
+        bidirectional: (default=True)
+        merge_mode: (default='mul') or concat, ave
+        rnn_type: (default='GRU') or LSTM
+        dropout_rate: (default=0.)
+    '''
+    depth = model_config['depth']
+    units = model_config['units']
+
+    def stage(x):
+        for i in range(depth):
+            x = RNN_block(model_config)(x)
+        return x
+    return stage
 
 
 def simple_dense_stage(model_config: dict):
@@ -64,6 +105,7 @@ def simple_dense_stage(model_config: dict):
 
 def transformer_encoder_stage(model_config: dict):
     '''
+    DEPRECATED!!!
     essential configs
         depth: int
         n_head: int
@@ -78,7 +120,6 @@ def transformer_encoder_stage(model_config: dict):
     depth = model_config['depth']
 
     def stage(x):
-        x = force_1d_inputs()(x)
         for i in range(depth):
             x = transformer_encoder_block(model_config)(x)
         return x
@@ -87,6 +128,7 @@ def transformer_encoder_stage(model_config: dict):
 
 def conformer_encoder_stage(model_config: dict):
     '''
+    DEPRECATED!!!
     essential configs
         depth: int
 
@@ -104,9 +146,36 @@ def conformer_encoder_stage(model_config: dict):
     depth = model_config['depth']
 
     def stage(x):
-        inputs = force_1d_inputs()(x)
         for i in range(depth):
             x = conformer_encoder_block(model_config)(x)
+        return x
+    return stage
+
+
+def attention_stage(model_config: dict):
+    '''
+    essential configs
+        depth: int
+        key_dim: int
+        n_head: int
+        kernel_size: int
+        ff_kernel_size: int
+        ff_multiplier: float
+        ff_factor0: float
+        ff_factor1: float
+
+    non-essential configs
+        activation: (default=swish)
+        pos_encoding: (default='basic')
+        abs_pos_encoding: (default='False)
+        layer_norm_in_front: (default=False)
+        use_glu: (default=False)
+    '''
+    depth = model_config['depth']
+
+    def stage(x):
+        for i in range(depth):
+            x = attention_block(model_config)(x)
         return x
     return stage
 
@@ -248,6 +317,34 @@ def bidirectional_GRU_block(model_config: dict):
         return x
 
     return GRU_block
+
+
+def RNN_block(model_config: dict):
+    # mandatory parameters
+    units = model_config['units']
+
+    bidirectional = model_config.get('bidirectional', True)
+    merge_mode = model_config.get('merge_mode', 'mul') # mul, concat, avg
+    rnn_type = model_config.get('rnn_type', 'GRU')
+    dropout_rate = model_config.get('dropout_rate', 0.)
+
+    def block(inputs, rnn_type=rnn_type):
+        x = force_1d_inputs()(inputs)
+
+        if rnn_type == 'GRU':
+            rnn_type = GRU
+        else:
+            rnn_type = LSTM
+        main_block = rnn_type(
+            units, dropout=dropout_rate, recurrent_dropout=dropout_rate, 
+            return_sequences=True)
+        if bidirectional:
+            main_block = Bidirectional(main_block, merge_mode=merge_mode)
+
+        x = main_block(x)
+        return x
+
+    return block
 
 
 def simple_dense_block(model_config: dict):
@@ -409,6 +506,133 @@ def conformer_encoder_block(model_config: dict):
         return x
 
     return conformer_block
+
+
+def attention_block(model_config: dict):
+    # mandatory parameters
+    key_dim = model_config['key_dim']
+    n_head = model_config['n_head']
+    kernel_size = model_config['kernel_size'] # depthwise conv
+    ff_kernel_size = model_config['ff_kernel_size']
+    ff_multiplier = model_config['ff_multiplier']
+    ff_factor0 = model_config['ff_factor0']
+    ff_factor1 = model_config['ff_factor1']
+
+    activation = model_config.get('activation', 'swish')
+    pos_encoding = model_config.get('pos_encoding', 'basic')
+    abs_pos_encoding = model_config.get('abs_pos_encoding', False)
+    layer_norm_in_front = model_config.get('layer_norm_in_front', False)
+    use_glu = model_config.get('use_glu', False)
+
+    # do not tune these parameters unless you really need to
+    use_bias = model_config.get('use_bias', False)
+    dropout_rate = model_config.get('dropout_rate', 0.1)
+
+    use_depthwise_conv = kernel_size > 0
+    if pos_encoding == 'basic':
+        pos_encoding = basic_pos_encoding
+    elif pos_encoding == 'rff': # random fourier feature
+        pos_encoding = rff_pos_encoding
+    else: # is None
+        pos_encoding = lambda x: (lambda x: 0)
+
+    # raising errors
+    if ff_factor0 < 0 or ff_factor1 < 0:
+        raise ValueError('ff_factor0, ff_factor1 >= 0 must hold')
+    if ff_factor0 == 0 and ff_factor1 == 0:
+        if ff_kernel_size > 0:
+            raise ValueError('if FF modules are not used, '
+                             'ff_kernel must be set to 0')
+        if ff_multiplier > 0:
+            raise ValueError('if FF modules are not used, '
+                             'ff_multiplier must be set to 0')
+    if not abs_pos_encoding and pos_encoding is None:
+        raise ValueError('relative pos encoding demands any types of encoding '
+                         'except the null one')
+
+    def attention_block(inputs, pos_encoding=pos_encoding):
+        inputs = force_1d_inputs()(inputs)
+        x = inputs
+        batch, time, d_model = x.shape
+
+        # First FF
+        if ff_factor0 > 0:
+            ff = x
+            if layer_norm_in_front:
+                ff = LayerNormalization()(ff)
+
+            ff = Conv1D(int(ff_multiplier * d_model), ff_kernel_size,
+                        padding='same', activation=activation)(x)
+            ff = Dropout(dropout_rate)(ff)
+            ff = Conv1D(d_model, ff_kernel_size, padding='same')(ff)
+            ff = Dropout(dropout_rate)(ff)
+            x = x + ff_factor0 * ff
+
+            if not layer_norm_in_front:
+                x = LayerNormalization()(x)
+
+        # Multi Head Self Attention
+        attn = x
+        pos_encoding = pos_encoding(x.shape)(x)
+
+        if layer_norm_in_front:
+            attn = LayerNormalization()(attn)
+        if abs_pos_encoding:
+            x = x + pos_encoding
+            attn = MultiHeadAttention_(
+                n_head, key_dim, use_bias=use_bias,
+                dropout=dropout_rate)([attn, attn, attn])
+        else: # not abs_pos_encoding:
+            attn = RelPositionMultiHeadAttention(
+                n_head, key_dim, use_bias=use_bias,
+                dropout=dropout_rate)([attn, attn, attn, pos_encoding])
+        x = Dropout(dropout_rate)(attn) + x
+        if not layer_norm_in_front:
+            x = LayerNormalization()(x)
+
+        # GLU
+        conv = x
+        if use_glu:
+            if layer_norm_in_front:
+                conv = LayerNormalization()(conv)
+            conv = Conv1D(filters=2*d_model, kernel_size=1)(conv)
+            conv_1, conv_2 = tf.split(conv, 2, axis=-1)
+            conv_2 = tf.keras.activations.sigmoid(conv_2)
+            conv = conv_1 * conv_2
+
+        # Depth Wise
+        if use_depthwise_conv:
+            if layer_norm_in_front and not use_glu:
+                conv = LayerNormalization()(conv)
+            conv = Conv1D(filters=d_model, kernel_size=kernel_size,
+                          strides=1, padding='same', groups=d_model)(conv)
+            conv = BatchNormalization()(conv)
+            conv = tf.keras.activations.swish(conv)
+            conv = Conv1D(filters=d_model, kernel_size=1, padding='same')(conv)
+            x = x + Dropout(dropout_rate)(conv)
+            if not layer_norm_in_front:
+                x = LayerNormalization()(x)
+        else:
+            x = conv
+
+        # Second FF
+        if ff_factor1 > 0:
+            ff = x
+            if layer_norm_in_front:
+                ff = LayerNormalization()(ff)
+
+            ff = Conv1D(int(ff_multiplier * d_model), ff_kernel_size,
+                        padding='same', activation=activation)(x)
+            ff = Dropout(dropout_rate)(ff)
+            ff = Conv1D(d_model, ff_kernel_size, padding='same')(ff)
+            ff = Dropout(dropout_rate)(ff)
+            x = x + ff_factor1 * ff
+
+            if not layer_norm_in_front:
+                x = LayerNormalization()(x)
+
+        return x
+    return attention_block
 
 
 """                 OTHER BLOCKS                 """
