@@ -19,6 +19,7 @@ from utils import convert_output_format_polar_to_cartesian
 from SELD_evaluation_metrics import SELDMetrics_
 import joblib
 
+
 def ensemble_outputs(model, xs: list,
                      win_size=300, step_size=5, batch_size=256):
     @tf.function
