@@ -5,6 +5,7 @@ import csv
 import os
 import pandas as pd
 
+
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, decay):
         super(CustomSchedule, self).__init__()

@@ -12,6 +12,7 @@ def main():
     name = config.name
     paths = sorted(glob(f'./{name}*'))
     merged_json = {}
+
     for idx, path in enumerate(paths):
         with open(path, 'r') as f:
             tmp = json.load(f)
